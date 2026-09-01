@@ -33,6 +33,8 @@ export type GeneratePlansOptions = {
   styleProfile?: StyleProfile;
   /** pipeline/workflow kịch bản (bản creator sửa, hoặc mặc định của profile) */
   scriptPipeline?: string[];
+  /** bật google_search grounding để AI tự tìm tư liệu web (source_mode ai/combine) */
+  webSearch?: boolean;
   /** serie manager: tên + số tập bắt đầu + ngữ cảnh tập trước */
   series?: { name: string; startEpisode: number; context?: string };
 };
@@ -63,12 +65,36 @@ export const planToSpec = (
   return { spec, narrations };
 };
 
+/** Bóc JSON khỏi phần bao ngoài: khi bật google_search, model không ép được
+ * responseMimeType=json nên có thể trả kèm ```json fences hoặc lời dẫn. Lấy đoạn
+ * từ '[' hoặc '{' đầu tiên tới ']'/'}' cuối cùng. */
+const extractJson = (raw: string): string => {
+  let s = raw.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const firstArr = s.indexOf("[");
+  const firstObj = s.indexOf("{");
+  const start =
+    firstArr === -1
+      ? firstObj
+      : firstObj === -1
+        ? firstArr
+        : Math.min(firstArr, firstObj);
+  if (start > 0) {
+    const lastArr = s.lastIndexOf("]");
+    const lastObj = s.lastIndexOf("}");
+    const end = Math.max(lastArr, lastObj);
+    if (end > start) s = s.slice(start, end + 1);
+  }
+  return s;
+};
+
 export const validatePlans = (
   raw: string
 ): { plans: Plan[]; errors: string[] } => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(extractJson(raw));
   } catch (e) {
     return { plans: [], errors: [`JSON không parse được: ${(e as Error).message}`] };
   }
@@ -127,11 +153,14 @@ export const generatePlans = async (
         : undefined,
       scriptPipeline: opts.scriptPipeline,
       series: opts.series,
-    })
+    }),
+    { webSearch: opts.webSearch }
   );
   let { plans, errors } = validatePlans(raw);
   if (!plans.length) {
-    raw = await generateJson(buildRepairPrompt(raw, errors));
+    raw = await generateJson(buildRepairPrompt(raw, errors), {
+      webSearch: opts.webSearch,
+    });
     ({ plans, errors } = validatePlans(raw));
     if (!plans.length) {
       throw new Error(`Kịch bản không đạt schema sau vòng sửa:\n${errors.join("\n")}`);

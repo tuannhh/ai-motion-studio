@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import MButton from "../components/mds/MButton.vue";
 import MDrawer from "../components/mds/MDrawer.vue";
 import MEmptyState from "../components/mds/MEmptyState.vue";
@@ -13,7 +13,7 @@ import type { WatermarkPreset } from "../lib/types";
 
 /**
  * Thư viện watermark (GĐ4): tạo nhiều watermark có tên, chọn khi tạo video.
- * Thay mô hình 1-watermark/user (lưu cái mới đè cái cũ). Admin & creator đều dùng.
+ * Vị trí đặt bằng KÉO trực tiếp trên khung preview 9:16 (không slider ngang/dọc).
  */
 const toast = useToast();
 const presets = ref<WatermarkPreset[]>([]);
@@ -33,6 +33,7 @@ onMounted(reload);
 // ---- Thêm/sửa ----
 const drawerOpen = ref(false);
 const editingId = ref<number | null>(null);
+const editingHasImage = ref(false);
 const name = ref("");
 const kind = ref<"text" | "image">("text");
 const text = ref("");
@@ -41,10 +42,24 @@ const scale = ref(0.16);
 const posX = ref(0.5);
 const posY = ref(0.06);
 const imageFile = ref<File | null>(null);
+const localImageUrl = ref("");
 const saving = ref(false);
 
-function openCreate(): void {
-  editingId.value = null;
+// Khung preview 9:16 (270×480 = 1080×1920 thu 1/4)
+const PREVIEW_W = 240;
+const PREVIEW_H = 427;
+const previewRef = ref<HTMLElement | null>(null);
+const dragging = ref(false);
+const previewFontSize = computed(() => PREVIEW_W * scale.value * 0.14 * 4);
+const previewImageWidth = computed(() => PREVIEW_W * scale.value);
+const previewImageUrl = computed(() => {
+  if (localImageUrl.value) return localImageUrl.value;
+  if (editingId.value !== null && editingHasImage.value)
+    return `/v1/watermark-presets/${editingId.value}/image`;
+  return "";
+});
+
+function resetForm(): void {
   name.value = "";
   kind.value = "text";
   text.value = "";
@@ -53,11 +68,20 @@ function openCreate(): void {
   posX.value = 0.5;
   posY.value = 0.06;
   imageFile.value = null;
+  if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
+  localImageUrl.value = "";
+}
+
+function openCreate(): void {
+  editingId.value = null;
+  editingHasImage.value = false;
+  resetForm();
   drawerOpen.value = true;
 }
 
 function openEdit(p: WatermarkPreset): void {
   editingId.value = p.id;
+  editingHasImage.value = p.hasImage;
   name.value = p.name;
   kind.value = p.kind;
   text.value = p.text ?? "";
@@ -66,11 +90,32 @@ function openEdit(p: WatermarkPreset): void {
   posX.value = p.x;
   posY.value = p.y;
   imageFile.value = null;
+  if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
+  localImageUrl.value = "";
   drawerOpen.value = true;
 }
 
 function onPickImage(e: Event): void {
-  imageFile.value = (e.target as HTMLInputElement).files?.[0] ?? null;
+  const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+  imageFile.value = file;
+  if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
+  localImageUrl.value = file ? URL.createObjectURL(file) : "";
+}
+
+// Kéo watermark trên preview để đặt vị trí
+function startDrag(e: PointerEvent): void {
+  dragging.value = true;
+  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  moveDrag(e);
+}
+function moveDrag(e: PointerEvent): void {
+  if (!dragging.value || !previewRef.value) return;
+  const rect = previewRef.value.getBoundingClientRect();
+  posX.value = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  posY.value = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+}
+function endDrag(): void {
+  dragging.value = false;
 }
 
 async function save(): Promise<void> {
@@ -138,15 +183,15 @@ async function confirmDelete(): Promise<void> {
 
 <template>
   <div class="p-6">
-    <header class="mb-4 flex items-center justify-between">
-      <div>
+    <header class="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0 max-w-[560px]">
         <h1 class="m-0 text-xl font-semibold">Thư viện Watermark</h1>
         <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
           Tạo nhiều watermark, lưu lại và chọn khi tạo video. Không thiết lập thì video dùng
           watermark mặc định của hệ thống.
         </p>
       </div>
-      <MButton variant="primary" @click="openCreate">Thêm watermark</MButton>
+      <MButton variant="primary" class="shrink-0" @click="openCreate">Thêm watermark</MButton>
     </header>
 
     <div v-if="loading" class="py-10 text-center text-[13px] text-[var(--mds-text-secondary)]">
@@ -163,14 +208,10 @@ async function confirmDelete(): Promise<void> {
         :key="p.id"
         class="rounded-lg bg-[var(--mds-bg)] p-4 shadow-[var(--mds-shadow-card)]"
       >
-        <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <h3 class="m-0 truncate text-[15px] font-semibold">{{ p.name }}</h3>
-            <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
-              {{ p.kind === "text" ? `Chữ: “${p.text}”` : "Ảnh" }} · mờ {{ Math.round(p.opacity * 100) }}%
-            </p>
-          </div>
-        </div>
+        <h3 class="m-0 truncate text-[15px] font-semibold">{{ p.name }}</h3>
+        <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
+          {{ p.kind === "text" ? `Chữ: “${p.text}”` : "Ảnh" }} · mờ {{ Math.round(p.opacity * 100) }}%
+        </p>
         <div class="mt-3 flex items-center gap-2">
           <MButton size="sm" @click="openEdit(p)">Sửa</MButton>
           <MButton size="sm" @click="deleteTarget = p">
@@ -181,53 +222,98 @@ async function confirmDelete(): Promise<void> {
     </div>
 
     <!-- Drawer thêm/sửa -->
-    <MDrawer v-model="drawerOpen" :title="editingId === null ? 'Thêm watermark' : 'Sửa watermark'">
-      <div class="space-y-4">
-        <label class="block text-[13px] font-medium">
-          Tên watermark <span class="text-[var(--mds-danger)]">*</span>
-          <MInput v-model="name" class="mt-1" :maxlength="60" placeholder="VD: Kênh chính, Logo trắng…" />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Loại
-          <MRadioGroup
-            v-model="kind"
-            class="mt-1"
-            :options="[
-              { label: 'Chữ', value: 'text' },
-              { label: 'Ảnh', value: 'image' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label v-if="kind === 'text'" class="block text-[13px] font-medium">
-          Nội dung chữ <span class="text-[var(--mds-danger)]">*</span>
-          <MInput v-model="text" class="mt-1" :maxlength="40" placeholder="© Kênh của bạn" />
-        </label>
-        <label v-else class="block text-[13px] font-medium">
-          Ảnh (PNG/JPEG/WebP ≤4MB){{ editingId !== null ? " — chọn để thay ảnh" : "" }}
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            class="mt-1 block w-full text-[13px]"
-            @change="onPickImage"
-          />
-        </label>
-        <div class="text-[13px] font-medium">
-          Độ mờ
-          <RangeField v-model="opacity" :min="0.05" :max="1" :step="0.05" :format="(v: number) => `${Math.round(v * 100)}%`" />
+    <MDrawer
+      v-model="drawerOpen"
+      :title="editingId === null ? 'Thêm watermark' : 'Sửa watermark'"
+      :width="560"
+    >
+      <div class="flex flex-wrap gap-5">
+        <!-- Preview 9:16 — kéo watermark để đặt vị trí -->
+        <div class="shrink-0">
+          <div
+            ref="previewRef"
+            class="relative select-none overflow-hidden rounded-lg"
+            :style="{
+              width: PREVIEW_W + 'px',
+              height: PREVIEW_H + 'px',
+              background: 'linear-gradient(160deg,#101C3A 0%,#0B1020 60%,#1A0F2E 100%)',
+              cursor: 'grab',
+            }"
+            @pointerdown="startDrag"
+            @pointermove="moveDrag"
+            @pointerup="endDrag"
+          >
+            <p class="absolute left-4 top-20 m-0 w-3/4 text-[15px] font-bold leading-5 text-white/90">
+              Khung video mẫu 1080×1920
+            </p>
+            <div
+              class="pointer-events-none absolute"
+              :style="{
+                left: posX * 100 + '%',
+                top: posY * 100 + '%',
+                transform: 'translate(-50%, -50%)',
+                opacity: opacity,
+              }"
+            >
+              <span
+                v-if="kind === 'text'"
+                class="whitespace-nowrap font-semibold tracking-wide text-white"
+                :style="{ fontSize: previewFontSize + 'px' }"
+              >
+                {{ text || "Watermark" }}
+              </span>
+              <img
+                v-else-if="previewImageUrl"
+                :src="previewImageUrl"
+                :style="{ width: previewImageWidth + 'px' }"
+                alt="watermark"
+              />
+              <span v-else class="text-[12px] text-white/60">(chọn ảnh)</span>
+            </div>
+          </div>
+          <p class="m-0 mt-1 text-center text-[11px] text-[var(--mds-text-secondary)]">
+            Kéo watermark để đặt vị trí
+          </p>
         </div>
-        <div class="text-[13px] font-medium">
-          Kích thước
-          <RangeField v-model="scale" :min="0.03" :max="0.6" :step="0.01" :format="(v: number) => `${Math.round(v * 100)}%`" />
-        </div>
-        <div class="grid grid-cols-2 gap-3">
+
+        <!-- Cấu hình -->
+        <div class="min-w-[220px] flex-1 space-y-4">
+          <label class="block text-[13px] font-medium">
+            Tên watermark <span class="text-[var(--mds-danger)]">*</span>
+            <MInput v-model="name" class="mt-1" :maxlength="60" placeholder="VD: Kênh chính, Logo trắng…" />
+          </label>
+          <label class="block text-[13px] font-medium">
+            Loại
+            <MRadioGroup
+              v-model="kind"
+              class="mt-1"
+              :options="[
+                { label: 'Chữ', value: 'text' },
+                { label: 'Ảnh', value: 'image' },
+              ]"
+              direction="horizontal"
+            />
+          </label>
+          <label v-if="kind === 'text'" class="block text-[13px] font-medium">
+            Nội dung chữ <span class="text-[var(--mds-danger)]">*</span>
+            <MInput v-model="text" class="mt-1" :maxlength="40" placeholder="© Kênh của bạn" />
+          </label>
+          <label v-else class="block text-[13px] font-medium">
+            Ảnh (PNG/JPEG/WebP ≤4MB){{ editingId !== null ? " — chọn để thay ảnh" : "" }}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              class="mt-1 block w-full text-[13px]"
+              @change="onPickImage"
+            />
+          </label>
           <div class="text-[13px] font-medium">
-            Vị trí ngang
-            <RangeField v-model="posX" :min="0" :max="1" :step="0.05" :format="(v: number) => `${Math.round(v * 100)}%`" />
+            Độ mờ
+            <RangeField v-model="opacity" :min="0.05" :max="1" :step="0.05" :format="(v: number) => `${Math.round(v * 100)}%`" />
           </div>
           <div class="text-[13px] font-medium">
-            Vị trí dọc
-            <RangeField v-model="posY" :min="0" :max="1" :step="0.02" :format="(v: number) => `${Math.round(v * 100)}%`" />
+            Kích thước
+            <RangeField v-model="scale" :min="0.03" :max="0.6" :step="0.01" :format="(v: number) => `${Math.round(v * 100)}%`" />
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onActivated, onMounted, ref, watch } from "vue";
 import MButton from "../components/mds/MButton.vue";
 import MRadioGroup from "../components/mds/MRadioGroup.vue";
 import MSelect from "../components/mds/MSelect.vue";
@@ -15,6 +15,9 @@ const emit = defineEmits<{ created: [projectId: number] }>();
 const toast = useToast();
 
 const idea = ref("");
+const sourceMode = ref<"user" | "ai" | "combine">("user");
+/** Link tư liệu người dùng dán vào (mặc định 1 ô rỗng, bấm "Thêm link" để có thêm) */
+const linkInputs = ref<string[]>([""]);
 const mode = ref<"angles" | "series">("angles");
 const variantCount = ref(1);
 const presetHint = ref("");
@@ -131,6 +134,16 @@ function onRemove(id: string): void {
   uploadItems.value = uploadItems.value.filter((i) => i.id !== id);
 }
 
+function addLink(): void {
+  linkInputs.value.push("");
+}
+function removeLink(index: number): void {
+  linkInputs.value.splice(index, 1);
+  if (linkInputs.value.length === 0) linkInputs.value.push("");
+}
+// Chỉ hiện phần tư liệu người dùng (file + link) khi nguồn không phải "AI tự tìm"
+const showUserSources = computed(() => sourceMode.value !== "ai");
+
 const variantOptions = computed(() =>
   [1, 2, 3, 4, 5].map((n) => ({
     label: mode.value === "series" ? `${n} tập` : `${n} kịch bản`,
@@ -147,6 +160,57 @@ const presetOptions = [
 
 const canSubmit = computed(() => idea.value.trim().length >= 10 && !submitting.value);
 
+/** Reset form về trạng thái trống (gọi sau khi tạo xong) */
+function resetForm(): void {
+  idea.value = "";
+  sourceMode.value = "user";
+  linkInputs.value = [""];
+  uploadItems.value = [];
+  templateId.value = "";
+  seriesId.value = "";
+  newSeriesName.value = "";
+  musicTrackId.value = "";
+  watermarkPresetId.value = "";
+  presetHint.value = "";
+  mode.value = "angles";
+  variantCount.value = 1;
+  durationSec.value = 45;
+}
+
+/** KeepAlive: mỗi lần quay lại màn, nạp lại các danh sách chọn (template/serie/nhạc/watermark mới tạo) */
+onActivated(async () => {
+  try {
+    const [tpls, series, music, wms] = await Promise.all([
+      api<TemplateRow[]>("/v1/templates"),
+      api<SeriesRow[]>("/v1/series"),
+      api<MusicTrack[]>("/v1/music"),
+      api<WatermarkPreset[]>("/v1/watermark-presets"),
+    ]);
+    templates.value = tpls.filter((t) => t.status === "ready");
+    seriesList.value = series;
+    musicTracks.value = music;
+    watermarkPresets.value = wms;
+  } catch {
+    // lỗi nạp danh sách không chặn màn tạo video
+  }
+});
+
+/** Đợi mọi tư liệu trích xuất xong (status khác 'extracting'). Trả false nếu quá hạn (~90s). */
+async function waitForExtraction(projectId: number): Promise<boolean> {
+  for (let i = 0; i < 45; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const detail = await api<{ sources: Array<{ status: string }> }>(
+        `/v1/projects/${projectId}`
+      );
+      if (!detail.sources.some((s) => s.status === "extracting")) return true;
+    } catch {
+      // lỗi 1 nhịp poll không dừng cả vòng
+    }
+  }
+  return false;
+}
+
 async function submit(): Promise<void> {
   ideaError.value = "";
   if (idea.value.trim().length < 10) {
@@ -159,6 +223,7 @@ async function submit(): Promise<void> {
       method: "POST",
       body: JSON.stringify({
         idea: idea.value.trim(),
+        sourceMode: sourceMode.value,
         mode: mode.value,
         variantCount: variantCount.value,
         presetHint: presetHint.value || undefined,
@@ -180,22 +245,52 @@ async function submit(): Promise<void> {
       }),
     });
 
-    for (const item of uploadItems.value) {
-      item.status = "uploading";
-      try {
-        const form = new FormData();
-        form.append("file", item.file, item.name);
-        await apiForm(`/v1/projects/${projectId}/sources`, form);
-        item.status = "done";
-      } catch (cause) {
-        item.status = "error";
-        item.errorMessage = cause instanceof ApiError ? cause.message : "Tải lên thất bại.";
-        toast.warning(`Tư liệu "${item.name}" tải lên thất bại — vẫn tiếp tục với các tư liệu còn lại.`);
+    // Chỉ nạp tư liệu người dùng khi nguồn là "user"/"combine" (bỏ qua khi "AI tự tìm")
+    let hasSources = false;
+    if (sourceMode.value !== "ai") {
+      for (const item of uploadItems.value) {
+        item.status = "uploading";
+        try {
+          const form = new FormData();
+          form.append("file", item.file, item.name);
+          await apiForm(`/v1/projects/${projectId}/sources`, form);
+          item.status = "done";
+          hasSources = true;
+        } catch (cause) {
+          item.status = "error";
+          item.errorMessage = cause instanceof ApiError ? cause.message : "Tải lên thất bại.";
+          toast.warning(`Tư liệu "${item.name}" tải lên thất bại — vẫn tiếp tục với các tư liệu còn lại.`);
+        }
+      }
+      for (const raw of linkInputs.value) {
+        const url = raw.trim();
+        if (!url) continue;
+        try {
+          await api(`/v1/projects/${projectId}/sources/link`, {
+            method: "POST",
+            body: JSON.stringify({ url }),
+          });
+          hasSources = true;
+        } catch (cause) {
+          toast.warning(
+            `Link "${url.slice(0, 40)}" lỗi: ${cause instanceof ApiError ? cause.message : "không thêm được"} — vẫn tiếp tục.`
+          );
+        }
+      }
+    }
+
+    // #8: bấm "Tạo kịch bản" xong mới trích xuất — đợi trích xuất xong rồi mới sinh.
+    if (hasSources) {
+      toast.info("Đang trích xuất tư liệu…");
+      const ok = await waitForExtraction(projectId);
+      if (!ok) {
+        toast.warning("Tư liệu trích xuất chậm — vẫn tiếp tục sinh kịch bản với phần đã sẵn sàng.");
       }
     }
 
     await api(`/v1/projects/${projectId}/generate`, { method: "POST" });
     toast.success("Đã bắt đầu sinh kịch bản — duyệt kịch bản khi AI hoàn tất.");
+    resetForm();
     emit("created", projectId);
   } catch (cause) {
     toast.error(cause instanceof ApiError ? cause.message : "Không thể tạo dự án.");
@@ -206,7 +301,8 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[760px] p-6 pb-24">
+  <div class="flex min-h-full flex-col">
+    <div class="mx-auto w-full max-w-[760px] flex-1 p-6">
     <header class="mb-4">
       <h1 class="m-0 text-xl font-semibold">Tạo video mới</h1>
       <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
@@ -240,6 +336,25 @@ async function submit(): Promise<void> {
       </label>
 
       <div class="mt-4">
+        <p class="m-0 mb-1 text-[13px] font-medium">Nguồn tư liệu sinh kịch bản</p>
+        <MRadioGroup
+          v-model="sourceMode"
+          :options="[
+            { label: 'Chỉ dùng tư liệu tôi cung cấp (file + link)', value: 'user' },
+            { label: 'Để AI tự tìm tài liệu trên web theo ý tưởng', value: 'ai' },
+            { label: 'Kết hợp — tư liệu của tôi + AI tự tìm thêm', value: 'combine' },
+          ]"
+          direction="vertical"
+        />
+        <p
+          v-if="sourceMode !== 'user'"
+          class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]"
+        >
+          AI dùng Google Search để tra cứu — thông tin có thể chưa được kiểm chứng, hãy duyệt kịch bản kỹ.
+        </p>
+      </div>
+
+      <div v-if="showUserSources" class="mt-4">
         <p class="m-0 mb-1 text-[13px] font-medium">
           Tư liệu tham khảo
           <span class="font-normal text-[var(--mds-text-secondary)]">
@@ -253,6 +368,31 @@ async function submit(): Promise<void> {
           @select-files="onSelectFiles"
           @remove="onRemove"
         />
+
+        <p class="m-0 mb-1 mt-4 text-[13px] font-medium">
+          Link tư liệu
+          <span class="font-normal text-[var(--mds-text-secondary)]">
+            — dán đường dẫn bài viết/trang web (http/https)</span>
+        </p>
+        <div class="space-y-2">
+          <div v-for="(_, i) in linkInputs" :key="i" class="flex items-center gap-2">
+            <MInput
+              v-model="linkInputs[i]"
+              class="flex-1"
+              :maxlength="2000"
+              placeholder="https://vd.com/bai-viet"
+            />
+            <MButton
+              v-if="linkInputs.length > 1"
+              class="shrink-0"
+              title="Xoá link"
+              @click="removeLink(i)"
+            >
+              Xoá
+            </MButton>
+          </div>
+        </div>
+        <MButton class="mt-2" @click="addLink">+ Thêm link</MButton>
       </div>
 
       <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -384,16 +524,19 @@ async function submit(): Promise<void> {
           />
         </label>
       </div>
-    </section>
+      </section>
+    </div>
 
-    <!-- Thanh hành động ghim cuối trang (chuẩn MDS màn Thêm/Sửa) -->
+    <!-- Thanh hành động ghim cuối trang (sticky trong vùng nội dung — tự canh theo
+         bề rộng sidebar khi thu gọn/mở, không để lộ khoảng trống cạnh footer) -->
     <div
-      class="fixed bottom-0 right-0 z-10 flex justify-end gap-2 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
-      style="left: var(--mds-layout-sidebar-w, 200px)"
+      class="sticky bottom-0 z-10 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
     >
-      <MButton variant="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
-        Tạo kịch bản
-      </MButton>
+      <div class="mx-auto flex w-full max-w-[760px] justify-end gap-2">
+        <MButton variant="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
+          Tạo kịch bản
+        </MButton>
+      </div>
     </div>
   </div>
 </template>

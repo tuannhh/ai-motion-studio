@@ -29,17 +29,27 @@ const post = async (model: string, body: unknown): Promise<any> => {
   return res.json();
 };
 
-/** Sinh JSON: ép responseMimeType application/json, trả về chuỗi JSON thô */
-export const generateJson = async (prompt: string): Promise<string> => {
+/** Sinh JSON: ép responseMimeType application/json, trả về chuỗi JSON thô.
+ * webSearch=true → bật google_search grounding để model tự tìm tư liệu trên web.
+ * LƯU Ý: khi bật tool google_search, Gemini KHÔNG cho responseMimeType=json cùng lúc,
+ * nên ta bỏ ép JSON và dựa vào prompt + hàm bóc JSON của lớp trên (api.ts) để parse. */
+export const generateJson = async (
+  prompt: string,
+  opts: { webSearch?: boolean } = {}
+): Promise<string> => {
   const { contentModel } = config();
-  const data = await post(contentModel, {
+  const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.8,
-      maxOutputTokens: 65536,
-    },
-  });
+    generationConfig: opts.webSearch
+      ? { temperature: 0.8, maxOutputTokens: 65536 }
+      : {
+          responseMimeType: "application/json",
+          temperature: 0.8,
+          maxOutputTokens: 65536,
+        },
+  };
+  if (opts.webSearch) body.tools = [{ google_search: {} }];
+  const data = await post(contentModel, body);
   const text = data?.candidates?.[0]?.content?.parts
     ?.map((p: any) => p.text ?? "")
     .join("");

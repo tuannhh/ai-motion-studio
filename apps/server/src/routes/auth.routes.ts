@@ -36,7 +36,7 @@ authRoutes.post(
     const result = await login(parsed.data.email, parsed.data.password);
     res.cookie(SESSION_COOKIE, result.sessionToken, {
       httpOnly: true,
-      secure: appConfig.isProduction,
+      secure: appConfig.cookieSecure,
       sameSite: "lax",
       maxAge: result.maxAgeMs,
       path: "/",

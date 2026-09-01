@@ -39,6 +39,12 @@ const envSchema = z.object({
     .default("http://localhost:4600/v1/integrations/gdrive/callback"),
   /** URL app web để redirect người dùng về sau callback OAuth. */
   WEB_BASE_URL: z.string().url().default("http://localhost:4610"),
+  /**
+   * Cookie phiên gắn cờ Secure? Chỉ bật khi thật sự phục vụ qua HTTPS. Mặc định
+   * TẮT: Docker/dev chạy HTTP, cookie Secure trên HTTP bị Safari từ chối lưu →
+   * đăng nhập xong vẫn 401. Đặt COOKIE_SECURE=1 khi chạy sau proxy HTTPS thật.
+   */
+  COOKIE_SECURE: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -54,6 +60,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const appConfig = {
   ...parsed.data,
   isProduction: parsed.data.NODE_ENV === "production",
+  /** cookie Secure: chỉ khi COOKIE_SECURE=1 (HTTPS thật), KHÔNG theo NODE_ENV */
+  cookieSecure: parsed.data.COOKIE_SECURE === "1" || parsed.data.COOKIE_SECURE === "true",
   /** cổng lắng nghe thực tế: PORT (Cloud Run) > SERVER_PORT */
   listenPort: parsed.data.PORT ?? parsed.data.SERVER_PORT,
   /** thư mục gốc dữ liệu server (ngoài src, gitignored) */

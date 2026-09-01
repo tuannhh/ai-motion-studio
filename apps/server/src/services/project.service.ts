@@ -4,7 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
-import { ingestFile } from "@ams/pipeline/src/ingest";
+import { ingestFile, ingestUrl } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
 import { getReadyProfile } from "./template.service";
@@ -25,6 +25,8 @@ import { getPresetForRender } from "./watermark-preset.service";
 
 export type CreateProjectInput = {
   idea: string;
+  /** nguồn tư liệu: user=chỉ của người dùng; ai=AI tự tìm web; combine=cả hai */
+  sourceMode: "user" | "ai" | "combine";
   mode: "angles" | "series";
   variantCount: number;
   presetHint?: string;
@@ -73,9 +75,9 @@ export const createProject = async (
   }
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO projects
-       (user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, mode, variant_count, preset_hint, duration_sec,
+       (user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, source_mode, mode, variant_count, preset_hint, duration_sec,
         voice_gender, voice_region, voice_style, voice_speed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       input.templateId ?? null,
@@ -83,6 +85,7 @@ export const createProject = async (
       input.musicTrackId ?? null,
       input.watermarkPresetId ?? null,
       input.idea,
+      input.sourceMode,
       input.mode,
       input.variantCount,
       presetHint,
@@ -211,6 +214,39 @@ export const addSource = async (
   return sourceId;
 };
 
+/**
+ * Thêm tư liệu từ LINK: lưu 1 dòng project_sources (stored_path = URL), trích xuất
+ * ở nền qua ingestUrl (đã chặn SSRF). Không tin URL client — ingestUrl tự kiểm.
+ */
+export const addLinkSource = async (
+  userId: number,
+  projectId: number,
+  url: string
+): Promise<number> => {
+  await getProjectOwned(userId, projectId);
+  const trimmed = url.trim().slice(0, 500);
+  const [result] = await pool.query<ResultSetHeader>(
+    `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
+     VALUES (?, ?, ?, 'text/link', 0, 'extracting')`,
+    [projectId, `🔗 ${trimmed}`.slice(0, 255), trimmed]
+  );
+  const sourceId = result.insertId;
+  void ingestUrl(trimmed)
+    .then(async (r) => {
+      await pool.query(
+        `UPDATE project_sources SET status = 'ready', extracted_text = ?, extract_method = ? WHERE id = ?`,
+        [r.text.slice(0, 200_000), r.method, sourceId]
+      );
+    })
+    .catch(async (err) => {
+      await pool.query(
+        `UPDATE project_sources SET status = 'failed', error_message = ? WHERE id = ?`,
+        [String((err as Error).message).slice(0, 1000), sourceId]
+      );
+    });
+  return sourceId;
+};
+
 export const deleteSource = async (
   userId: number,
   projectId: number,
@@ -218,12 +254,13 @@ export const deleteSource = async (
 ): Promise<void> => {
   await getProjectOwned(userId, projectId);
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT stored_path FROM project_sources WHERE id = ? AND project_id = ? LIMIT 1`,
+    `SELECT stored_path, mime FROM project_sources WHERE id = ? AND project_id = ? LIMIT 1`,
     [sourceId, projectId]
   );
   if (!rows[0]) throw notFound("Không tìm thấy tư liệu.");
   await pool.query(`DELETE FROM project_sources WHERE id = ?`, [sourceId]);
-  fs.rmSync(String(rows[0].stored_path), { force: true });
+  // Link (mime text/link) không có file trên đĩa — stored_path là URL, đừng rm
+  if (rows[0].mime !== "text/link") fs.rmSync(String(rows[0].stored_path), { force: true });
 };
 
 const voiceProfileOf = (project: RowDataPacket): VoiceProfile => ({
@@ -297,6 +334,9 @@ export const generateScripts = async (
         durationSec: project.duration_sec ? Number(project.duration_sec) : undefined,
         styleProfile: tpl?.profile,
         scriptPipeline: effectivePipeline,
+        // Nguồn 'ai'/'combine' → bật google_search grounding để AI tự tìm tư liệu web
+        webSearch:
+          project.source_mode === "ai" || project.source_mode === "combine",
         series,
       });
 

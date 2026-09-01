@@ -5,6 +5,7 @@ import { appConfig, storagePaths } from "../config";
 import { badRequest } from "../http-error";
 import { asyncHandler } from "../middleware/error";
 import {
+  addLinkSource,
   addSource,
   createProject,
   deleteSource,
@@ -15,6 +16,7 @@ import {
 
 const createSchema = z.object({
   idea: z.string().trim().min(10, "Ý tưởng tối thiểu 10 ký tự.").max(2000),
+  sourceMode: z.enum(["user", "ai", "combine"]).default("user"),
   mode: z.enum(["angles", "series"]).default("angles"),
   variantCount: z.number().int().min(1).max(5).default(1),
   presetHint: z.enum(["midnight", "aurora", "paper", "noir"]).optional(),
@@ -89,6 +91,26 @@ projectRoutes.post(
       );
     }
     const sourceId = await addSource(req.user!.id, idParam(req.params.id), req.file);
+    res.status(201).json({ data: { id: sourceId } });
+  })
+);
+
+const linkSchema = z.object({
+  url: z.string().trim().url("Link không hợp lệ.").max(2000),
+});
+
+projectRoutes.post(
+  "/:id/sources/link",
+  asyncHandler(async (req, res) => {
+    const parsed = linkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw badRequest(parsed.error.issues[0]?.message ?? "Link không hợp lệ.");
+    }
+    const sourceId = await addLinkSource(
+      req.user!.id,
+      idParam(req.params.id),
+      parsed.data.url
+    );
     res.status(201).json({ data: { id: sourceId } });
   })
 );

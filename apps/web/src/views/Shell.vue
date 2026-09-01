@@ -190,9 +190,13 @@ async function changePassword(): Promise<void> {
     <div class="flex min-h-0 flex-1" @click="userMenuOpen = false">
       <MSidebar v-model="active" v-model:collapsed="collapsed" :items="items" />
       <main class="min-w-0 flex-1 overflow-auto">
-        <CreateView v-if="active === 'create'" @created="onProjectCreated" />
+        <!-- KeepAlive: giữ nội dung form Tạo video khi chuyển sang menu khác rồi
+             quay lại (không mất dữ liệu đang nhập; form tự reset sau khi tạo xong) -->
+        <KeepAlive>
+          <CreateView v-if="active === 'create'" @created="onProjectCreated" />
+        </KeepAlive>
         <ProjectsView
-          v-else-if="active === 'projects'"
+          v-if="active === 'projects'"
           :focus-project-id="focusProjectId"
           @focused="focusProjectId = null"
         />

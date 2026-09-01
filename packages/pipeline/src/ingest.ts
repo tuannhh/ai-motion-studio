@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import dns from "node:dns/promises";
+import { isIP } from "node:net";
 import { config } from "./env";
 
 /**
@@ -112,4 +114,106 @@ export const ingestFile = async (filePath: string): Promise<IngestedSource> => {
     throw new Error(`${name}: chưa hỗ trợ định dạng ${ext} (hỗ trợ: txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm).`);
   }
   return { name, text: await geminiExtract(abs, mime), method: `gemini:${mime}` };
+};
+
+// ===== Nạp tư liệu từ LINK (có chặn SSRF) =====
+
+/** IP nội bộ/riêng tư/loopback — cấm fetch để chống SSRF ra hạ tầng nội bộ */
+const isPrivateIp = (ip: string): boolean => {
+  if (isIP(ip) === 4) {
+    const p = ip.split(".").map(Number);
+    return (
+      p[0] === 10 ||
+      p[0] === 127 ||
+      p[0] === 0 ||
+      (p[0] === 169 && p[1] === 254) || // link-local
+      (p[0] === 172 && p[1] >= 16 && p[1] <= 31) ||
+      (p[0] === 192 && p[1] === 168) ||
+      (p[0] === 100 && p[1] >= 64 && p[1] <= 127) // CGNAT
+    );
+  }
+  const low = ip.toLowerCase();
+  return (
+    low === "::1" ||
+    low === "::" ||
+    low.startsWith("fc") || // ULA
+    low.startsWith("fd") ||
+    low.startsWith("fe80") || // link-local
+    low.startsWith("::ffff:") // IPv4-mapped → để lớp trên xử lý riêng nếu cần
+  );
+};
+
+/** Kiểm host của URL không trỏ tới IP nội bộ (resolve DNS trước khi fetch) */
+const assertPublicHost = async (hostname: string): Promise<void> => {
+  const host = hostname.replace(/^\[|\]$/g, "");
+  if (isIP(host)) {
+    if (isPrivateIp(host)) throw new Error("Link trỏ tới địa chỉ nội bộ — từ chối.");
+    return;
+  }
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new Error("Link trỏ tới host nội bộ — từ chối.");
+  }
+  const records = await dns.lookup(host, { all: true });
+  for (const r of records) {
+    if (isPrivateIp(r.address)) throw new Error("Link phân giải ra địa chỉ nội bộ — từ chối.");
+  }
+};
+
+const MAX_URL_BYTES = 3 * 1024 * 1024;
+
+/**
+ * Nạp text từ 1 URL công khai: chỉ http/https, chặn IP nội bộ, tự đi theo tối đa
+ * 3 redirect (kiểm tra IP từng chặng), giới hạn dung lượng + timeout, strip HTML.
+ */
+export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
+  let current: URL;
+  try {
+    current = new URL(rawUrl.trim());
+  } catch {
+    throw new Error(`Link không hợp lệ: ${rawUrl.slice(0, 80)}`);
+  }
+  let res: Response | null = null;
+  for (let hop = 0; hop < 4; hop++) {
+    if (current.protocol !== "http:" && current.protocol !== "https:") {
+      throw new Error("Chỉ hỗ trợ link http/https.");
+    }
+    await assertPublicHost(current.hostname);
+    const r = await fetch(current.toString(), {
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+      headers: { "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)", Accept: "text/html,text/plain,*/*" },
+    });
+    if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
+      current = new URL(r.headers.get("location")!, current); // giải tương đối, vòng sau kiểm IP lại
+      continue;
+    }
+    res = r;
+    break;
+  }
+  if (!res) throw new Error("Link chuyển hướng quá nhiều lần.");
+  if (!res.ok) throw new Error(`Không tải được link (HTTP ${res.status}).`);
+
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > MAX_URL_BYTES) throw new Error("Nội dung link quá lớn (>3MB).");
+  const ctype = res.headers.get("content-type") ?? "";
+  let text = buf.toString("utf8");
+  if (ctype.includes("html") || /<html[\s>]/i.test(text)) {
+    text = text
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  if (!text.trim()) throw new Error("Link không có nội dung text đọc được.");
+  return {
+    name: current.hostname + current.pathname,
+    text: text.slice(0, 40000),
+    method: "url",
+  };
 };
