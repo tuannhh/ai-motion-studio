@@ -1,0 +1,19 @@
+{
+  "name": "@ams/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tầng AI: ý tưởng + tư liệu -> kịch bản đa phong cách/serie -> scene spec -> TTS -> render",
+  "scripts": {
+    "run": "tsx src/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ams/motion-engine": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

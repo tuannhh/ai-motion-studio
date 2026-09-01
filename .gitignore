@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+out/
+dist/
+apps/web/dist/
+packages/motion-engine/out/
+# Dữ liệu chạy: file người dùng upload, video render, watermark, nhạc...
+apps/server/storage/
+*.log
+.DS_Store
+packages/motion-engine/.bundle-cache/

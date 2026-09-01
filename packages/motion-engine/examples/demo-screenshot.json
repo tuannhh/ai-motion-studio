@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "meta": { "title": "Demo scene screenshot — AMIS Event", "slug": "demo-screenshot", "language": "vi" },
+  "style": { "preset": "aurora", "captions": false, "progress": true },
+  "audio": { "musicVolume": 0.12, "autoSfx": true, "sfxVolume": 0.4 },
+  "scenes": [
+    {
+      "id": "hook",
+      "type": "hook",
+      "seconds": 3,
+      "kicker": "Hướng dẫn 30 giây",
+      "headline": "Quản lý sự kiện chưa bao giờ dễ đến thế"
+    },
+    {
+      "id": "shot",
+      "type": "screenshot",
+      "seconds": 7,
+      "frame": "browser",
+      "kicker": "Màn hình chính",
+      "headline": "Ba thao tác bạn dùng mỗi ngày",
+      "url": "amis.misa.vn/events",
+      "image": "assets/demo-ui-events.jpg",
+      "markers": [
+        { "x": 0.14, "y": 0.46, "label": "Menu điều hướng" },
+        { "x": 0.5, "y": 0.36, "label": "Danh sách sự kiện" },
+        { "x": 0.8, "y": 0.16, "label": "Tạo sự kiện mới" }
+      ]
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "seconds": 3,
+      "headline": "Bắt đầu ngay hôm nay",
+      "cta": "amis.misa.vn"
+    }
+  ]
+}

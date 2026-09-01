@@ -1,0 +1,47 @@
+{
+  "title": "How an order request becomes an answer",
+  "subtitle": "A diagram video starter",
+  "scenes": [
+    {
+      "title": "A request enters",
+      "subtitle": "Start with the customer signal",
+      "durationSeconds": 5,
+      "nodes": [
+        {"id": "request", "title": "Customer request", "subtitle": "order status", "x": 80, "y": 780, "kind": "input"},
+        {"id": "agent", "title": "AI agent", "subtitle": "understands intent", "x": 660, "y": 780, "kind": "focal"}
+      ],
+      "edges": [
+        {"points": [[420, 856], [660, 856]], "label": "asks"}
+      ],
+      "takeaway": "A request is only the beginning."
+    },
+    {
+      "title": "Check before answering",
+      "subtitle": "The agent retrieves evidence",
+      "durationSeconds": 5,
+      "nodes": [
+        {"id": "intent", "title": "Intent", "subtitle": "order lookup", "x": 370, "y": 570, "kind": "focal"},
+        {"id": "orders", "title": "Order system", "subtitle": "live status", "x": 370, "y": 900, "kind": "store"},
+        {"id": "answer", "title": "Answer", "subtitle": "verified update", "x": 370, "y": 1230, "kind": "service"}
+      ],
+      "edges": [
+        {"points": [[540, 722], [540, 900]], "label": "looks up"},
+        {"points": [[540, 1052], [540, 1230]], "label": "returns"}
+      ],
+      "takeaway": "Useful answers come from verified data."
+    },
+    {
+      "title": "Escalate when needed",
+      "subtitle": "Automation knows its boundary",
+      "durationSeconds": 5,
+      "nodes": [
+        {"id": "answer", "title": "Verified answer", "subtitle": "low-risk request", "x": 80, "y": 770, "kind": "service"},
+        {"id": "review", "title": "Human review", "subtitle": "exception or risk", "x": 660, "y": 770, "kind": "optional"}
+      ],
+      "edges": [
+        {"points": [[420, 846], [540, 846], [540, 1010], [830, 1010], [830, 922]], "label": "escalates"}
+      ],
+      "takeaway": "Good systems know when a person should decide."
+    }
+  ]
+}

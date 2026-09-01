@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@import "./assets/tokens.css";
+@import "./assets/tokens/base-colors.css";
+@import "./assets/tokens/themes/blue.css";
+
+:root {
+  font-family: InterVariable, "Inter var", Inter, system-ui, sans-serif;
+  color: var(--mds-text);
+  background: var(--mds-bg-page);
+  font-feature-settings: "liga" 1, "calt" 1, "tnum" 1, "lnum" 1;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { min-height: 100%; margin: 0; }
+button, input, textarea { font: inherit; }
+
+.mds-mobile-app {
+  --mds-mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mds-mobile-safe-right: env(safe-area-inset-right, 0px);
+  --mds-mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mds-mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mds-mobile-topbar-height: 56px;
+  --mds-mobile-bottom-nav-height: 64px;
+  min-height: 100dvh;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+.mds-mobile-app .mds-input-height { min-height: 48px; }
+.mds-mobile-app .mds-button { min-height: 48px; }
+@media (max-width: 600px) {
+  .mds-mobile-app input { font-size: 16px; }
+}
+
+/* Creator mặc định chỉ là một luồng ngắn. Lịch sử/batch vẫn nằm trong màn quản lý đầy đủ. */
+[data-compact-creator] > section:nth-child(2),
+[data-compact-creator] > section:nth-child(3) { display: none; }
+
+/* Tone dùng mặc định ở engine, không bắt Creator phải cấu hình thêm. */
+[data-duration-control] > label:nth-child(2) { display: none; }
+[data-duration-control] { display: block; }
+form.mt-5.space-y-4 > label:nth-of-type(3) { display: none; }
+
+/* Script review chỉ cho Creator duyệt nội dung 6 phần; ảnh, prompt, SFX và nghiên cứu là engine nền. */
+[data-script-review] > section:first-of-type,
+[data-script-review] > section:nth-of-type(3),
+[data-script-review] > fieldset,
+[data-script-review] > label,
+[data-script-review] > p.rounded,
+[data-script-review] > button { display: none; }

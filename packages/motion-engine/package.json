@@ -1,0 +1,33 @@
+{
+  "name": "@ams/motion-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion render engine: scene-spec JSON -> motion graphics video 1080x1920",
+  "scripts": {
+    "preview": "remotion studio",
+    "render": "tsx scripts/render.ts",
+    "validate": "tsx scripts/validate.ts",
+    "still": "tsx scripts/render.ts --stills-only"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.290",
+    "@remotion/cli": "4.0.290",
+    "@remotion/google-fonts": "4.0.290",
+    "@remotion/layout-utils": "4.0.290",
+    "@remotion/motion-blur": "4.0.290",
+    "@remotion/noise": "4.0.290",
+    "@remotion/paths": "4.0.290",
+    "@remotion/renderer": "4.0.290",
+    "@remotion/transitions": "4.0.290",
+    "lucide-react": "^0.475.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.290",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

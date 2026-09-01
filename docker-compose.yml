@@ -1,0 +1,69 @@
+# Hạ tầng đầy đủ AI Motion Studio: MySQL + app (web + API + render engine).
+# Chạy toàn bộ:   docker compose up -d --build
+#   → mở http://localhost:8080  (web + API cùng origin)
+# Chỉ MySQL (dev local chạy app bằng pnpm): docker compose up -d mysql
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ams-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ams_root_dev_password
+      MYSQL_DATABASE: ams
+      MYSQL_USER: ams
+      MYSQL_PASSWORD: ams_dev_password
+    ports:
+      - "3310:3306"
+    volumes:
+      - ams-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uams", "-pams_dev_password"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ams-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      # DB nội bộ compose (service name = host, cổng nội bộ 3306)
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: ams
+      DB_PASSWORD: ams_dev_password
+      DB_NAME: ams
+      # Bí mật — nạp từ .env ở host (KHÔNG commit). Xem .env.example.
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_CONTENT_MODEL: ${GEMINI_CONTENT_MODEL:-gemini-3.7-flash}
+      GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
+      GEMINI_IMAGE_MODEL: ${GEMINI_IMAGE_MODEL:-gemini-3.1-flash-image}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+      # Google Drive (tuỳ chọn) — redirect + web base CỐ ĐỊNH theo origin Docker (8080),
+      # KHÔNG lấy từ .env (file .env là cho dev host cổng 4600/4610, sẽ trỏ sai cổng).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT: http://localhost:8080/v1/integrations/gdrive/callback
+      WEB_BASE_URL: http://localhost:8080
+      # RENDER_CONCURRENCY = số VIDEO render song song. RENDER_FRAME_CONCURRENCY =
+      # số FRAME song song trong 1 video (thứ quyết định tốc độ 1 video). Trên máy
+      # 8 CPU/16GB: 2 video × 6 frame ≈ đủ tải, không OOM. Đừng để tích hai số vượt
+      # nhiều lần số nhân (vd 6×6=36) — Chrome nhiều tab sẽ tranh CPU/RAM → chậm hơn.
+      RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-2}
+      RENDER_FRAME_CONCURRENCY: ${RENDER_FRAME_CONCURRENCY:-6}
+    ports:
+      - "8080:8080"
+    volumes:
+      # Lưu bền: nguồn upload, video render, nhạc, watermark
+      - ams-storage:/app/apps/server/storage
+
+volumes:
+  ams-mysql-data:
+  ams-storage:

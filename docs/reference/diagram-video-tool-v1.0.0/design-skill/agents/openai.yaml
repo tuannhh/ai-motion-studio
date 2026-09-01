@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagram Design"
+  short_description: "Create clear editorial HTML/SVG diagrams"
+  default_prompt: "Use $diagram-design to choose the right diagram grammar, design it on a restrained 4px-grid editorial system, and deliver a self-contained HTML/SVG artifact."

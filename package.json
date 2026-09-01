@@ -1,0 +1,15 @@
+{
+  "name": "ai-motion-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hệ thống tạo video motion-graphics tự động bằng AI — idea → script → scene spec → Remotion render (1080x1920)",
+  "scripts": {
+    "engine:preview": "pnpm --filter @ams/motion-engine preview",
+    "engine:render": "pnpm --filter @ams/motion-engine render",
+    "server:dev": "pnpm --filter @ams/server dev",
+    "web:dev": "pnpm --filter @ams/web dev"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

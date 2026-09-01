@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "Workflow hay Agent — chọn gì?",
+    "slug": "demo-paper-editorial",
+    "language": "vi",
+    "series": { "name": "AI AGENTS 101", "episode": 4, "total": 5 }
+  },
+  "style": {
+    "preset": "paper",
+    "captions": true,
+    "progress": true
+  },
+  "audio": {
+    "musicVolume": 0.12
+  },
+  "scenes": [
+    {
+      "id": "s1",
+      "type": "hook",
+      "badge": "AI AGENTS 101",
+      "headline": "Đừng dựng agent cho oai.",
+      "sub": "Bài học đắt nhất khi đưa AI vào quy trình thật."
+    },
+    {
+      "id": "s2",
+      "type": "bigword",
+      "phrases": [
+        { "text": "Rẻ" },
+        { "text": "Chắc" },
+        { "text": "Đoán được", "accent": true }
+      ],
+      "voiceover": {
+        "file": "assets/silence5s.wav",
+        "durationMs": 5000,
+        "words": [
+          { "text": "Workflow", "startMs": 0, "endMs": 700 },
+          { "text": "thắng", "startMs": 700, "endMs": 1100 },
+          { "text": "ở", "startMs": 1100, "endMs": 1250 },
+          { "text": "ba", "startMs": 1250, "endMs": 1500 },
+          { "text": "chữ:", "startMs": 1500, "endMs": 1900 },
+          { "text": "rẻ,", "startMs": 1900, "endMs": 2400 },
+          { "text": "chắc,", "startMs": 2400, "endMs": 2900 },
+          { "text": "và", "startMs": 2900, "endMs": 3100 },
+          { "text": "đoán", "startMs": 3100, "endMs": 3500 },
+          { "text": "được", "startMs": 3500, "endMs": 3900 },
+          { "text": "kết", "startMs": 3900, "endMs": 4200 },
+          { "text": "quả.", "startMs": 4200, "endMs": 4700 }
+        ]
+      },
+      "captionEmphasis": ["đoán", "được"]
+    },
+    {
+      "id": "s3",
+      "type": "flow",
+      "title": "Năm khối dựng sẵn",
+      "sub": "Đầu ra bước trước là đầu vào bước sau.",
+      "nodes": [
+        { "id": "in", "label": "Yêu cầu vào", "icon": "Inbox" },
+        { "id": "route", "label": "Routing phân loại", "icon": "GitBranch" },
+        { "id": "work", "label": "Model thợ xử lý", "icon": "Wrench", "emphasis": true },
+        { "id": "check", "label": "Giám khảo chấm", "icon": "UserCheck" },
+        { "id": "out", "label": "Kết quả ra", "icon": "Send" }
+      ],
+      "edges": [
+        { "from": "in", "to": "route" },
+        { "from": "route", "to": "work", "label": "chia việc" },
+        { "from": "work", "to": "check", "label": "chấm điểm" },
+        { "from": "check", "to": "out" }
+      ]
+    },
+    {
+      "id": "s4",
+      "type": "rank",
+      "title": "Chi phí mỗi tác vụ",
+      "sub": "Cùng một việc, ba cách chạy khác nhau.",
+      "items": [
+        { "label": "Workflow 5 khối", "value": 1.2, "unit": "k", "highlight": true },
+        { "label": "Agent tự do", "value": 8.5, "unit": "k" },
+        { "label": "Agent + retry", "value": 14.3, "unit": "k" }
+      ]
+    },
+    {
+      "id": "s5",
+      "type": "media",
+      "image": "assets/demo-photo.jpg",
+      "caption": "Bản đồ tuyến vận tải — ví dụ evidence card có nguồn.",
+      "credit": "Ảnh minh họa · demo asset nội bộ"
+    },
+    {
+      "id": "s6",
+      "type": "outro",
+      "headline": "Đơn giản thắng phức tạp.",
+      "cta": "Xem tập 5",
+      "handle": "AI AGENTS 101"
+    }
+  ]
+}

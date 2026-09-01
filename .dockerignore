@@ -1,0 +1,21 @@
+# Bỏ khỏi build context (cài lại/sinh lại trong image)
+node_modules
+**/node_modules
+.git
+.gitignore
+
+# dữ liệu & sản phẩm runtime (không đưa vào image)
+apps/server/storage
+packages/motion-engine/out
+packages/motion-engine/.bundle-cache
+out
+
+# secrets & môi trường (đưa qua env lúc chạy, KHÔNG bake vào image)
+.env
+.env.*
+!.env.example
+
+# tạp
+*.log
+.DS_Store
+scratchpad

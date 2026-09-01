@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "Demo scene chart",
+    "slug": "demo-chart",
+    "language": "vi"
+  },
+  "style": { "preset": "midnight", "captions": false, "progress": true },
+  "audio": { "musicVolume": 0.12 },
+  "scenes": [
+    {
+      "id": "s1",
+      "type": "hook",
+      "badge": "DEMO",
+      "headline": "Thị trường AI tăng trưởng thế nào?"
+    },
+    {
+      "id": "s2",
+      "type": "chart",
+      "variant": "line",
+      "title": "Chi tiêu AI toàn cầu",
+      "sub": "Tăng tốc rõ rệt từ sau 2024.",
+      "unit": " tỷ",
+      "points": [
+        { "label": "2022", "value": 118 },
+        { "label": "2023", "value": 154 },
+        { "label": "2024", "value": 235 },
+        { "label": "2025", "value": 337 },
+        { "label": "2026", "value": 512, "highlight": true }
+      ],
+      "source": "IDC Worldwide AI Spending"
+    },
+    {
+      "id": "s3",
+      "type": "chart",
+      "variant": "bar",
+      "title": "Doanh thu theo quý",
+      "unit": "%",
+      "points": [
+        { "label": "Q1", "value": 12 },
+        { "label": "Q2", "value": 18 },
+        { "label": "Q3", "value": 27, "highlight": true },
+        { "label": "Q4", "value": 22 }
+      ]
+    },
+    {
+      "id": "s4",
+      "type": "outro",
+      "headline": "Theo dõi để xem tập sau",
+      "cta": "Follow ngay"
+    }
+  ]
+}

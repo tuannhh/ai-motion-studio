@@ -1,0 +1,31 @@
+{
+  "name": "@ams/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend AI Motion Studio: auth admin/creator, project, sinh kịch bản, duyệt, render queue, watermark (theo misa-backend-standard)",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "seed": "tsx src/seed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ams/motion-engine": "workspace:*",
+    "@ams/pipeline": "workspace:*",
+    "argon2": "^0.41.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "multer": "^2.0.1",
+    "mysql2": "^3.11.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

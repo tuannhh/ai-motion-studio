@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+export DIAGRAM_VIDEO_TOOL_ROOT="$ROOT"
+export PYTHONPATH="$ROOT/cli${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m diagram_video "$@"

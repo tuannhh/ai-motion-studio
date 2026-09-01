@@ -1,0 +1,51 @@
+import mysql from "mysql2/promise";
+import { appConfig } from "./config";
+
+/** Pool MySQL dùng chung — mọi truy vấn đều tham số hoá, không nối chuỗi SQL. */
+export const pool = mysql.createPool({
+  host: appConfig.DB_HOST,
+  port: appConfig.DB_PORT,
+  user: appConfig.DB_USER,
+  password: appConfig.DB_PASSWORD,
+  database: appConfig.DB_NAME,
+  connectionLimit: 10,
+  namedPlaceholders: false,
+  charset: "utf8mb4_unicode_ci",
+});
+
+const REQUIRED_TABLES = [
+  "users",
+  "sessions",
+  "projects",
+  "project_sources",
+  "scripts",
+  "render_jobs",
+  "watermark_config",
+  "user_watermarks",
+  "templates",
+  "series",
+  "music_tracks",
+  "gdrive_accounts",
+  "oauth_states",
+  "drive_exports",
+  "watermark_presets",
+];
+
+/**
+ * App không tự chạy migration (misa-backend-standard 05) — chỉ kiểm tra
+ * schema.sql đã được áp thủ công chưa; thiếu bảng thì fail-fast với hướng dẫn.
+ */
+export const verifyTables = async (): Promise<void> => {
+  const [rows] = await pool.query<mysql.RowDataPacket[]>(
+    `SELECT table_name AS t FROM information_schema.tables WHERE table_schema = ?`,
+    [appConfig.DB_NAME]
+  );
+  const existing = new Set(rows.map((r) => String(r.t)));
+  const missing = REQUIRED_TABLES.filter((t) => !existing.has(t));
+  if (missing.length) {
+    throw new Error(
+      `Thiếu bảng: ${missing.join(", ")}. Áp schema trước:\n` +
+        `  docker compose exec -T mysql mysql -h127.0.0.1 -uams -p... ams < apps/server/startup/database/schema.sql`
+    );
+  }
+};

@@ -1,0 +1,426 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import MButton from "../components/mds/MButton.vue";
+import MDataTable from "../components/mds/MDataTable.vue";
+import MEmptyState from "../components/mds/MEmptyState.vue";
+import MIcon from "../components/mds/MIcon.vue";
+import MProgress from "../components/mds/MProgress.vue";
+import MSpinner from "../components/mds/MSpinner.vue";
+import MTag from "../components/mds/MTag.vue";
+import MTextarea from "../components/mds/MTextarea.vue";
+import { useToast } from "../components/mds/toast.js";
+import { api, ApiError } from "../lib/api";
+import type { DriveExport, ProjectDetail, ProjectRow, ScriptRow } from "../lib/types";
+
+const props = defineProps<{ focusProjectId: number | null }>();
+const emit = defineEmits<{ focused: [] }>();
+const toast = useToast();
+
+const projects = ref<ProjectRow[]>([]);
+const loading = ref(false);
+const loadingMore = ref(false);
+const nextCursor = ref<number | null>(null);
+
+type ProjectPage = { items: ProjectRow[]; nextCursor: number | null };
+const detail = ref<ProjectDetail | null>(null);
+const detailLoading = ref(false);
+const approvingId = ref<number | null>(null);
+const playingJobId = ref<number | null>(null);
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+// Export Drive theo jobId: link đã export + trạng thái đang upload
+const driveExports = ref<Record<number, DriveExport>>({});
+const driveExporting = ref<number | null>(null);
+
+async function loadDriveExport(jobId: number): Promise<void> {
+  try {
+    const ex = await api<DriveExport | null>(`/v1/jobs/${jobId}/export/drive`);
+    if (ex) driveExports.value = { ...driveExports.value, [jobId]: ex };
+  } catch {
+    /* bỏ qua — chỉ để hiện link nếu đã export */
+  }
+}
+
+async function exportToDrive(jobId: number): Promise<void> {
+  driveExporting.value = jobId;
+  try {
+    const ex = await api<DriveExport>(`/v1/jobs/${jobId}/export/drive`, { method: "POST" });
+    driveExports.value = { ...driveExports.value, [jobId]: ex };
+    toast.success("Đã xuất video lên Google Drive.");
+  } catch (cause) {
+    const msg = cause instanceof ApiError ? cause.message : "Không xuất được lên Drive.";
+    toast.error(
+      msg.includes("Chưa kết nối")
+        ? "Chưa kết nối Google Drive — mở menu tài khoản để kết nối."
+        : msg
+    );
+  } finally {
+    driveExporting.value = null;
+  }
+}
+
+const PROJECT_STATUS: Record<string, { label: string; color: string }> = {
+  draft: { label: "Nháp", color: "neutral" },
+  generating: { label: "Đang sinh kịch bản", color: "info" },
+  ready: { label: "Kịch bản sẵn sàng", color: "success" },
+  failed: { label: "Lỗi", color: "danger" },
+};
+const SCRIPT_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: "Chờ duyệt", color: "warning" },
+  approved: { label: "Đã duyệt", color: "success" },
+  rejected: { label: "Từ chối", color: "neutral" },
+};
+const JOB_STATUS: Record<string, string> = {
+  queued: "Trong hàng đợi",
+  images: "Đang sinh ảnh minh họa",
+  tts: "Đang tạo giọng đọc",
+  rendering: "Đang render video",
+  done: "Hoàn tất",
+  failed: "Render lỗi",
+};
+
+const columns = [
+  { key: "idea", label: "Ý tưởng" },
+  { key: "mode", label: "Chế độ", width: 110 },
+  { key: "script_count", label: "Kịch bản", width: 90, align: "right" },
+  { key: "status", label: "Trạng thái", width: 160 },
+  { key: "created_at", label: "Tạo lúc", width: 150 },
+];
+
+async function loadList(): Promise<void> {
+  loading.value = true;
+  try {
+    const page = await api<ProjectPage>("/v1/projects?limit=20");
+    projects.value = page.items;
+    nextCursor.value = page.nextCursor;
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không tải được danh sách.");
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadMore(): Promise<void> {
+  if (nextCursor.value == null || loadingMore.value) return;
+  loadingMore.value = true;
+  try {
+    const page = await api<ProjectPage>(`/v1/projects?limit=20&cursor=${nextCursor.value}`);
+    projects.value = [...projects.value, ...page.items];
+    nextCursor.value = page.nextCursor;
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không tải thêm được.");
+  } finally {
+    loadingMore.value = false;
+  }
+}
+
+async function openDetail(projectId: number, silent = false): Promise<void> {
+  if (!silent) detailLoading.value = true;
+  try {
+    detail.value = await api<ProjectDetail>(`/v1/projects/${projectId}`);
+    // Lấy link Drive đã export (nếu có) cho các video đã render xong
+    for (const s of detail.value.scripts) {
+      if (s.job_status === "done" && s.job_id) void loadDriveExport(s.job_id);
+    }
+  } catch (cause) {
+    if (!silent) toast.error(cause instanceof ApiError ? cause.message : "Không tải được dự án.");
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+/** còn việc đang chạy → poll tiếp */
+const isBusy = computed(() => {
+  const d = detail.value;
+  if (!d) return false;
+  if (d.project.status === "generating") return true;
+  if (d.sources.some((s) => s.status === "extracting")) return true;
+  return d.scripts.some((s) => s.job_status && !["done", "failed"].includes(s.job_status));
+});
+
+watch([detail, isBusy], () => {
+  if (detail.value && isBusy.value && !pollTimer) {
+    pollTimer = setInterval(() => {
+      if (detail.value) void openDetail(detail.value.project.id, true);
+    }, 4000);
+  } else if ((!detail.value || !isBusy.value) && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+});
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer);
+});
+
+async function approve(script: ScriptRow): Promise<void> {
+  approvingId.value = script.id;
+  try {
+    await api(`/v1/scripts/${script.id}/approve`, { method: "POST" });
+    toast.success("Đã duyệt — video sẽ được render tự động.");
+    if (detail.value) await openDetail(detail.value.project.id, true);
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không duyệt được kịch bản.");
+  } finally {
+    approvingId.value = null;
+  }
+}
+
+// #9 Sửa lời thoại trước khi duyệt
+const savingEditId = ref<number | null>(null);
+async function saveNarration(script: ScriptRow): Promise<void> {
+  savingEditId.value = script.id;
+  try {
+    await api(`/v1/scripts/${script.id}/narration`, {
+      method: "PUT",
+      body: JSON.stringify({
+        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration })),
+      }),
+    });
+    toast.success("Đã lưu chỉnh sửa lời thoại.");
+    if (detail.value) await openDetail(detail.value.project.id, true);
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không lưu được lời thoại.");
+  } finally {
+    savingEditId.value = null;
+  }
+}
+
+async function reject(script: ScriptRow): Promise<void> {
+  try {
+    await api(`/v1/scripts/${script.id}/reject`, { method: "POST" });
+    if (detail.value) await openDetail(detail.value.project.id, true);
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không cập nhật được.");
+  }
+}
+
+function backToList(): void {
+  detail.value = null;
+  playingJobId.value = null;
+  void loadList();
+}
+
+onMounted(async () => {
+  await loadList();
+  if (props.focusProjectId) {
+    await openDetail(props.focusProjectId);
+    emit("focused");
+  }
+});
+</script>
+
+<template>
+  <!-- ===== Chi tiết dự án ===== -->
+  <div v-if="detail" class="p-6">
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <div class="flex items-start gap-2">
+        <MButton variant="icon" @click="backToList"><MIcon name="arrow-left" /></MButton>
+        <div>
+          <h1 class="m-0 text-lg font-semibold leading-6">{{ detail.project.idea }}</h1>
+          <p class="m-0 mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[var(--mds-text-secondary)]">
+            <MTag :color="PROJECT_STATUS[detail.project.status]?.color" size="sm">
+              {{ PROJECT_STATUS[detail.project.status]?.label }}
+            </MTag>
+            <span>{{ detail.project.mode === "series" ? "Serie nối tập" : "Đa chiều" }}</span>
+            <span>·</span>
+            <span>
+              Giọng {{ detail.project.voice_gender === "male" ? "nam" : "nữ" }}
+              miền {{ detail.project.voice_region === "nam" ? "Nam" : "Bắc" }},
+              {{ detail.project.voice_style === "thoisu" ? "thời sự" : "tin tức" }},
+              {{ Number(detail.project.voice_speed) === 1.2 ? "nhanh 1,2x" : "tốc độ thường" }}
+            </span>
+            <span v-if="detail.project.duration_sec">· ≈{{ detail.project.duration_sec }}s</span>
+          </p>
+        </div>
+      </div>
+      <MSpinner v-if="isBusy" :size="20" />
+    </div>
+
+    <p
+      v-if="detail.project.status === 'failed'"
+      class="mb-4 rounded-lg bg-[var(--mds-bg-danger-light,#FEF3F2)] p-3 text-[13px] text-[var(--mds-danger,#F04438)]"
+    >
+      Sinh kịch bản thất bại: {{ detail.project.error_message }}
+    </p>
+
+    <!-- Tư liệu -->
+    <section
+      v-if="detail.sources.length"
+      class="mb-4 rounded-lg bg-[var(--mds-bg)] p-4 shadow-[var(--mds-shadow-card)]"
+    >
+      <h2 class="m-0 mb-2 text-[15px] font-semibold">Tư liệu ({{ detail.sources.length }})</h2>
+      <ul class="m-0 list-none p-0">
+        <li
+          v-for="s in detail.sources"
+          :key="s.id"
+          class="flex items-center gap-2 border-b border-[var(--mds-neutral-300,#E9EAEB)] py-1.5 text-[13px] last:border-0"
+        >
+          <MIcon name="file-text" :size="16" class="text-[var(--mds-text-secondary)]" />
+          <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
+          <MTag
+            :color="s.status === 'ready' ? 'success' : s.status === 'failed' ? 'danger' : 'info'"
+            size="sm"
+          >
+            {{ s.status === "ready" ? "Đã trích xuất" : s.status === "failed" ? "Lỗi" : "Đang trích xuất" }}
+          </MTag>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Kịch bản chờ duyệt -->
+    <div v-if="detail.project.status === 'generating'" class="rounded-lg bg-[var(--mds-bg)] p-8 text-center shadow-[var(--mds-shadow-card)]">
+      <MSpinner :size="28" />
+      <p class="m-0 mt-3 text-[13px] text-[var(--mds-text-secondary)]">
+        AI đang viết kịch bản — thường mất dưới 1 phút…
+      </p>
+    </div>
+
+    <section
+      v-for="script in detail.scripts"
+      :key="script.id"
+      class="mb-4 rounded-lg bg-[var(--mds-bg)] p-4 shadow-[var(--mds-shadow-card)]"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="min-w-0">
+          <h3 class="m-0 truncate text-[15px] font-semibold">{{ script.title }}</h3>
+          <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
+            {{ script.angle }} · preset {{ script.preset }}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <MTag :color="SCRIPT_STATUS[script.status]?.color" size="sm">
+            {{ SCRIPT_STATUS[script.status]?.label }}
+          </MTag>
+          <template v-if="!script.job_id || script.job_status === 'failed'">
+            <MButton v-if="script.status !== 'rejected'" @click="reject(script)">Từ chối</MButton>
+            <MButton
+              variant="primary"
+              :loading="approvingId === script.id"
+              @click="approve(script)"
+            >
+              {{ script.job_status === "failed" ? "Render lại" : "Duyệt & render" }}
+            </MButton>
+          </template>
+        </div>
+      </div>
+
+      <!-- Nội dung lời thoại để duyệt -->
+      <details class="mt-3" :open="script.status === 'pending'">
+        <summary class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]">
+          {{ script.status === "pending" && script.scenes?.length ? "Sửa lời thoại từng scene" : "Xem lời thoại từng scene" }}
+        </summary>
+
+        <!-- Chưa duyệt: cho sửa từng scene rồi lưu trước khi render -->
+        <div v-if="script.status === 'pending' && script.scenes?.length" class="mt-2 space-y-3">
+          <div v-for="(sc, i) in script.scenes" :key="sc.id">
+            <p class="m-0 mb-1 text-[12px] font-medium text-[var(--mds-text-secondary)]">
+              Scene {{ i + 1 }} — {{ sc.type }}
+            </p>
+            <MTextarea v-model="sc.narration" :rows="2" :maxlength="320" />
+          </div>
+          <MButton :loading="savingEditId === script.id" @click="saveNarration(script)">
+            <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
+          </MButton>
+          <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
+            Sửa xong bấm "Lưu chỉnh sửa", rồi mới "Duyệt & render".
+          </p>
+        </div>
+
+        <!-- Đã duyệt/đang render: chỉ xem -->
+        <pre
+          v-else
+          class="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--mds-bg-page)] p-3 text-[13px] leading-5"
+        >{{ script.narration_md }}</pre>
+      </details>
+
+      <!-- Tiến độ render -->
+      <div v-if="script.job_id && script.job_status !== 'done'" class="mt-3">
+        <p v-if="script.job_status === 'failed'" class="m-0 text-[13px] text-[var(--mds-danger,#F04438)]">
+          Render lỗi: {{ script.job_error }}
+        </p>
+        <MProgress
+          v-else
+          :value="script.job_progress ?? 0"
+          :label="JOB_STATUS[script.job_status ?? 'queued']"
+        />
+      </div>
+
+      <!-- Video kết quả -->
+      <div v-if="script.job_status === 'done'" class="mt-3">
+        <video
+          v-if="playingJobId === script.job_id"
+          class="max-h-[480px] rounded-lg bg-black"
+          controls
+          autoplay
+          :src="`/v1/jobs/${script.job_id}/video`"
+        />
+        <div class="flex items-center gap-2">
+          <MButton v-if="playingJobId !== script.job_id" variant="primary" @click="playingJobId = script.job_id">
+            Xem video
+          </MButton>
+          <a
+            class="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--mds-brand-600)] no-underline"
+            :href="`/v1/jobs/${script.job_id}/video`"
+            :download="`${script.slug}.mp4`"
+          >
+            <MIcon name="download" :size="16" /> Tải MP4
+          </a>
+          <!-- Xuất lên Google Drive -->
+          <a
+            v-if="script.job_id && driveExports[script.job_id]?.webLink"
+            class="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--mds-success,#12805c)] no-underline"
+            :href="driveExports[script.job_id].webLink!"
+            target="_blank"
+            rel="noopener"
+          >
+            <MIcon name="external-link" :size="16" /> Đã lưu Drive — mở
+          </a>
+          <MButton
+            v-else-if="script.job_id"
+            :loading="driveExporting === script.job_id"
+            @click="exportToDrive(script.job_id)"
+          >
+            <MIcon name="cloud-upload" :size="16" /> Xuất lên Drive
+          </MButton>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== Danh sách dự án ===== -->
+  <div v-else class="p-6">
+    <div class="mb-4 flex items-center justify-between">
+      <h1 class="m-0 text-xl font-semibold">Video đã tạo</h1>
+    </div>
+    <div class="rounded-lg bg-[var(--mds-bg)] shadow-[var(--mds-shadow-card)]">
+      <MDataTable
+        :columns="columns"
+        :rows="projects"
+        :loading="loading || detailLoading"
+        @row-click="(row: ProjectRow) => openDetail(row.id)"
+      >
+        <template #cell-mode="{ value }">
+          {{ value === "series" ? "Serie" : "Đa chiều" }}
+        </template>
+        <template #cell-status="{ value }">
+          <MTag :color="PROJECT_STATUS[value]?.color" size="sm">
+            {{ PROJECT_STATUS[value]?.label }}
+          </MTag>
+        </template>
+        <template #cell-created_at="{ value }">
+          {{ new Date(value).toLocaleString("vi-VN") }}
+        </template>
+        <template #empty>
+          <MEmptyState
+            type="initial"
+            title="Chưa có dự án nào"
+            description="Bắt đầu từ mục Tạo video ở thanh bên trái."
+          />
+        </template>
+      </MDataTable>
+    </div>
+    <div v-if="nextCursor != null" class="mt-4 flex justify-center">
+      <MButton :loading="loadingMore" @click="loadMore">Tải thêm</MButton>
+    </div>
+  </div>
+</template>

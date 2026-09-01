@@ -1,0 +1,16 @@
+{
+  "packageFormat": 2,
+  "packageRevision": 1,
+  "packageId": "diagram-video-tool",
+  "kind": "standalone-tool",
+  "version": "1.0.0",
+  "installEntrypoint": "install.sh",
+  "cliEntrypoint": "bin/diagram-video",
+  "agentSkill": "SKILL.md",
+  "readmeRequired": true,
+  "dependencies": {
+    "executables": ["python3", "node>=20", "npm", "ffmpeg", "ffprobe"],
+    "network": "npm registry access and Remotion Chrome Headless download access are required only when installing a generated project"
+  },
+  "payloadRoots": ["cli/diagram_video", "project", "design-skill", "examples"]
+}

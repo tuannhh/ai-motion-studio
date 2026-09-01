@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "AI biến ý tưởng thành video như thế nào",
+    "slug": "demo-ai-workflow",
+    "language": "vi"
+  },
+  "style": {
+    "preset": "midnight"
+  },
+  "audio": {
+    "musicVolume": 0.12
+  },
+  "scenes": [
+    {
+      "id": "s1",
+      "type": "hook",
+      "badge": "AI MOTION STUDIO",
+      "headline": "Một ý tưởng. Một video hoàn chỉnh.",
+      "sub": "Không cần quay. Không cần dựng. Không cần designer."
+    },
+    {
+      "id": "s2",
+      "type": "flow",
+      "title": "Quy trình 5 bước tự động",
+      "nodes": [
+        { "id": "idea", "label": "Bạn nhập ý tưởng", "icon": "Lightbulb" },
+        { "id": "research", "label": "AI thu thập tư liệu", "icon": "Search" },
+        { "id": "script", "label": "AI viết kịch bản", "icon": "PenLine" },
+        { "id": "approve", "label": "Bạn duyệt nội dung", "icon": "UserCheck", "emphasis": true },
+        { "id": "render", "label": "Render motion graphics", "icon": "Clapperboard" }
+      ],
+      "edges": [
+        { "from": "idea", "to": "research" },
+        { "from": "research", "to": "script" },
+        { "from": "script", "to": "approve", "label": "kiểm soát" },
+        { "from": "approve", "to": "render" }
+      ]
+    },
+    {
+      "id": "s3",
+      "type": "points",
+      "title": "Video được dựng từ gì?",
+      "items": [
+        { "icon": "Type", "text": "Chữ chuyển động theo từng từ" },
+        { "icon": "Workflow", "text": "Sơ đồ luồng vẽ dần theo lời thoại" },
+        { "icon": "BarChart3", "text": "Số liệu đếm động, biểu đồ sống" },
+        { "icon": "AudioLines", "text": "Giọng đọc AI + nhạc nền tự trộn" }
+      ]
+    },
+    {
+      "id": "s4",
+      "type": "stat",
+      "value": 90,
+      "unit": "%",
+      "label": "thời gian sản xuất được cắt giảm so với dựng tay",
+      "trend": "down"
+    },
+    {
+      "id": "s5",
+      "type": "compare",
+      "title": "Dựng tay vs AI Studio",
+      "left": {
+        "label": "Dựng tay",
+        "points": ["2–3 ngày mỗi video", "Cần editor chuyên nghiệp", "Khó giữ nhịp đăng đều"]
+      },
+      "right": {
+        "label": "AI Studio",
+        "points": ["5 phút mỗi video", "Chỉ cần duyệt kịch bản", "Đăng serie đều mỗi ngày"]
+      }
+    },
+    {
+      "id": "s6",
+      "type": "quote",
+      "text": "Người sáng tạo chỉ nên làm một việc: sáng tạo. Phần còn lại để máy lo.",
+      "author": "Triết lý của AI Motion Studio"
+    },
+    {
+      "id": "s7",
+      "type": "outro",
+      "headline": "Ý tưởng tiếp theo của bạn là gì?",
+      "cta": "Thử ngay hôm nay",
+      "handle": "@ai.motion.studio"
+    }
+  ]
+}

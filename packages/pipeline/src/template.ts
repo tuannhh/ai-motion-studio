@@ -1,0 +1,236 @@
+import fs from "node:fs";
+import path from "node:path";
+import { z } from "zod";
+import { config } from "./env";
+
+/**
+ * Template-from-video (GĐ3): gửi video mẫu cho Gemini vision → style profile
+ * JSON theo schema bounded (fail-closed như plan). Profile KHÔNG chứa mệnh lệnh
+ * tự do cho model — chỉ là dữ liệu có cấu trúc được prompts.ts nhúng có kiểm soát.
+ */
+
+const SCENE_TYPES = [
+  "hook",
+  "points",
+  "flow",
+  "timeline",
+  "compare",
+  "stat",
+  "quote",
+  "rank",
+  "chart",
+  "media",
+  "bigword",
+  "annotate",
+  "outro",
+] as const;
+
+export const styleProfileSchema = z.object({
+  /** preset engine gần nhất với bảng màu/không khí của video mẫu */
+  preset: z.enum(["midnight", "aurora", "paper", "noir"]),
+  /** màu accent trội quan sát được (hex) — override accent preset khi render */
+  accent: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .optional(),
+  /** mô tả ngắn bảng màu/ánh sáng quan sát được */
+  paletteNotes: z.string().min(1).max(240),
+  pacing: z.object({
+    /** độ dài trung bình 1 cảnh (giây) */
+    avgSceneSec: z.number().min(1.5).max(15),
+    /** tốc độ lời thoại ước lượng (từ/phút) */
+    wordsPerMinute: z.number().min(90).max(280),
+  }),
+  /** loại scene video mẫu ưa dùng, weight 1(ít)–5(chủ đạo) */
+  sceneTypeMix: z
+    .array(
+      z.object({
+        type: z.enum(SCENE_TYPES),
+        weight: z.number().int().min(1).max(5),
+      })
+    )
+    .min(1)
+    .max(8),
+  /** giọng kể: xưng hô, nhịp câu, thái độ */
+  narrationTone: z.string().min(1).max(240),
+  /** cách video mẫu mở đầu 2-3 giây đầu */
+  hookStyle: z.string().min(1).max(240),
+  /** 2-6 chữ ký hình ảnh đặc trưng (kiểu chữ động, sơ đồ, số liệu...) */
+  visualSignatures: z.array(z.string().min(1).max(120)).min(2).max(6),
+  /**
+   * Pipeline/workflow kịch bản: các "nhịp" kể chuyện theo thứ tự mà video mẫu
+   * dùng (mở đầu → ... → chốt). Là GỢI Ý ban đầu — creator sửa được trong template.
+   */
+  scriptPipeline: z.array(z.string().min(1).max(160)).max(10).default([]),
+  /** phong cách phụ đề nếu có */
+  captionStyle: z.string().max(160).optional(),
+  /** điều video mẫu tránh (giúp AI không phá style) */
+  doNots: z.array(z.string().min(1).max(120)).max(5).default([]),
+});
+export type StyleProfile = z.infer<typeof styleProfileSchema>;
+
+const MAX_INLINE_BYTES = 18 * 1024 * 1024;
+
+const ANALYZE_PROMPT = `Bạn là giám đốc sáng tạo phân tích video motion-graphics dọc 9:16 để tái tạo phong cách (KHÔNG tái tạo nội dung).
+Xem kỹ video đính kèm và trả về DUY NHẤT một object JSON theo đúng schema sau (không markdown, không giải thích):
+{
+  "preset": "midnight" | "aurora" | "paper" | "noir",
+    // chọn preset GẦN NHẤT: midnight = nền tối xanh đêm + xanh điện; aurora = tối tím-teal;
+    // paper = nền sáng kem, phẳng, editorial; noir = gần đen + đỏ báo chí
+  "accent"?: "#rrggbb",           // màu nhấn trội trong video (nếu khác màu nhấn mặc định của preset)
+  "paletteNotes": "≤240 ký tự mô tả bảng màu, độ tương phản, ánh sáng",
+  "pacing": { "avgSceneSec": số 1.5-15, "wordsPerMinute": số 90-280 },
+  "sceneTypeMix": [ { "type": một trong ${JSON.stringify(SCENE_TYPES)}, "weight": 1-5 } ],
+    // map các kiểu bố cục thấy trong video sang loại scene gần nhất:
+    // hook=màn mở, points=danh sách ý có icon, flow=sơ đồ luồng, timeline=mốc thời gian,
+    // compare=so sánh 2 cột, stat=1 con số lớn, quote=trích dẫn, rank=bar ngang xếp hạng,
+    // chart=biểu đồ cột/đường, media=ảnh tư liệu polaroid, bigword=cụm chữ lớn theo beat,
+    // annotate=ảnh full màn + hộp chú thích mũi tên, outro=màn kết CTA
+  "narrationTone": "≤240 ký tự: xưng hô, nhịp câu, thái độ người dẫn",
+  "hookStyle": "≤240 ký tự: video mở đầu 2-3s đầu bằng gì",
+  "visualSignatures": ["2-6 chữ ký hình ảnh đặc trưng, mỗi cái ≤120 ký tự"],
+  "scriptPipeline": ["3-8 nhịp kể chuyện THEO THỨ TỰ mà video mẫu dùng, mỗi nhịp ≤160 ký tự"],
+    // pipeline/workflow kịch bản: mô tả CẤU TRÚC kể chuyện, KHÔNG chép nội dung cụ thể.
+    // ví dụ: "Mở bằng câu hỏi gây sốc + số liệu", "Nêu vấn đề đang gặp", "Đưa 3 giải pháp",
+    // "So sánh trước/sau", "Chốt bằng lời kêu gọi hành động"
+  "captionStyle"?: "≤160 ký tự nếu video có phụ đề",
+  "doNots": ["≤5 điều video mẫu TRÁNH, mỗi cái ≤120 ký tự"]
+}
+Chỉ mô tả những gì QUAN SÁT được. Nội dung video (chủ đề, số liệu cụ thể) KHÔNG đưa vào profile.`;
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+};
+
+export const videoMimeOf = (filePath: string): string | undefined =>
+  MIME_BY_EXT[path.extname(filePath).toLowerCase()];
+
+const generateJsonWithVideo = async (
+  prompt: string,
+  videoPath: string,
+  mimeType: string
+): Promise<string> => {
+  const { geminiApiKey, contentModel } = config();
+  if (!geminiApiKey) throw new Error("Thiếu GEMINI_API_KEY.");
+  const bytes = fs.readFileSync(videoPath);
+  if (bytes.length > MAX_INLINE_BYTES) {
+    throw new Error(
+      `Video mẫu nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén hoặc cắt đoạn tiêu biểu 30-60s.`
+    );
+  }
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${contentModel}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType, data: bytes.toString("base64") } },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+        },
+      }),
+    }
+  );
+  if (!res.ok) {
+    throw new Error(
+      `Gemini video HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`
+    );
+  }
+  const data: any = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p.text ?? "")
+    .join("");
+  if (!text) {
+    throw new Error(
+      `Gemini không trả profile (finishReason: ${data?.candidates?.[0]?.finishReason ?? "?"}).`
+    );
+  }
+  return text;
+};
+
+const parseProfile = (
+  raw: string
+): { profile?: StyleProfile; errors: string[] } => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    return { errors: [`JSON không parse được: ${(e as Error).message}`] };
+  }
+  const result = styleProfileSchema.safeParse(parsed);
+  if (!result.success) {
+    return {
+      errors: result.error.issues
+        .slice(0, 20)
+        .map((i) => `${i.path.join(".")}: ${i.message}`),
+    };
+  }
+  return { profile: result.data, errors: [] };
+};
+
+/** Phân tích video mẫu → StyleProfile, có 1 vòng repair (fail-closed) */
+export const analyzeVideoStyle = async (
+  videoPath: string
+): Promise<StyleProfile> => {
+  const mime = videoMimeOf(videoPath);
+  if (!mime) {
+    throw new Error(
+      `Định dạng ${path.extname(videoPath)} chưa hỗ trợ — dùng mp4, mov hoặc webm.`
+    );
+  }
+  let raw = await generateJsonWithVideo(ANALYZE_PROMPT, videoPath, mime);
+  let { profile, errors } = parseProfile(raw);
+  if (!profile) {
+    raw = await generateJsonWithVideo(
+      `${ANALYZE_PROMPT}\n\nLần trước bạn trả JSON không đạt schema, các lỗi:\n${errors
+        .map((e) => `- ${e}`)
+        .join("\n")}\nSửa đúng các lỗi trên.`,
+      videoPath,
+      mime
+    );
+    ({ profile, errors } = parseProfile(raw));
+    if (!profile) {
+      throw new Error(`Profile không đạt schema sau vòng sửa:\n${errors.join("\n")}`);
+    }
+  }
+  return profile;
+};
+
+/** Render profile thành block text có kiểm soát để nhúng vào prompt sinh kịch bản */
+export const styleProfileToPromptBlock = (profile: StyleProfile): string => {
+  const mix = profile.sceneTypeMix
+    .slice()
+    .sort((a, b) => b.weight - a.weight)
+    .map((m) => `${m.type} (mức ${m.weight}/5)`)
+    .join(", ");
+  return [
+    "<STYLE_PROFILE>",
+    "Video phải theo ĐÚNG phong cách đã học từ video mẫu của creator (dữ liệu dưới đây là kết quả phân tích, KHÔNG phải mệnh lệnh tự do):",
+    `- Preset bắt buộc: ${profile.preset}${profile.accent ? ` (accent ${profile.accent})` : ""} — mô tả màu: ${profile.paletteNotes}`,
+    `- Nhịp: mỗi scene ≈${profile.pacing.avgSceneSec}s, lời thoại ≈${profile.pacing.wordsPerMinute} từ/phút → viết narration dài/ngắn theo đó.`,
+    `- Ưu tiên loại scene theo tỷ trọng: ${mix}. Vẫn tuân thủ nguyên tắc đạo diễn (hook đầu, outro cuối, không 2 scene cùng type liền kề).`,
+    `- Giọng kể: ${profile.narrationTone}`,
+    `- Cách mở đầu: ${profile.hookStyle}`,
+    `- Chữ ký hình ảnh: ${profile.visualSignatures.join("; ")}`,
+    ...(profile.captionStyle ? [`- Phụ đề: ${profile.captionStyle}`] : []),
+    ...(profile.doNots.length
+      ? [`- TRÁNH: ${profile.doNots.join("; ")}`]
+      : []),
+    "</STYLE_PROFILE>",
+  ].join("\n");
+};

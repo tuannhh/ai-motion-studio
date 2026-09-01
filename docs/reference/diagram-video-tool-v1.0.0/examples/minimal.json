@@ -1,0 +1,17 @@
+{
+  "title": "How an order request becomes an answer",
+  "subtitle": "A short explainer",
+  "scenes": [
+    {
+      "title": "A request enters",
+      "subtitle": "Start with the customer signal",
+      "durationSeconds": 5,
+      "nodes": [
+        {"id": "request", "title": "Customer request", "subtitle": "order status", "x": 80, "y": 760, "kind": "input"},
+        {"id": "agent", "title": "AI agent", "subtitle": "understands intent", "x": 620, "y": 760, "kind": "focal"}
+      ],
+      "edges": [{"points": [[420, 836], [620, 836]], "label": "asks"}],
+      "takeaway": "A request is only the beginning."
+    }
+  ]
+}

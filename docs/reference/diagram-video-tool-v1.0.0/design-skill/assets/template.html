@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diagram Design template</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap');
+    :root {
+      --paper: #f5f5f5; --paper-2: #ececec; --ink: #2d3142;
+      --muted: #4f5d75; --soft: #7a8399; --rule: rgba(45,49,66,.14);
+      --accent: #eb6c36; --accent-tint: rgba(235,108,54,.08); --link: #2e5aa8;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Geist', sans-serif; line-height: 1.25; }
+    .page { width: min(960px, 100%); margin: 0 auto; padding: 40px; }
+    h1 { margin: 0 0 8px; font: 400 28px/1.25 'Instrument Serif', serif; }
+    .eyebrow { margin: 0 0 20px; color: var(--soft); font: 500 8px/1.25 'Geist Mono', monospace; letter-spacing: .18em; text-transform: uppercase; }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .node-name { font: 600 12px/1.25 'Geist', sans-serif; fill: var(--ink); }
+    .node-sub { font: 400 9px/1.25 'Geist Mono', monospace; fill: var(--soft); }
+    .tag { font: 500 8px/1.25 'Geist Mono', monospace; letter-spacing: .08em; fill: var(--muted); }
+    .edge-label { font: 400 8px/1.25 'Geist Mono', monospace; fill: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">DIAGRAM TYPE · AUDIENCE · DETAIL</p>
+    <h1>Replace with the one-sentence story</h1>
+    <svg viewBox="0 0 880 420" role="img" aria-labelledby="diagram-title diagram-desc">
+      <title id="diagram-title">Replace with a descriptive title</title>
+      <desc id="diagram-desc">Describe the relationship this diagram teaches.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6 Z" fill="var(--muted)" />
+        </marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L8,3 L0,6 Z" fill="var(--accent)" />
+        </marker>
+      </defs>
+
+      <!-- Draw connectors first. Use rounded orthogonal paths, then opaque node masks and boxes. -->
+      <path d="M220 210 H340 Q348 210 348 218 V250 H440" fill="none" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)" />
+      <rect x="286" y="194" width="58" height="18" rx="3" fill="var(--paper)" />
+      <text x="315" y="207" text-anchor="middle" class="edge-label">verifies</text>
+
+      <rect x="80" y="170" width="140" height="80" rx="6" fill="var(--paper)" />
+      <rect x="80" y="170" width="140" height="80" rx="6" fill="#fff" stroke="var(--ink)" />
+      <text x="96" y="190" class="tag">INPUT</text>
+      <text x="150" y="218" text-anchor="middle" class="node-name">Start node</text>
+      <text x="150" y="238" text-anchor="middle" class="node-sub">replace.me</text>
+
+      <rect x="440" y="210" width="160" height="80" rx="6" fill="var(--paper)" />
+      <rect x="440" y="210" width="160" height="80" rx="6" fill="var(--accent-tint)" stroke="var(--accent)" />
+      <text x="456" y="230" class="tag" fill="var(--accent)">FOCAL</text>
+      <text x="520" y="258" text-anchor="middle" class="node-name">Focal node</text>
+      <text x="520" y="278" text-anchor="middle" class="node-sub">one reason to look here</text>
+    </svg>
+  </main>
+</body>
+</html>

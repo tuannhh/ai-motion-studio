@@ -1,0 +1,29 @@
+{
+  "name": "diagram-video-project",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "still": "remotion still src/index.ts DiagramVideo output/preview.png --frame=30",
+    "render": "remotion render src/index.ts DiagramVideo output/final.mp4"
+  },
+  "dependencies": {
+    "@fontsource/fraunces": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/space-grotesk": "5.3.0",
+    "@remotion/cli": "4.0.502",
+    "@remotion/media": "4.0.502",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.502"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.0",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "typescript": "5.9.3"
+  }
+}
