@@ -230,6 +230,12 @@ export const generateSpecImages = async (
           : await generateSceneImage(task.prompt, path.join(jobDir, rel));
       scene.image = task.kind === "bgImage" ? scene.image : path.relative(jobDir, generated.file);
       if (task.kind === "bgImage") scene.bgImage = path.relative(jobDir, generated.file);
+      // Ảnh best-effort (chưa đạt cổng chất lượng nhưng vẫn dùng để không chặn video)
+      if (generated.requiresReview) {
+        warnings.push(
+          `[${scene.id}] Ảnh scene ${scene.type} chưa đạt chuẩn (có thể mờ/chữ méo) — đã dùng ảnh tốt nhất, bấm "Render lại" nếu muốn thử ảnh khác.`
+        );
+      }
     } catch (err) {
       // annotate & screenshot bắt buộc có ảnh (fail-closed); ảnh nền hỏng thì bỏ qua
       if (task.kind === "image" || task.kind === "uiImage") {

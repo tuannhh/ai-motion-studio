@@ -116,7 +116,13 @@ const reviewImage = async (buffer: Buffer, mimeType: string, description: string
   }
 };
 
-export type GeneratedImage = { file: string; mimeType: string };
+export type GeneratedImage = {
+  file: string;
+  mimeType: string;
+  /** true = đã qua đủ 3 lần nhưng chưa đạt cổng chất lượng, dùng ảnh tốt nhất để
+   * KHÔNG chặn cả video (caller nên cảnh báo người dùng để render lại nếu cần) */
+  requiresReview?: boolean;
+};
 
 /**
  * Cổng chất lượng cho ảnh GIAO DIỆN (screenshot scene): NGƯỢC với ảnh nhiếp
@@ -180,6 +186,7 @@ export const generateUiImage = async (
 ): Promise<GeneratedImage> => {
   const { imageModel } = config();
   let lastError = "chưa rõ";
+  let best: { buffer: Buffer; mime: string } | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res: InteractionsResponse = await postJson(
       INTERACTIONS_URL,
@@ -196,18 +203,27 @@ export const generateUiImage = async (
       continue;
     }
     const mime = image.mime_type ?? "image/png";
-    const ext = mime === "image/jpeg" ? ".jpg" : mime === "image/webp" ? ".webp" : ".png";
     const buffer = Buffer.from(image.data, "base64");
+    if (!best) best = { buffer, mime }; // giữ ảnh đầu tiên làm best-effort
     if (!(await reviewUiImage(buffer, mime, description))) {
       lastError = "ảnh UI không đạt (méo/nhiễu/không giống giao diện)";
       continue;
     }
-    const file = `${outPathNoExt}${ext}`;
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, buffer);
-    return { file, mimeType: mime };
+    return writeImage(outPathNoExt, buffer, mime);
   }
+  // 3 lần chưa đạt cổng chất lượng nhưng model CÓ trả ảnh → dùng ảnh tốt nhất, đánh
+  // dấu requiresReview để không chặn cả video (fail-closed chỉ khi model không trả ảnh nào).
+  if (best) return { ...writeImage(outPathNoExt, best.buffer, best.mime), requiresReview: true };
   throw new Error(`Sinh ảnh UI thất bại sau 3 lần: ${lastError}.`);
+};
+
+/** Ghi buffer ảnh ra file theo mime, trả về đường dẫn + mime */
+const writeImage = (outPathNoExt: string, buffer: Buffer, mime: string): GeneratedImage => {
+  const ext = mime === "image/jpeg" ? ".jpg" : mime === "image/webp" ? ".webp" : ".png";
+  const file = `${outPathNoExt}${ext}`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, buffer);
+  return { file, mimeType: mime };
 };
 
 /**
@@ -220,6 +236,7 @@ export const generateSceneImage = async (
 ): Promise<GeneratedImage> => {
   const { imageModel } = config();
   let lastError = "chưa rõ";
+  let best: { buffer: Buffer; mime: string } | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res: InteractionsResponse = await postJson(
       INTERACTIONS_URL,
@@ -236,16 +253,15 @@ export const generateSceneImage = async (
       continue;
     }
     const mime = image.mime_type ?? "image/png";
-    const ext = mime === "image/jpeg" ? ".jpg" : mime === "image/webp" ? ".webp" : ".png";
     const buffer = Buffer.from(image.data, "base64");
+    if (!best) best = { buffer, mime };
     if (!(await reviewImage(buffer, mime, description))) {
       lastError = "ảnh không qua cổng chất lượng (chữ nhúng/chủ thể mờ)";
       continue;
     }
-    const file = `${outPathNoExt}${ext}`;
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, buffer);
-    return { file, mimeType: mime };
+    return writeImage(outPathNoExt, buffer, mime);
   }
+  // best-effort: dùng ảnh tốt nhất thay vì chặn cả video (xem generateUiImage)
+  if (best) return { ...writeImage(outPathNoExt, best.buffer, best.mime), requiresReview: true };
   throw new Error(`Sinh ảnh thất bại sau 3 lần: ${lastError}.`);
 };

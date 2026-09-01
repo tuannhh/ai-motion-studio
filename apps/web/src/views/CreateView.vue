@@ -301,8 +301,9 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex min-h-full flex-col">
-    <div class="mx-auto w-full max-w-[760px] flex-1 p-6">
+  <div class="flex min-h-0 flex-1 flex-col">
+    <div class="min-h-0 flex-1 overflow-auto">
+      <div class="mx-auto w-full max-w-[760px] p-6">
     <header class="mb-4">
       <h1 class="m-0 text-xl font-semibold">Tạo video mới</h1>
       <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
@@ -327,11 +328,21 @@ async function submit(): Promise<void> {
         Video Template (phong cách + pipeline đã học từ video mẫu)
         <MSelect v-model="templateId" class="mt-1" :options="templateOptions" />
         <span
-          v-if="selectedTemplate?.profile"
+          v-if="selectedTemplate?.profile && selectedTemplate.workflow.approveGate"
           class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
         >
-          Preset khoá theo mẫu: {{ selectedTemplate.profile.preset }} ·
-          {{ selectedTemplate.workflow.approveGate ? "có bước duyệt kịch bản" : "tự render không chờ duyệt" }}
+          Preset khoá theo mẫu: {{ selectedTemplate.profile.preset }} · có bước duyệt kịch bản
+        </span>
+        <span
+          v-else-if="selectedTemplate?.profile"
+          class="mt-1 flex items-start gap-1.5 rounded-md bg-[var(--mds-warning-bg,#FFF7E6)] p-2 font-normal text-[var(--mds-warning-text,#8A5A00)]"
+        >
+          <span aria-hidden="true">⚠️</span>
+          <span>
+            Mẫu này <strong>tự render ngay, KHÔNG chờ bạn duyệt</strong> kịch bản (preset
+            {{ selectedTemplate.profile.preset }}). Muốn xem/sửa kịch bản trước khi render thì bật
+            "Gate duyệt kịch bản" trong Video Template, hoặc bỏ chọn mẫu này.
+          </span>
         </span>
       </label>
 
@@ -525,12 +536,14 @@ async function submit(): Promise<void> {
         </label>
       </div>
       </section>
+      </div>
     </div>
 
-    <!-- Thanh hành động ghim cuối trang (sticky trong vùng nội dung — tự canh theo
-         bề rộng sidebar khi thu gọn/mở, không để lộ khoảng trống cạnh footer) -->
+    <!-- Thanh hành động ghim đáy: footer là flex-item shrink-0 của cột nội dung nên
+         luôn nằm sát đáy vùng main, phần cuộn nằm ở div overflow-auto phía trên
+         (không phụ thuộc chiều cao %, không lộ khoảng trống khi nội dung ngắn) -->
     <div
-      class="sticky bottom-0 z-10 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
+      class="shrink-0 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
     >
       <div class="mx-auto flex w-full max-w-[760px] justify-end gap-2">
         <MButton variant="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">

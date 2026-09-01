@@ -189,7 +189,7 @@ async function changePassword(): Promise<void> {
     </div>
     <div class="flex min-h-0 flex-1" @click="userMenuOpen = false">
       <MSidebar v-model="active" v-model:collapsed="collapsed" :items="items" />
-      <main class="min-w-0 flex-1 overflow-auto">
+      <main class="flex min-w-0 flex-1 flex-col overflow-auto">
         <!-- KeepAlive: giữ nội dung form Tạo video khi chuyển sang menu khác rồi
              quay lại (không mất dữ liệu đang nhập; form tự reset sau khi tạo xong) -->
         <KeepAlive>
