@@ -45,12 +45,17 @@ const imageFile = ref<File | null>(null);
 const localImageUrl = ref("");
 const saving = ref(false);
 
-// Khung preview 9:16 (270×480 = 1080×1920 thu 1/4)
+// Khung preview 9:16 thu nhỏ của 1080×1920. Mọi kích thước watermark tính theo
+// ĐÚNG tỷ lệ khung như engine render (WYSIWYG) — trước đây preview nhân thêm ×4 nên
+// nhìn to gấp 4 lần so với video thật.
 const PREVIEW_W = 240;
 const PREVIEW_H = 427;
+const RENDER_W = 1080; // khớp WIDTH của motion-engine
 const previewRef = ref<HTMLElement | null>(null);
 const dragging = ref(false);
-const previewFontSize = computed(() => PREVIEW_W * scale.value * 0.14 * 4);
+// Engine: fontSize = WIDTH * scale * 0.14 (xem core/Watermark.tsx). Preview co theo
+// PREVIEW_W/RENDER_W để hiển thị đúng bằng video thật.
+const previewFontSize = computed(() => RENDER_W * scale.value * 0.14 * (PREVIEW_W / RENDER_W));
 const previewImageWidth = computed(() => PREVIEW_W * scale.value);
 const previewImageUrl = computed(() => {
   if (localImageUrl.value) return localImageUrl.value;

@@ -11,9 +11,13 @@ import { SafeArea } from "../core/ui";
 export const OutroScene: React.FC<{
   scene: z.infer<typeof outroSceneSchema>;
   theme: Theme;
-}> = ({ scene, theme }) => {
+  /** Tên kênh lấy từ watermark dạng chữ của video (ưu tiên hơn handle AI tự bịa) */
+  channelHandle?: string;
+}> = ({ scene, theme, channelHandle }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  // #3: frame cuối hiện đúng kênh của người dùng (watermark text), KHÔNG để AI bịa handle
+  const handle = channelHandle ?? scene.handle;
 
   return (
     <SafeArea>
@@ -27,6 +31,9 @@ export const OutroScene: React.FC<{
           align="center"
           glow={!theme.flat}
           maxCharsPerLine={16}
+          maxWidth={912}
+          maxLines={3}
+          haloColor={theme.bgBase}
         />
         <AccentUnderline color={theme.accent} width={240} delay={18} glow={!theme.flat} />
 
@@ -49,7 +56,7 @@ export const OutroScene: React.FC<{
           </div>
         ) : null}
 
-        {scene.handle ? (
+        {handle ? (
           <div
             style={{
               ...type.label,
@@ -59,7 +66,7 @@ export const OutroScene: React.FC<{
               ...riseIn({ frame, fps, delay: 34 }),
             }}
           >
-            {scene.handle}
+            {handle}
           </div>
         ) : null}
       </div>

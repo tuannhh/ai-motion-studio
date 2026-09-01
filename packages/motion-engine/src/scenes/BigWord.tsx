@@ -70,6 +70,9 @@ export const BigWordScene: React.FC<{
             delay={2}
             align="center"
             maxCharsPerLine={12}
+            maxWidth={960}
+            maxLines={3}
+            haloColor={theme.bgBase}
           />
         )}
         <div

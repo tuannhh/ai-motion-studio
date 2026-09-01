@@ -47,6 +47,7 @@ export const HookScene: React.FC<{
         maxCharsPerLine={16}
         maxWidth={912}
         maxLines={4}
+        haloColor={theme.bgBase}
       />
       <AccentUnderline color={theme.accent} width={300} delay={26} glow={!theme.flat} />
 

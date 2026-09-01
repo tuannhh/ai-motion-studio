@@ -181,6 +181,35 @@ export const planToNarrationMd = (plan: Plan): string =>
     ),
   ].join("\n");
 
+/**
+ * Chạy fn cho từng phần tử với TỐI ĐA `limit` việc song song (giữ thứ tự kết quả).
+ * Dùng để tăng tốc TTS/sinh ảnh (mỗi scene độc lập) — trước đây chạy tuần tự nên
+ * TTS 5 scene mất ~90s; song song 3 luồng rút còn ~1/3. Giới hạn để tránh 429.
+ */
+const mapPool = async <T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> => {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+};
+
+/** Số việc AI song song (TTS/ảnh) — chỉnh qua env, mặc định 3 (an toàn với hạn mức) */
+const aiPoolSize = (): number => {
+  const n = Number(process.env.AI_STAGE_CONCURRENCY);
+  return Number.isInteger(n) && n >= 1 && n <= 8 ? n : 3;
+};
+
 export type ImageProgress = (done: number, total: number, sceneId: string) => void;
 
 /**
@@ -215,7 +244,9 @@ export const generateSpecImages = async (
   });
 
   let done = 0;
-  for (const task of tasks) {
+  // Song song (mỗi ảnh độc lập). Task ảnh bắt buộc (annotate/screenshot) hỏng → ném
+  // lỗi để mapPool dừng cả cụm (fail-closed); ảnh nền hỏng chỉ cảnh báo.
+  await mapPool(tasks, aiPoolSize(), async (task) => {
     const scene = spec.scenes[task.sceneIndex] as any;
     const suffix = task.kind === "bgImage" ? "bg" : "main";
     const rel = `images/${scene.id}-${suffix}`;
@@ -228,16 +259,14 @@ export const generateSpecImages = async (
               scene.frame === "phone" ? "9:16" : "4:3"
             )
           : await generateSceneImage(task.prompt, path.join(jobDir, rel));
-      scene.image = task.kind === "bgImage" ? scene.image : path.relative(jobDir, generated.file);
       if (task.kind === "bgImage") scene.bgImage = path.relative(jobDir, generated.file);
-      // Ảnh best-effort (chưa đạt cổng chất lượng nhưng vẫn dùng để không chặn video)
+      else scene.image = path.relative(jobDir, generated.file);
       if (generated.requiresReview) {
         warnings.push(
           `[${scene.id}] Ảnh scene ${scene.type} chưa đạt chuẩn (có thể mờ/chữ méo) — đã dùng ảnh tốt nhất, bấm "Render lại" nếu muốn thử ảnh khác.`
         );
       }
     } catch (err) {
-      // annotate & screenshot bắt buộc có ảnh (fail-closed); ảnh nền hỏng thì bỏ qua
       if (task.kind === "image" || task.kind === "uiImage") {
         throw new Error(
           `[${scene.id}] ${(err as Error).message} — scene ${scene.type} bắt buộc có ảnh.`
@@ -247,7 +276,7 @@ export const generateSpecImages = async (
     }
     done += 1;
     onProgress?.(done, tasks.length, scene.id);
-  }
+  });
   return warnings;
 };
 
@@ -266,17 +295,21 @@ export const synthesizeSpecAudio = async (
 ): Promise<string[]> => {
   const warnings: string[] = [];
   let done = 0;
-  for (const scene of spec.scenes) {
+  // Song song TTS từng scene (mỗi scene 1 file WAV độc lập, giọng cố định theo profile).
+  await mapPool(spec.scenes, aiPoolSize(), async (scene) => {
     const narration = narrations.get(scene.id);
     done += 1;
-    if (!narration) continue;
+    if (!narration) {
+      onProgress?.(done, spec.scenes.length, scene.id);
+      return;
+    }
     const vo = await generateVoiceover(narration, scene.id, jobDir, profile);
     scene.voiceover = { file: vo.file, durationMs: vo.durationMs, words: vo.words };
     if (vo.requiresReview) {
       warnings.push(`[${scene.id}] ${vo.warnings.join("; ")}`);
     }
     onProgress?.(done, spec.scenes.length, scene.id);
-  }
+  });
   return warnings;
 };
 

@@ -120,25 +120,22 @@ function openEdit(t: TemplateRow): void {
   if (wf.value.scriptPipeline.length === 0 && t.profile?.scriptPipeline?.length) {
     wf.value.scriptPipeline = [...t.profile.scriptPipeline];
   }
+  // Textarea giữ nguyên văn (KHÔNG trim/lọc theo từng phím) — chỉ chuẩn hoá lúc lưu.
+  // Trước đây dùng computed set trim mỗi keystroke → gõ dấu cách bị nuốt, chữ dính nhau.
+  pipelineText.value = wf.value.scriptPipeline.join("\n");
   editOpen.value = true;
 }
 
-/** Pipeline sửa dạng văn bản: mỗi dòng 1 nhịp kể chuyện */
-const pipelineText = computed<string>({
-  get: () => (wf.value?.scriptPipeline ?? []).join("\n"),
-  set: (v: string) => {
-    if (wf.value) {
-      wf.value.scriptPipeline = v
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, 10);
-    }
-  },
-});
+/** Pipeline sửa dạng văn bản THÔ: mỗi dòng 1 nhịp kể chuyện. Chỉ split/trim khi lưu. */
+const pipelineText = ref("");
 
 async function saveEdit(): Promise<void> {
   if (!editing.value || !wf.value) return;
+  wf.value.scriptPipeline = pipelineText.value
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 10);
   saving.value = true;
   try {
     await api(`/v1/templates/${editing.value.id}`, {

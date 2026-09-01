@@ -39,10 +39,11 @@ import { PhotoBackdrop } from "./core/PhotoBackdrop";
 import { maskWipe, scaleThrough, whipPan } from "./core/transitions";
 import { seedOf } from "./core/motion";
 
-const SceneRenderer: React.FC<{ scene: Scene; theme: Theme }> = ({
-  scene,
-  theme,
-}) => {
+const SceneRenderer: React.FC<{
+  scene: Scene;
+  theme: Theme;
+  channelHandle?: string;
+}> = ({ scene, theme, channelHandle }) => {
   switch (scene.type) {
     case "hook":
       return <HookScene scene={scene} theme={theme} />;
@@ -73,7 +74,7 @@ const SceneRenderer: React.FC<{ scene: Scene; theme: Theme }> = ({
     case "screenshot":
       return <ScreenshotScene scene={scene} theme={theme} />;
     case "outro":
-      return <OutroScene scene={scene} theme={theme} />;
+      return <OutroScene scene={scene} theme={theme} channelHandle={channelHandle} />;
   }
 };
 
@@ -87,6 +88,8 @@ const asSrc = (file: string) =>
  */
 const AUTO_WHOOSH = ["sfx/whoosh-a.wav", "sfx/whoosh-b.wav"];
 const THUMP_TYPES = new Set(["stat", "bigword", "chart"]);
+/** scene lấy CHỮ làm trung tâm → cần scrim đậm hơn khi có ảnh nền để chữ nổi rõ */
+const TEXT_HEAVY_TYPES = new Set(["hook", "bigword", "quote", "outro"]);
 
 /** Frame bắt đầu của từng scene trong TransitionSeries (mỗi transition chồng lấn TRANSITION_FRAMES) */
 const sceneStartFrames = (spec: VideoSpec): number[] => {
@@ -197,9 +200,19 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                   src={scene.bgImage}
                   theme={theme}
                   seed={seedOf(`${spec.meta.slug}-kb-${scene.id}`)}
+                  // scene nhiều CHỮ LỚN → scrim đậm hơn để headline luôn đọc được
+                  midScrim={TEXT_HEAVY_TYPES.has(scene.type) ? 0.6 : 0.42}
                 />
               ) : null}
-              <SceneRenderer scene={scene} theme={theme} />
+              <SceneRenderer
+                scene={scene}
+                theme={theme}
+                channelHandle={
+                  spec.style.watermark?.kind === "text"
+                    ? spec.style.watermark.text
+                    : undefined
+                }
+              />
               {spec.style.progress && scene.type !== "hook" && scene.type !== "outro" ? (
                 <ProgressChip
                   theme={theme}
@@ -208,7 +221,9 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                   series={spec.meta.series}
                 />
               ) : null}
-              {spec.style.captions ? (
+              {/* Outro có headline/CTA riêng — caption karaoke ở đáy chỉ gây rối
+                  (frame cuối trước đây lòi ra text "theo dõi kênh" thừa) */}
+              {spec.style.captions && scene.type !== "outro" ? (
                 <KaraokeCaption scene={scene} theme={theme} />
               ) : null}
             </TransitionSeries.Sequence>,
