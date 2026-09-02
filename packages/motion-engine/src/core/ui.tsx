@@ -6,6 +6,7 @@ import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { floatY, riseIn, sceneExitStyle } from "./motion";
 import { fitBox } from "./fit";
+import { RichText, stripMarkup } from "./RichText";
 
 /** bề rộng nội dung trong safe area (dùng để tự co headline) */
 const SAFE_W = WIDTH - SAFE_X * 2;
@@ -170,13 +171,13 @@ export const SceneHeader: React.FC<{
             fontWeight: 800,
             lineHeight: 1.04,
             letterSpacing: "-0.01em",
-            fontSize: fitBox(title, SAFE_W, 3, { max: size, min: Math.round(size * 0.6) }),
+            fontSize: fitBox(stripMarkup(title), SAFE_W, 3, { max: size, min: Math.round(size * 0.6) }),
             color: theme.text,
             margin: 0,
             ...riseIn({ frame, fps, delay: 4 }),
           }}
         >
-          {title}
+          <RichText text={title} accent={theme.accent} />
         </h2>
       ) : null}
       {sub ? (
@@ -192,7 +193,7 @@ export const SceneHeader: React.FC<{
             ...riseIn({ frame, fps, delay: 10 }),
           }}
         >
-          {sub}
+          <RichText text={sub} accent={theme.accent} />
         </p>
       ) : null}
     </div>

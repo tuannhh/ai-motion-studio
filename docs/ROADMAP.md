@@ -50,6 +50,11 @@
 ### Còn lại — giá trị thấp / tuỳ nhu cầu vận hành:
 - [ ] **Beat-sync nhạc** (cắt scene theo framesPerBeat — cần phân tích BPM), **image-hero** (biến thể screenshot toàn màn), **Lịch đăng/scheduler, thống kê usage** (CRUD + cron thuần).
 
+## GĐ5 — VFX & bố cục động (ĐÃ LÊN PLAN 2026-09-02, chưa code)
+Đa dạng hoá bố cục/hình khối/chuyển động + hiệu ứng khối + chart đa dạng + diagram có
+graphic motion + VOX + nhấn từ khoá. **Plan chi tiết (nguồn chân lý): `docs/VFX-ROADMAP.md`**
+— 7 đợt P0→P6 (dễ→khó), bất biến/verify/rủi ro/model/handoff đa tài khoản ghi đầy đủ ở đó.
+
 ## Nguyên tắc khi làm GĐ2+
 - Backend: load skill `misa-backend-standard` trước khi code
 - UI: load skill `misa-design-system` (MDS 2.0) trước khi code

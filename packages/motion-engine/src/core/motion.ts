@@ -1,5 +1,12 @@
 import type { CSSProperties } from "react";
-import { interpolate, spring } from "remotion";
+import { Easing, interpolate, spring } from "remotion";
+
+/**
+ * Ease "chữ ký" dùng chung cho mọi chuyển động interpolate (KHÔNG dùng spring) của
+ * engine — mượn kỷ luật nhịp từ tool tham chiếu diagram-video-tool (không license,
+ * chỉ mượn đường cong, không copy hiệu ứng). Vào nhanh, ra rất mượt (overshoot-free).
+ */
+export const signatureEase = Easing.bezier(0.16, 1, 0.3, 1);
 
 /**
  * Bộ chuyển động chuẩn của engine — mọi scene dùng chung để video có "chữ ký"
@@ -99,6 +106,7 @@ export const sceneExitStyle = (
   const clamp = {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
+    easing: signatureEase,
   } as const;
   return {
     opacity: interpolate(frame, range, [1, 0.55], clamp),

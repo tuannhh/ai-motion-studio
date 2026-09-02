@@ -253,6 +253,9 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
             <TransitionSeries.Sequence
               key={scene.id}
               durationInFrames={sceneDurationInFrames(scene)}
+              // Premount 1s trước khi scene vào khung nhìn: font/layout đã "dựng sẵn"
+              // ở lần render đầu nên frame đầu tiên không bị "pop" chữ/khối.
+              premountFor={FPS}
             >
               {scene.voiceover ? (
                 <Audio src={asSrc(scene.voiceover.file)} />

@@ -1,5 +1,72 @@
 # Progress
 
+## 2026-09-02 (tiếp) — GĐ5 VFX: P0 + P1 XONG, đã verify render
+
+Làm theo `docs/VFX-ROADMAP.md` §4 (P0, P1), nhánh git riêng `vfx`.
+
+**P0 — Nền chuyển động** (`core/motion.ts`, `Video.tsx`):
+- `signatureEase = Easing.bezier(0.16, 1, 0.3, 1)` (mượn kỷ luật nhịp từ tool tham
+  chiếu, không copy hiệu ứng) — áp vào `sceneExitStyle()` (exit scene mượt hơn thay vì
+  interpolate mặc định).
+- `premountFor={FPS}` trên mỗi `TransitionSeries.Sequence` — scene dựng sẵn 1s trước
+  khi vào khung nhìn, chống "pop" chữ/layout ở frame đầu.
+
+**P1 — Nhấn từ khoá `**từ**`/`~~từ~~`** (`core/RichText.tsx` mới, `core/ui.tsx`,
+`core/KineticText.tsx`, `scenes/Hook.tsx`, `prompts.ts`):
+- `RichText.tsx`: parse markup `**accent**` (tô màu + gạch chân) / `~~dim~~` (mờ) →
+  span; markup lẻ (không khép cặp) tự strip ký hiệu, không vỡ hình. Dùng trong
+  `SceneHeader` (title/sub, 7 scene: Points/Flow/Timeline/Compare/Rank/Chart/Media) +
+  `Hook.tsx` sub (bypass SceneHeader, phải vá riêng — xem BẪY dưới).
+- `KineticText.tsx` (Hook/Outro/Quote/BigWord headline): tự parse markup trong `text`,
+  gộp accent-words vào `emphasisSet` sẵn có + thêm `dimSet` (opacity 0.55). Không đổi
+  hành vi cũ khi text không có markup.
+- `prompts.ts`: dạy AI cú pháp, giới hạn CHỈ dùng trong `headline`/`title` (không
+  `sub`/`note`/narration), ≤2 cụm/câu.
+
+**BẪY — comment JSDoc chứa `**/` bị hiểu là đóng comment:** viết docblock mô tả cú
+pháp `**accent**/~~dim~~` làm TS parser lỗi hàng loạt (dấu `*/` trong `**/` đóng
+comment giữa chừng). Sửa: tránh viết `**word**` sát nhau trong docblock.
+
+**BẪY 2 — `sub` không phải lúc nào cũng qua SceneHeader:** test markup trong
+`hook.sub` lộ ra ký hiệu `~~...~~` thô trên hình vì `Hook.tsx` tự render `<p>{scene.sub}</p>`
+riêng (không qua `SceneHeader`). Vá bằng cách bọc `<RichText>` y hệt SceneHeader.
+
+**Đã verify render:** `--stills-only` + full mp4 (11.8s, ~25s render, không treo) trên
+spec test có markup — accent tô đúng màu+gạch chân, dim mờ đúng, markup lẻ không rò rỉ
+ký hiệu; render lại `examples/demo-ai-workflow.json` (không markup) → pixel-equivalent
+với trước, không có regression. tsc sạch cả 4 package (motion-engine/pipeline/server/web).
+
+Tiếp theo: P2 (bố cục đa dạng grid/checklist/zigzag/rail/versus).
+
+## 2026-09-02 — GĐ5 VFX & bố cục động: ĐÃ LÊN PLAN (chưa code), sẵn sàng bàn giao đa tài khoản
+
+User yêu cầu đa dạng hoá VFX/bố cục (đang bị "đóng khung" ô chữ nhật xếp dọc): thêm bố
+cục mới, hiệu ứng khối (line sáng/thuỷ tinh/pha lê/vi mạch), nhiều kiểu chart dễ đọc,
+diagram có graphic motion bên trong, phong cách VOX, nhấn từ khoá. Đã nghiên cứu kỹ tool
+tham chiếu `diagram-video-tool-v1.0.0` (hệ editorial tối giản, KHÔNG có sẵn các hiệu ứng
+này, KHÔNG license → chỉ mượn kỷ luật nhịp: `Easing.bezier(.16,1,.3,1)`, stagger,
+`premountFor`, mask nhãn, marker mũi tên — hiệu ứng trang trí tự dựng mới).
+
+**→ Plan chi tiết = NGUỒN CHÂN LÝ: `docs/VFX-ROADMAP.md`** (7 đợt P0→P6, dễ→khó, có bất
+biến/kim chỉ nam/verify/rủi ro từng đợt + khuyến nghị model + cách chạy tiếp trên tài
+khoản khác). Bản có hình để duyệt: Artifact "Lộ trình VFX Engine"
+(https://claude.ai/code/artifact/bb4d8976-53d7-4a3e-a58f-3a2d1da09f39).
+
+- Thứ tự đã chốt (dễ→khó): **P0** nền chuyển động (premount chống pop chữ + ease chữ ký)
+  · **P1** nhấn từ khoá `**từ**` (accent/gạch chân/mờ) · **P2** bố cục đa dạng
+  (grid/checklist/zigzag/rail + scene VS) · **P3** bộ chart dễ đọc
+  (donut/gauge/nhiệt kế/waffle/spark, 1 accent) · **P4** hiệu ứng khối (line
+  sáng/thuỷ tinh/pha lê/vi mạch — rủi ro chi phí render) · **P5** diagram có motion (hạt
+  chạy dọc edge/đường tự vẽ/node đập/marker+mask) · **P6** phong cách VOX.
+- **Chi phí AI ≈ 0**: gần như toàn bộ là code engine render local; chỉ P1/P3/P6 đụng
+  nhẹ `prompts.ts`. → 25$ credit không bị đụng cho VFX.
+- **Model:** Sonnet 5 high đủ cho P0–P3, P6; nâng Opus 4.8/5 (hoặc Sonnet 5 xhigh) cho
+  P4–P5. Kỷ luật verify-render + giữ bất biến quan trọng hơn sức mạnh model.
+- **TRẠNG THÁI: chưa bắt đầu code** — chờ user gật "bắt đầu". Khi làm xong đợt nào →
+  tick Status trong `docs/VFX-ROADMAP.md` §3 + thêm mục ngày ở đây kèm "đã verify".
+- Ràng buộc còn hiệu lực: KHÔNG Cloud Run (test Docker trước), KHÔNG commit/push nếu
+  chưa được bảo, KHÔNG tự nhập mật khẩu máy.
+
 ## 2026-09-01 (phiên Fable) — Deploy Docker 1-container (đã chạy E2E :8080)
 
 `Dockerfile` (node:24-bookworm-slim + libs Chrome Headless Shell + `ensureBrowser()` bake, đặt TRƯỚC COPY source để đổi code không tải lại Chromium; pre-warm render 7 scene; **pin pnpm 9.15.0** tránh policy minimumReleaseAge của pnpm 10) + `docker/entrypoint.sh` (đợi MySQL→áp schema+005 changelog idempotent→start) + `docker-compose.yml` service `app` (+volume ams-storage) + `.dockerignore` + `docs/DEPLOY.md`. Server production phục vụ `apps/web/dist` SPA + honor `PORT`; API 404 JSON đặt trước SPA fallback. ĐÃ E2E: `docker compose up -d` → migrations tự áp → :8080 health/web/login/gdrive/render-in-container đều OK.

@@ -83,6 +83,7 @@ CHUYỂN ĐỘNG CAMERA (trường "motion", thêm được vào BẤT KỲ scen
 
 "narration": lời thoại người dẫn đọc trong scene đó — tiếng Việt nói tự nhiên, 1-2 câu (10-35 từ), KHÔNG lặp nguyên văn chữ trên hình mà bổ sung/diễn giải. RIÊNG scene "quote" và "bigword": chữ lớn trên hình CHÍNH là câu được đọc — narration hãy là lời DẪN/BÌNH ngắn KHÁC (giới thiệu ai nói, vì sao đáng chú ý), TUYỆT ĐỐI không đọc lại y hệt câu trích/cụm chữ đó (tránh cảm giác đọc đôi).
 "captionEmphasis": mảng 1-3 TỪ ĐƠN đắt nhất trích từ narration của scene (đúng chính tả từng từ) — sẽ được tô màu accent trong phụ đề karaoke.
+NHẤN TỪ KHOÁ trong chữ trên hình: chỉ dùng trong "headline" (hook/outro) và "title" — bọc ĐÚNG 1-2 từ/cụm CHỐT nhất bằng **hai dấu sao** (VD: "AI **tự động** viết kịch bản") để engine tô accent + gạch chân; bọc bằng ~~hai dấu ngã~~ nếu muốn LÀM MỜ một cụm phụ, ít quan trọng. KHÔNG dùng markup này trong "sub", "note", "narration" hay bất kỳ trường nào khác — các trường đó hiện markup y nguyên (không được engine xử lý). Tối đa 2 cụm markup mỗi câu, đừng lạm dụng.
 Icon hợp lệ (PascalCase): ${ICON_HINTS}.
 `;
 

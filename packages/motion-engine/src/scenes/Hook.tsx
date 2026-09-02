@@ -7,6 +7,7 @@ import { type } from "../style/fonts";
 import { popIn, riseIn } from "../core/motion";
 import { KineticText, AccentUnderline } from "../core/KineticText";
 import { SafeArea } from "../core/ui";
+import { RichText } from "../core/RichText";
 
 export const HookScene: React.FC<{
   scene: z.infer<typeof hookSceneSchema>;
@@ -63,7 +64,7 @@ export const HookScene: React.FC<{
             ...riseIn({ frame, fps, delay: 30 }),
           }}
         >
-          {scene.sub}
+          <RichText text={scene.sub} accent={theme.accent} />
         </p>
       ) : null}
     </SafeArea>

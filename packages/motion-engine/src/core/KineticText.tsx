@@ -4,6 +4,7 @@ import { evolvePath } from "@remotion/paths";
 import { popSpring } from "./motion";
 import { smartLines, wordsIn } from "./viText";
 import { fitBox } from "./fit";
+import { parseEmphasisMarkup } from "./RichText";
 import { type } from "../style/fonts";
 
 /**
@@ -46,13 +47,19 @@ export const KineticText: React.FC<{
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  // Markup **accent**/~~dim~~ trong text (AI viết trực tiếp trong headline) → chữ
+  // sạch để chia dòng/đo cỡ + danh sách từ accent/dim tự động (gộp với emphasis truyền vào).
+  const parsed = parseEmphasisMarkup(text);
   // Chia dòng TRƯỚC, rồi fit theo ĐÚNG số dòng thực tế (không phải maxLines) — đảm bảo
   // mỗi dòng vừa bề rộng để dùng nowrap mà không tràn.
-  const lines = smartLines(text, maxCharsPerLine, maxLines);
+  const lines = smartLines(parsed.text, maxCharsPerLine, maxLines);
   const size = maxWidth
-    ? fitBox(text, maxWidth, lines.length, { max: fontSize, min: Math.round(fontSize * 0.55), fontWeight })
+    ? fitBox(parsed.text, maxWidth, lines.length, { max: fontSize, min: Math.round(fontSize * 0.55), fontWeight })
     : fontSize;
-  const emphasisSet = new Set(emphasis.map((w) => w.toLocaleLowerCase("vi-VN")));
+  const emphasisSet = new Set(
+    [...emphasis, ...parsed.accentWords].map((w) => w.toLocaleLowerCase("vi-VN"))
+  );
+  const dimSet = new Set(parsed.dimWords);
 
   let wordIndex = 0;
   return (
@@ -74,9 +81,9 @@ export const KineticText: React.FC<{
             wordIndex += 1;
             const p = popSpring({ frame, fps, delay: d });
             const drift = Math.sin((frame - d) / 26 + wordIndex) * 2.2;
-            const isAccent =
-              accent &&
-              emphasisSet.has(word.replace(/[.,!?:;"']/g, "").toLocaleLowerCase("vi-VN"));
+            const normalized = word.replace(/[.,!?:;"']/g, "").toLocaleLowerCase("vi-VN");
+            const isAccent = accent && emphasisSet.has(normalized);
+            const isDim = !isAccent && dimSet.has(normalized);
             // Quầng tách nền: dùng VIỀN CHỮ (text-stroke) cùng màu nền — rẻ về mặt
             // render (không blur từng frame như text-shadow) mà vẫn tách chữ khỏi ảnh
             // phức tạp. paint-order: stroke trước → viền nằm SAU nét chữ, không ăn nét.
@@ -91,7 +98,7 @@ export const KineticText: React.FC<{
                   fontSize: size,
                   color: isAccent ? accent : color,
                   display: "inline-block",
-                  opacity: Math.min(1, p * 1.8),
+                  opacity: isDim ? Math.min(0.55, p * 1.8) : Math.min(1, p * 1.8),
                   transform: `translateY(${(1 - p) * size * 0.55 + (frame > d ? drift : 0)}px) scale(${0.82 + p * 0.18})`,
                   textShadow: accentGlow,
                   ...(haloColor
