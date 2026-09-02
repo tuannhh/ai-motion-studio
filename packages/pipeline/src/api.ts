@@ -14,7 +14,7 @@ import {
   reviewImageSafety,
 } from "./images";
 import { searchWebImage } from "./webimage";
-import { buildPlansPrompt, buildRepairPrompt, Plan, plansSchema } from "./prompts";
+import { buildPlansPrompt, buildRepairPrompt, buildResearchPrompt, Plan, plansSchema } from "./prompts";
 import { generateVoiceover } from "./tts";
 import {
   styleProfileToPromptBlock,
@@ -144,16 +144,38 @@ export const validatePlans = (
   return { plans: errors.length ? [] : result.data, errors };
 };
 
-/** Sinh N plan từ ý tưởng + tư liệu, có 1 vòng tự sửa nếu chưa đạt schema/lint */
+/**
+ * Sinh N plan từ ý tưởng + tư liệu, có 1 vòng tự sửa nếu chưa đạt schema/lint.
+ *
+ * webSearch=true: KHÔNG gắn tool google_search vào lệnh sinh JSON chính (đã kiểm
+ * chứng thực nghiệm: model bỏ qua tool khi phải đồng thời tuân theo schema JSON
+ * dài/phức tạp — xem buildResearchPrompt). Thay vào đó chạy MỘT bước nghiên cứu
+ * riêng, ngắn gọn, ép search chạy đáng tin cậy, rồi gộp kết quả vào sourcesText
+ * như một nguồn tư liệu bình thường trước khi sinh kịch bản (JSON mode ổn định).
+ */
 export const generatePlans = async (
   opts: GeneratePlansOptions
 ): Promise<Plan[]> => {
+  let sourcesText = opts.sourcesText;
+  if (opts.webSearch) {
+    const research = await generateJson(
+      buildResearchPrompt(opts.idea, sourcesText),
+      { webSearch: true }
+    );
+    sourcesText = [
+      sourcesText,
+      `--- Nguồn: Google Search (Gemini tự tra cứu) ---\n${research}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   let raw = await generateJson(
     buildPlansPrompt({
       idea: opts.idea,
       mode: opts.mode,
       count: opts.count,
-      sources: opts.sourcesText || undefined,
+      sources: sourcesText || undefined,
       presetHint: opts.presetHint,
       durationSec: opts.durationSec,
       styleBlock: opts.styleProfile
@@ -162,14 +184,11 @@ export const generatePlans = async (
       scriptPipeline: opts.scriptPipeline,
       series: opts.series,
       userImages: opts.userImages,
-    }),
-    { webSearch: opts.webSearch }
+    })
   );
   let { plans, errors } = validatePlans(raw);
   if (!plans.length) {
-    raw = await generateJson(buildRepairPrompt(raw, errors), {
-      webSearch: opts.webSearch,
-    });
+    raw = await generateJson(buildRepairPrompt(raw, errors));
     ({ plans, errors } = validatePlans(raw));
     if (!plans.length) {
       throw new Error(`Kịch bản không đạt schema sau vòng sửa:\n${errors.join("\n")}`);

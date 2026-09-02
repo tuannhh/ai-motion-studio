@@ -170,6 +170,32 @@ ${SCHEMA_GUIDE}
 Trả về DUY NHẤT một mảng JSON gồm ${count} plan hợp lệ theo schema trên. Không markdown, không giải thích.`;
 };
 
+/**
+ * Prompt NGHIÊN CỨU riêng (không JSON, không schema) — dùng cho bước google_search
+ * grounding TÁCH RIÊNG khỏi lệnh sinh kịch bản. Lý do tách: đã kiểm chứng thực nghiệm
+ * model KHÔNG chịu gọi tool khi tool được gắn chung với một prompt sinh JSON dài/phức
+ * tạp (CRAFT_RULES + SCHEMA_GUIDE) — dù có nhắc rõ trong prompt, dù bỏ hết nguồn khác.
+ * Một prompt ngắn, thuần hỏi-đáp như dưới đây thì search chạy đáng tin cậy (verify
+ * qua groundingMetadata.webSearchQueries). Kết quả trả về được api.ts gộp vào
+ * sourcesText như MỘT NGUỒN bình thường, đưa vào lệnh sinh JSON không kèm tool.
+ */
+export const buildResearchPrompt = (
+  idea: string,
+  existingContext?: string
+): string => `Bạn là trợ lý nghiên cứu. Dùng công cụ tìm kiếm Google để tra cứu thông tin, số liệu, ví dụ THỰC TẾ MỚI NHẤT liên quan chủ đề dưới đây, phục vụ việc viết kịch bản video ngắn.
+
+CHỦ ĐỀ: ${idea}
+${
+  existingContext
+    ? `\nNGỮ CẢNH đã có sẵn (đừng lặp lại — chỉ tìm bổ sung, xác nhận hoặc cập nhật thêm số liệu mới hơn):\n${existingContext.slice(0, 4000)}\n`
+    : ""
+}
+YÊU CẦU:
+- Tìm 3-6 thông tin/số liệu CỤ THỂ, CÓ THẬT (không suy đoán, không bịa), ưu tiên nguồn uy tín và MỚI (ưu tiên 2025-2026).
+- Với mỗi ý, ghi rõ tên tổ chức/nguồn (và năm nếu có) ngay sau ý đó.
+- Nếu tra cứu không ra số liệu cụ thể cho một khía cạnh, bỏ qua khía cạnh đó — KHÔNG ước lượng thay.
+- Trả lời bằng tiếng Việt, dạng gạch đầu dòng ngắn gọn, không mở đầu/kết luận dài dòng.`;
+
 export const buildRepairPrompt = (
   original: string,
   errors: string[]

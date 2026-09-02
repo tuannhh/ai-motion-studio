@@ -1,5 +1,41 @@
 # Progress
 
+## 2026-09-02 (tiếp 7) — Google Search grounding (AI tự tra cứu web) THẬT SỰ HOẠT ĐỘNG
+
+Bối cảnh: `source_mode: "ai"/"combine"` đã có sẵn ở DB/server/web từ trước, nhưng CLI
+(`run.ts`) chưa expose và chưa ai verify grounding có thực sự chạy không. User yêu cầu
+thẳng "khai thác triệt để hệ sinh thái Gemini API" → làm cho thật.
+
+**Phát hiện lỗi gốc:** tool `google_search` (đúng format `{google_search:{}}`, đã verify
+hoạt động qua probe hỏi trực tiếp 1 câu đơn giản — ra đúng ngày + giá vàng thật). NHƯNG khi
+gắn tool này CHUNG với lệnh `generateJson(buildPlansPrompt(...))` (prompt dài, có
+CRAFT_RULES + SCHEMA_GUIDE ép JSON schema phức tạp), Gemini **luôn bỏ qua việc gọi tool**,
+kể cả khi prompt có hẳn block `<WEB_SEARCH>` ép rõ, kể cả khi KHÔNG có nguồn PDF nào (test
+riêng "AI tự tìm thuần"). Kết luận: tool-calling + structured-output phức tạp trong CÙNG 1
+lượt gọi không đáng tin cậy với Gemini.
+
+**Fix — tách 2 bước** (`packages/pipeline/src/prompts.ts` thêm `buildResearchPrompt()`,
+`api.ts` sửa `generatePlans()`): nếu `webSearch:true`, gọi MỘT lệnh nghiên cứu riêng, ngắn,
+không JSON, ép search chạy đáng tin cậy (`generateJson(buildResearchPrompt(idea, sources),
+{webSearch:true})`) → gộp kết quả vào `sourcesText` như MỘT NGUỒN bình thường (giống hệt
+`--- Nguồn: X ---` của PDF/docx) → đưa vào lệnh sinh JSON chính KHÔNG kèm tool (quay lại
+`responseMimeType:application/json` ổn định, bỏ hẳn cơ chế `extractJson` chắp vá trước đó).
+`buildPlansPrompt()` bỏ tham số/`<WEB_SEARCH>` block cũ (không còn cần vì search đã xảy ra
+trước, nguồn đã có sẵn trong `<SOURCES_DATA>`). API công khai `GeneratePlansOptions.webSearch`
+GIỮ NGUYÊN — server/CLI không cần sửa gì thêm.
+
+**Verify thật:** 2 lần test độc lập đều search chạy — probe không nguồn ("AI tự tìm thuần",
+idea về Agentic AI VN 2026) ra 4 câu query thật + nguồn Gartner/AWS thật, scene sinh ra có
+`source:"Gartner / Diễn đàn Biztech 2025"` v.v. Sau đó render lại video "Agentic Enterprise"
+gốc (PDF `Slide chị Quyên_2307.pdf` + `--web-search`, giọng nam/bắc/tintuc, 60s) — log ra
+4 query thật (Gartner/McKinsey/Bain/Capgemini) + 5 grounding URL thật; video 58.2s render
+sạch (`out/agentic-enterprise-dot-pha-nang-suat/video.mp4`), hook scene lấy đúng thống kê
+"95% dự án AI thất bại" (khớp số liệu AI industry phổ biến — không có trong PDF gốc → xác
+nhận web search đã thực sự đóng góp nội dung, không chỉ chạy suông).
+
+`pnpm --filter @ams/pipeline exec tsc --noEmit` sạch. Bài học: khi cần Gemini VỪA
+tool-call VỪA structured-output, luôn tách 2 lệnh — đừng tin tưởng 1 lệnh làm cả hai.
+
 ## 2026-09-02 (tiếp 6, tài khoản mới) — GĐ5 VFX: P6 XONG (VOX) — TOÀN BỘ GĐ5 (P0→P6) HOÀN TẤT
 
 Tiếp nối đúng quy trình bàn giao đa tài khoản: tài khoản trước làm hết P0→P5 (đã commit,

@@ -58,6 +58,22 @@ export const generateJson = async (
       `Gemini không trả nội dung (finishReason: ${data?.candidates?.[0]?.finishReason ?? "?"}).`
     );
   }
+  // Quan sát để XÁC MINH search thật sự chạy (không phải model bịa dựa kiến thức
+  // tĩnh) — model TỰ quyết định có gọi tool hay không dù được cấp; log ra để caller
+  // (CLI/server log) thấy rõ câu truy vấn + nguồn thật đã tra cứu.
+  if (opts.webSearch) {
+    const gm = data?.candidates?.[0]?.groundingMetadata;
+    const queries: string[] = gm?.webSearchQueries ?? [];
+    const sourceUris: string[] = (gm?.groundingChunks ?? [])
+      .map((c: any) => c?.web?.uri)
+      .filter(Boolean);
+    if (queries.length) {
+      console.log(`   🔎 Gemini đã search: ${queries.join(" | ")}`);
+      if (sourceUris.length) console.log(`   🔗 Nguồn: ${sourceUris.slice(0, 5).join(", ")}`);
+    } else {
+      console.log("   ⚠️  webSearch bật nhưng Gemini KHÔNG gọi google_search lần này (dùng kiến thức nền).");
+    }
+  }
   return text;
 };
 

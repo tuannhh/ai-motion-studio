@@ -16,6 +16,8 @@
  *   --no-images           bỏ sinh ảnh minh họa (Gemini image)
  *   --no-tts              bỏ giọng đọc (render câm, duration mặc định)
  *   --no-render           chỉ sinh kịch bản + spec, không render (để duyệt trước)
+ *   --web-search          bật Google Search grounding (AI tự tra cứu web) — kết hợp
+ *                         với --source thành "combine", một mình thành "AI tự tìm"
  *
  * Output: out/<slug>/spec.json + narration.md + audio/*.wav + video.mp4
  */
@@ -74,6 +76,7 @@ const voiceProfile: VoiceProfile = {
 const doTts = !has("no-tts");
 const doImages = !has("no-images");
 const doRender = !has("no-render");
+const webSearch = has("web-search");
 
 const main = async () => {
   // Nạp tư liệu đa định dạng (docx local, pdf/audio/video qua Gemini)
@@ -86,7 +89,9 @@ const main = async () => {
   }
   const sources = sourceBlocks.join("\n\n");
 
-  console.log(`🧠 Sinh ${count} kịch bản (${mode}) cho: "${idea}"`);
+  console.log(
+    `🧠 Sinh ${count} kịch bản (${mode}) cho: "${idea}"${webSearch ? " [+ Google Search grounding]" : ""}`
+  );
   const plans = await generatePlans({
     idea,
     mode,
@@ -94,6 +99,7 @@ const main = async () => {
     sourcesText: sources || undefined,
     presetHint,
     durationSec,
+    webSearch,
   });
 
   for (const plan of plans) {
