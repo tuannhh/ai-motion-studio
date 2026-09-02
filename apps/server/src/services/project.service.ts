@@ -136,6 +136,72 @@ export const getProjectOwned = async (userId: number, projectId: number) => {
   return rows[0];
 };
 
+/**
+ * Trích CHỮ HIỂN THỊ trên hình của 1 scene (khác lời đọc voice-off) để màn duyệt
+ * cho user đối chiếu "chữ trên hình" vs "lời đọc". Chỉ đọc, không đổi plan.
+ */
+const sceneDisplayText = (s: any): string => {
+  const parts: string[] = [];
+  const push = (v?: unknown) => {
+    if (typeof v === "string" && v.trim()) parts.push(v.trim());
+  };
+  switch (s?.type) {
+    case "hook":
+      push(s.badge); push(s.headline); push(s.sub);
+      break;
+    case "points":
+      push(s.title); (s.items ?? []).forEach((it: any) => push(it?.text));
+      break;
+    case "flow":
+      push(s.title); (s.nodes ?? []).forEach((n: any) => push(n?.label));
+      break;
+    case "timeline":
+      push(s.title);
+      (s.steps ?? []).forEach((st: any) => push([st?.time, st?.label, st?.desc].filter(Boolean).join(" — ")));
+      break;
+    case "compare":
+      push(s.title);
+      push(`${s.left?.label ?? ""}: ${(s.left?.points ?? []).join("; ")}`);
+      push(`${s.right?.label ?? ""}: ${(s.right?.points ?? []).join("; ")}`);
+      break;
+    case "stat":
+      push(`${s.value ?? ""}${s.unit ?? ""} — ${s.label ?? ""}`); push(s.source);
+      break;
+    case "quote":
+      push(`“${s.text ?? ""}”`); push(s.author);
+      break;
+    case "rank":
+      push(s.title);
+      (s.items ?? []).forEach((it: any) => push(`${it?.label ?? ""}: ${it?.value ?? ""}${it?.unit ?? ""}`));
+      break;
+    case "chart":
+      push(s.title); push((s.points ?? []).map((p: any) => `${p?.label}:${p?.value}`).join("  "));
+      break;
+    case "media":
+      push(s.title); push(s.caption); push(s.credit);
+      break;
+    case "bigword":
+      push((s.phrases ?? []).map((p: any) => p?.text).filter(Boolean).join("  •  "));
+      break;
+    case "annotate":
+      push(s.kicker); push(s.headline); push(s.note);
+      break;
+    case "terminal":
+      push(s.title); (s.lines ?? []).forEach((l: any) => push(l?.text));
+      break;
+    case "screenshot":
+      push(s.kicker); push(s.headline);
+      (s.markers ?? []).forEach((m: any) => push(m?.label));
+      break;
+    case "outro":
+      push(s.headline); push(s.cta); push(s.handle);
+      break;
+    default:
+      break;
+  }
+  return parts.join("\n");
+};
+
 export const getProjectDetail = async (userId: number, projectId: number) => {
   const project = await getProjectOwned(userId, projectId);
   const [sources] = await pool.query<RowDataPacket[]>(
@@ -160,13 +226,15 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
   // trả nguyên plan_json (nặng + lộ chi tiết dựng không cần cho màn duyệt).
   const scripts = scriptRows.map((r) => {
     const { plan_json, ...rest } = r;
-    let scenes: Array<{ id: string; type: string; narration: string }> = [];
+    let scenes: Array<{ id: string; type: string; narration: string; display: string }> = [];
     try {
       const plan = JSON.parse(String(plan_json));
       scenes = (plan.scenes ?? []).map((s: any) => ({
         id: s.id,
         type: s.type,
         narration: s.narration,
+        // chữ hiển thị trên hình (để đối chiếu với lời đọc voice-off)
+        display: sceneDisplayText(s),
       }));
     } catch {
       // plan hỏng không chặn hiển thị — chỉ mất khả năng sửa scene

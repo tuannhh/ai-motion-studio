@@ -304,29 +304,61 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Nội dung lời thoại để duyệt -->
+      <!-- Kịch bản: chữ trên hình + lời đọc voice-off từng scene để duyệt -->
       <details class="mt-3" :open="script.status === 'pending'">
         <summary class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]">
-          {{ script.status === "pending" && script.scenes?.length ? "Sửa lời thoại từng scene" : "Xem lời thoại từng scene" }}
+          {{ script.status === "pending" && script.scenes?.length ? "Xem kịch bản & sửa lời đọc từng scene" : "Xem kịch bản & lời đọc từng scene" }}
         </summary>
 
-        <!-- Chưa duyệt: cho sửa từng scene rồi lưu trước khi render -->
-        <div v-if="script.status === 'pending' && script.scenes?.length" class="mt-2 space-y-3">
-          <div v-for="(sc, i) in script.scenes" :key="sc.id">
-            <p class="m-0 mb-1 text-[12px] font-medium text-[var(--mds-text-secondary)]">
+        <div v-if="script.scenes?.length" class="mt-2 space-y-3">
+          <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
+            Mỗi scene gồm <b>chữ trên hình</b> (nhìn thấy) và <b>lời đọc voice-off</b> (nghe thấy) — hai phần
+            cố ý KHÁC nhau để lời đọc bổ sung chứ không lặp lại chữ trên hình.
+          </p>
+          <div
+            v-for="(sc, i) in script.scenes"
+            :key="sc.id"
+            class="rounded-lg border border-[var(--mds-border)] p-2.5"
+          >
+            <p class="m-0 mb-1.5 text-[12px] font-semibold text-[var(--mds-text-secondary)]">
               Scene {{ i + 1 }} — {{ sc.type }}
             </p>
-            <MTextarea v-model="sc.narration" :rows="2" :maxlength="320" />
+            <!-- Chữ trên hình (read-only) -->
+            <div v-if="sc.display" class="mb-2">
+              <p class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]">
+                Chữ trên hình
+              </p>
+              <p class="m-0 whitespace-pre-wrap rounded-md bg-[var(--mds-bg-page)] p-2 text-[13px] leading-5">{{ sc.display }}</p>
+            </div>
+            <!-- Lời đọc voice-off -->
+            <div>
+              <p class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-brand-600)]">
+                Lời đọc (voice-off)
+              </p>
+              <MTextarea
+                v-if="script.status === 'pending'"
+                v-model="sc.narration"
+                :rows="2"
+                :maxlength="320"
+              />
+              <p
+                v-else
+                class="m-0 whitespace-pre-wrap rounded-md bg-[var(--mds-bg-page)] p-2 text-[13px] leading-5"
+              >{{ sc.narration }}</p>
+            </div>
           </div>
-          <MButton :loading="savingEditId === script.id" @click="saveNarration(script)">
-            <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
-          </MButton>
-          <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-            Sửa xong bấm "Lưu chỉnh sửa", rồi mới "Duyệt & render".
-          </p>
+          <template v-if="script.status === 'pending'">
+            <MButton :loading="savingEditId === script.id" @click="saveNarration(script)">
+              <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
+            </MButton>
+            <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
+              Chỉ sửa được <b>lời đọc</b>; chữ trên hình do bố cục scene quyết định. Sửa xong bấm "Lưu chỉnh sửa", rồi "Duyệt & render".
+              Số/năm/ngày sẽ được đọc thành chữ tiếng Việt khi lồng tiếng.
+            </p>
+          </template>
         </div>
 
-        <!-- Đã duyệt/đang render: chỉ xem -->
+        <!-- Fallback khi plan hỏng không tách được scene -->
         <pre
           v-else
           class="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--mds-bg-page)] p-3 text-[13px] leading-5"

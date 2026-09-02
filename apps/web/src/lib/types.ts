@@ -32,7 +32,7 @@ export type ScriptRow = {
   slug: string;
   preset: string;
   narration_md: string;
-  scenes: Array<{ id: string; type: string; narration: string }>;
+  scenes: Array<{ id: string; type: string; narration: string; display?: string }>;
   status: "pending" | "approved" | "rejected";
   job_id: number | null;
   job_status: "queued" | "tts" | "rendering" | "done" | "failed" | null;
