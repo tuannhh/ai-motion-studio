@@ -284,20 +284,27 @@ export const chartSceneSchema = z.object({
   type: z.literal("chart"),
   title: z.string().max(60).optional(),
   sub: subField,
-  variant: z.enum(["bar", "line"]).default("bar"),
+  variant: z
+    .enum(["bar", "line", "donut", "gauge", "thermometer", "waffle", "spark", "duo"])
+    .default("bar"),
   /** hiển thị sau số, ví dụ "%", "tỷ" */
   unit: z.string().max(10).optional(),
+  /**
+   * Mốc 100% cho các variant 1-giá-trị (donut/gauge/thermometer/waffle): value/target
+   * = tỉ lệ đầy. BỎ TRỐNG ⇒ mặc định 100 (tức value chính là số phần trăm 0–100).
+   */
+  target: z.number().positive().optional(),
   points: z
     .array(
       z.object({
-        /** nhãn trục x ngắn (năm, quý, tên) */
-        label: z.string().min(1).max(14),
+        /** nhãn trục x ngắn (năm, quý, tên) — với variant 1-giá-trị là caption dưới số */
+        label: z.string().min(1).max(18),
         value: z.number(),
         highlight: z.boolean().default(false),
       })
     )
-    .min(3)
-    .max(8),
+    .min(1)
+    .max(12),
   /** dòng nguồn số liệu mono nhỏ, ví dụ "Statista 2026" */
   source: z.string().max(60).optional(),
 });

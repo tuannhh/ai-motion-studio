@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-09-02 (tiếp 5) — GĐ5 VFX: P3 XONG (bộ chart dễ đọc), đã verify render 2 preset
+
+Làm theo `docs/VFX-ROADMAP.md` §4 (P3), model Opus 4.8, nhánh `vfx`. Mở rộng `chart` từ
+2 variant (bar/line) → **8 variant**. `scenes/Chart.tsx` viết lại thành DISPATCHER +
+các plot con; bar/line giữ nguyên (tách `AxisChart`/`LinePlot`).
+
+**6 variant MỚI:**
+- 1-giá-trị (chỉ đọc `points[0]`): `donut` (vòng % quét theo góc, stroke-dashoffset),
+  `gauge` (nửa cung KPI + nhãn 0/target 2 đầu), `thermometer` (ống + bầu + cột đổ đầy),
+  `waffle` (lưới 10×10, đổ đầy từ hàng dưới lên trái→phải, `round(pct*100)` ô).
+- `spark` (sparkline + 1 số LỚN, dùng điểm highlight/cuối làm số + caption).
+- `duo` (2 cột accent vs muted, so trước/sau) — ĐẶT TÊN `duo` KHÔNG phải `compare` để
+  tránh trùng scene type `compare` (bảng ưu/nhược) đã có — footgun cho prompt AI.
+
+**Schema (`spec.ts`):** variant enum mở 8 giá trị; thêm `target?` (mốc 100% cho 4
+variant 1-giá-trị — trống ⇒ value là % thang 100, engine tính `value/target` kẹp 0–1);
+points `min(1) max(12)` (cũ 3–8) để donut/gauge… chỉ cần 1 điểm; label max 14→18.
+
+**Bất biến GIỮ:** số KPI LỚN luôn `theme.text` (đọc rõ mọi nền), accent CHỈ cho phần đổ
+đầy/mark → giải quyết luôn lưu ý tương phản của chủ dự án (không có chữ-accent-trên-nền-
+tối). glow/boxShadow (ring donut, bầu thermometer, cột duo) gate `!theme.flat`. Fill
+animate bằng `drawProgress`/`enterSpring` (deterministic).
+
+**Lint (`validate.ts`):** cảnh báo theo variant — bar/line <3 điểm, spark <2, duo ≠2,
+1-giá-trị có >1 điểm (thừa bị bỏ), value > mốc target (bị kẹp 100%). Fail-closed vẫn
+chạy: test đầu bị chặn vì label caption >18 ký tự — đúng như thiết kế.
+
+**Prompt (`prompts.ts`):** viết lại mục "9b. chart" — bảng CHỌN variant theo dạng số
+(donut=tỉ trọng %, gauge=KPI thang, thermometer=tiến độ, waffle=bao nhiêu/100, spark=xu
+hướng gọn, duo=2 số trước/sau), phân biệt rõ duo vs scene compare/versus.
+
+**Verify render (bắt buộc):** cả 6 variant render sạch ở **midnight + paper**; paper giữ
+`theme.flat` (không glow, editorial cream). Full mp4 8 scene 1363 frame ~60s
+(~0.041s/frame), NGANG baseline — waffle 100 ô/khung vẫn rẻ, không treo. Không đổi shape
+dữ liệu nên `sceneDisplayText` (server) không cần sửa.
+
+Còn lại roadmap: chỉ P6 (VOX) — làm tiếp ngay.
+
 ## 2026-09-02 (tiếp 4) — GĐ5 VFX: P5 XONG (diagram có motion bên trong), đã verify render + ĐO thời gian
 
 Làm theo `docs/VFX-ROADMAP.md` §4 (P5), model Opus 4.8, tiếp trên nhánh `vfx`. Đây là

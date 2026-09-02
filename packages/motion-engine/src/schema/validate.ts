@@ -99,6 +99,47 @@ const lintScene = (scene: Scene): LintIssue[] => {
     if (scene.points.some((p) => p.value < 0)) {
       err("Chart không hỗ trợ giá trị âm.");
     }
+    // Số điểm cần theo variant. Variant 1-giá-trị chỉ đọc points[0]; trục cần chuỗi.
+    const single = ["donut", "gauge", "thermometer", "waffle"].includes(scene.variant);
+    if (single && scene.points.length > 1) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: `Variant '${scene.variant}' chỉ dùng 1 giá trị (points[0]) — các điểm thừa bị bỏ qua.`,
+      });
+    }
+    if ((scene.variant === "bar" || scene.variant === "line") && scene.points.length < 3) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: `Variant '${scene.variant}' nên có ≥3 điểm để thành chuỗi có nghĩa.`,
+      });
+    }
+    if (scene.variant === "spark" && scene.points.length < 2) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: "Variant 'spark' cần ≥2 điểm để vẽ đường xu hướng.",
+      });
+    }
+    if (scene.variant === "duo" && scene.points.length !== 2) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: "Variant 'duo' so sánh đúng 2 cột — chỉ 2 điểm đầu được dùng.",
+      });
+    }
+    // Variant 1-giá-trị: value vượt mốc 100% → sẽ bị kẹp, cảnh báo để tránh hiểu nhầm.
+    if (single) {
+      const t = scene.target && scene.target > 0 ? scene.target : 100;
+      if (scene.points[0] && scene.points[0].value > t) {
+        issues.push({
+          level: "warn",
+          sceneId: scene.id,
+          message: `Variant '${scene.variant}': value (${scene.points[0].value}) > mốc ${t} — bị kẹp ở 100%. Đặt 'target' đúng nếu không phải %.`,
+        });
+      }
+    }
   }
 
   if (scene.type === "terminal") {
