@@ -213,7 +213,11 @@ const main = async () => {
     outputLocation: outPath,
     inputProps,
     concurrency: frameConcurrency,
-    x264Preset: "faster", // nhanh hơn 'medium' mặc định, chất lượng giảm không đáng kể
+    // JPEG frame capture nhanh hơn PNG mặc định rõ rệt (không nén lossless từng frame);
+    // chất lượng 90 đủ đẹp cho video social. x264 'faster' nhanh hơn 'medium'.
+    imageFormat: "jpeg",
+    jpegQuality: 90,
+    x264Preset: "faster",
     onProgress: ({ progress }) => {
       if (Math.round(progress * 100) % 10 === 0) {
         process.stdout.write(`\r⏳ Render ${(progress * 100).toFixed(0)}%   `);

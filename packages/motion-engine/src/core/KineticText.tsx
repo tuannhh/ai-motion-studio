@@ -77,13 +77,11 @@ export const KineticText: React.FC<{
             const isAccent =
               accent &&
               emphasisSet.has(word.replace(/[.,!?:;"']/g, "").toLocaleLowerCase("vi-VN"));
-            // Quầng tách nền (halo) + glow accent. Halo = 3 lớp shadow cùng màu nền
-            // ôm sát chữ để chữ luôn đọc được trên ảnh; accent thì thêm glow màu nhấn.
-            const halo = haloColor
-              ? `0 0 2px ${haloColor}, 0 0 10px ${haloColor}, 0 2px 20px ${haloColor}`
-              : "";
-            const accentGlow = isAccent && glow ? `0 0 44px ${accent}66` : "";
-            const textShadow = [halo, accentGlow].filter(Boolean).join(", ") || undefined;
+            // Quầng tách nền: dùng VIỀN CHỮ (text-stroke) cùng màu nền — rẻ về mặt
+            // render (không blur từng frame như text-shadow) mà vẫn tách chữ khỏi ảnh
+            // phức tạp. paint-order: stroke trước → viền nằm SAU nét chữ, không ăn nét.
+            // (Bài học: halo bằng 3 lớp text-shadow blur khiến render chậm gấp nhiều lần.)
+            const accentGlow = isAccent && glow ? `0 0 44px ${accent}66` : undefined;
             return (
               <span
                 key={wi}
@@ -95,7 +93,14 @@ export const KineticText: React.FC<{
                   display: "inline-block",
                   opacity: Math.min(1, p * 1.8),
                   transform: `translateY(${(1 - p) * size * 0.55 + (frame > d ? drift : 0)}px) scale(${0.82 + p * 0.18})`,
-                  textShadow,
+                  textShadow: accentGlow,
+                  ...(haloColor
+                    ? {
+                        WebkitTextStrokeWidth: `${Math.max(3, size * 0.05)}px`,
+                        WebkitTextStrokeColor: haloColor,
+                        paintOrder: "stroke fill" as const,
+                      }
+                    : {}),
                   whiteSpace: "pre",
                 }}
               >
