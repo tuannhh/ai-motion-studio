@@ -124,3 +124,98 @@ export const maskWipe = (
   component: MaskWipePresentation,
   props,
 });
+
+/**
+ * blurZoom: cảnh cũ lùi + nhoè, cảnh mới ập tới từ 1.18× kèm blur tan dần —
+ * cú "kéo nét" điện ảnh, khác hẳn slide/fade.
+ */
+const BlurZoomPresentation: React.FC<
+  TransitionPresentationComponentProps<Record<string, never>>
+> = ({ children, presentationProgress, presentationDirection }) => {
+  const p = presentationProgress;
+  const style: React.CSSProperties =
+    presentationDirection === "exiting"
+      ? {
+          transform: `scale(${interpolate(p, [0, 1], [1, 0.92])})`,
+          opacity: interpolate(p, [0, 0.6], [1, 0], { extrapolateRight: "clamp" }),
+          filter: `blur(${p * 10}px)`,
+        }
+      : {
+          transform: `scale(${interpolate(p, [0, 1], [1.18, 1])})`,
+          opacity: interpolate(p, [0.2, 0.8], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
+          filter: `blur(${(1 - p) * 12}px)`,
+        };
+  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+};
+
+export const blurZoom = (): TransitionPresentation<Record<string, never>> => ({
+  component: BlurZoomPresentation,
+  props: {},
+});
+
+/**
+ * iris: cảnh mới lộ ra qua vòng tròn mở rộng từ tâm (clip-path circle) — vì scene
+ * trong suốt trên Background chung, clip lộ đúng nội dung. Cảnh cũ mờ đi phía dưới.
+ */
+const IrisPresentation: React.FC<
+  TransitionPresentationComponentProps<Record<string, never>>
+> = ({ children, presentationProgress, presentationDirection }) => {
+  const p = presentationProgress;
+  if (presentationDirection === "exiting") {
+    return (
+      <AbsoluteFill
+        style={{
+          opacity: interpolate(p, [0.35, 0.7], [1, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
+        }}
+      >
+        {children}
+      </AbsoluteFill>
+    );
+  }
+  const r = interpolate(p, [0, 1], [0, 135]);
+  return (
+    <AbsoluteFill style={{ clipPath: `circle(${r}% at 50% 50%)` }}>
+      {children}
+    </AbsoluteFill>
+  );
+};
+
+export const iris = (): TransitionPresentation<Record<string, never>> => ({
+  component: IrisPresentation,
+  props: {},
+});
+
+/**
+ * pushDiagonal: hai cảnh trượt CÙNG hướng chéo (cảnh cũ đẩy ra, cảnh mới đẩy vào)
+ * — cảm giác "lật trang" động hơn slide thẳng.
+ */
+type PushProps = { dx: number; dy: number };
+
+const PushPresentation: React.FC<
+  TransitionPresentationComponentProps<PushProps>
+> = ({ children, presentationProgress, presentationDirection, passedProps }) => {
+  const p = presentationProgress;
+  const { dx, dy } = passedProps;
+  const pos =
+    presentationDirection === "exiting"
+      ? { x: interpolate(p, [0, 1], [0, -dx]), y: interpolate(p, [0, 1], [0, -dy]) }
+      : { x: interpolate(p, [0, 1], [dx, 0]), y: interpolate(p, [0, 1], [dy, 0]) };
+  return (
+    <AbsoluteFill style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+      {children}
+    </AbsoluteFill>
+  );
+};
+
+export const pushDiagonal = (
+  props: PushProps = { dx: 1120, dy: 380 }
+): TransitionPresentation<PushProps> => ({
+  component: PushPresentation,
+  props,
+});

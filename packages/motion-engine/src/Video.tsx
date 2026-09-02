@@ -36,7 +36,7 @@ import { AnnotateScene } from "./scenes/Annotate";
 import { TerminalScene } from "./scenes/Terminal";
 import { ScreenshotScene } from "./scenes/Screenshot";
 import { PhotoBackdrop } from "./core/PhotoBackdrop";
-import { maskWipe, scaleThrough, whipPan } from "./core/transitions";
+import { blurZoom, iris, maskWipe, pushDiagonal, scaleThrough, whipPan } from "./core/transitions";
 import { seedOf } from "./core/motion";
 
 const SceneRenderer: React.FC<{
@@ -202,23 +202,38 @@ export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) =
  * riêng nhưng render lại luôn y hệt (deterministic). Palette 8 kiểu gồm 3
  * transition tự dựng theo remotion-skill (whip pan, scale-through, mask wipe).
  */
+/** Bảng chuyển cảnh (11 kiểu) — mỗi phần tử nhận theme để đổi màu accent nếu cần */
+const TRANSITIONS: Array<(slug: string, index: number, theme: Theme) => TransitionPresentation<any>> = [
+  () => slide({ direction: "from-bottom" }),
+  () => slide({ direction: "from-right" }),
+  () => fade(),
+  () => wipe({ direction: "from-left" }),
+  (slug, index) => whipPan({ direction: seedOf(`${slug}-whip-${index}`) > 0.5 ? 1 : -1 }),
+  () => scaleThrough(),
+  (_slug, _index, theme) => maskWipe({ accent: theme.accent }),
+  () => slide({ direction: "from-left" }),
+  () => blurZoom(),
+  () => iris(),
+  (slug, index) =>
+    pushDiagonal({ dx: 1120, dy: seedOf(`${slug}-push-${index}`) > 0.5 ? 380 : -380 }),
+];
+
+/**
+ * Chọn transition theo seed nhưng KHÔNG lặp lại đúng kiểu vừa dùng ở scene trước
+ * (trước đây 2 cảnh liền nhau có thể trùng transition → cảm giác "đơn điệu").
+ */
 const transitionFor = (
   slug: string,
   index: number,
   theme: Theme
 ): TransitionPresentation<any> => {
-  const palette: Array<() => TransitionPresentation<any>> = [
-    () => slide({ direction: "from-bottom" }),
-    () => slide({ direction: "from-right" }),
-    () => fade(),
-    () => wipe({ direction: "from-left" }),
-    () => whipPan({ direction: seedOf(`${slug}-whip-${index}`) > 0.5 ? 1 : -1 }),
-    () => scaleThrough(),
-    () => maskWipe({ accent: theme.accent }),
-    () => slide({ direction: "from-left" }),
-  ];
-  const pick = Math.floor(seedOf(`${slug}-t-${index}`) * palette.length) % palette.length;
-  return palette[pick]();
+  const n = TRANSITIONS.length;
+  let pick = Math.floor(seedOf(`${slug}-t-${index}`) * n) % n;
+  if (index > 0) {
+    const prev = Math.floor(seedOf(`${slug}-t-${index - 1}`) * n) % n;
+    if (pick === prev) pick = (pick + 1) % n;
+  }
+  return TRANSITIONS[pick](slug, index, theme);
 };
 
 export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
