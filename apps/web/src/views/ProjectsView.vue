@@ -26,6 +26,8 @@ const detail = ref<ProjectDetail | null>(null);
 const detailLoading = ref(false);
 const approvingId = ref<number | null>(null);
 const playingJobId = ref<number | null>(null);
+// Kịch bản đã render đang được mở lại để SỬA lời thoại (rồi render lại)
+const editingIds = ref<Set<number>>(new Set());
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 // Export Drive theo jobId: link đã export + trạng thái đang upload
@@ -185,6 +187,44 @@ async function saveNarration(script: ScriptRow): Promise<void> {
   }
 }
 
+// Sửa lại kịch bản của video ĐÃ render: bật ô sửa (pending luôn cho sửa sẵn)
+function isEditing(script: ScriptRow): boolean {
+  return script.status === "pending" || editingIds.value.has(script.id);
+}
+function startEdit(script: ScriptRow): void {
+  editingIds.value = new Set(editingIds.value).add(script.id);
+}
+function cancelEdit(script: ScriptRow): void {
+  const next = new Set(editingIds.value);
+  next.delete(script.id);
+  editingIds.value = next;
+  // Nạp lại để khôi phục lời thoại gốc (bỏ các sửa chưa lưu)
+  if (detail.value) void openDetail(detail.value.project.id, true);
+}
+
+// Lưu lời thoại đã sửa rồi RENDER LẠI (dùng cho kịch bản đã render trước đó)
+async function saveAndRerender(script: ScriptRow): Promise<void> {
+  savingEditId.value = script.id;
+  try {
+    await api(`/v1/scripts/${script.id}/narration`, {
+      method: "PUT",
+      body: JSON.stringify({
+        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration })),
+      }),
+    });
+    await api(`/v1/scripts/${script.id}/approve`, { method: "POST" });
+    const next = new Set(editingIds.value);
+    next.delete(script.id);
+    editingIds.value = next;
+    toast.success("Đã lưu lời thoại — đang render lại video.");
+    if (detail.value) await openDetail(detail.value.project.id, true);
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không render lại được.");
+  } finally {
+    savingEditId.value = null;
+  }
+}
+
 async function reject(script: ScriptRow): Promise<void> {
   try {
     await api(`/v1/scripts/${script.id}/reject`, { method: "POST" });
@@ -305,9 +345,9 @@ onMounted(async () => {
       </div>
 
       <!-- Kịch bản: chữ trên hình + lời đọc voice-off từng scene để duyệt -->
-      <details class="mt-3" :open="script.status === 'pending'">
+      <details class="mt-3" :open="script.status === 'pending' || editingIds.has(script.id)">
         <summary class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]">
-          {{ script.status === "pending" && script.scenes?.length ? "Xem kịch bản & sửa lời đọc từng scene" : "Xem kịch bản & lời đọc từng scene" }}
+          {{ isEditing(script) && script.scenes?.length ? "Xem kịch bản & sửa lời đọc từng scene" : "Xem kịch bản & lời đọc từng scene" }}
         </summary>
 
         <div v-if="script.scenes?.length" class="mt-2 space-y-3">
@@ -336,7 +376,7 @@ onMounted(async () => {
                 Lời đọc (voice-off)
               </p>
               <MTextarea
-                v-if="script.status === 'pending'"
+                v-if="isEditing(script)"
                 v-model="sc.narration"
                 :rows="2"
                 :maxlength="320"
@@ -347,6 +387,7 @@ onMounted(async () => {
               >{{ sc.narration }}</p>
             </div>
           </div>
+          <!-- Kịch bản CHƯA duyệt: lưu rồi duyệt & render riêng -->
           <template v-if="script.status === 'pending'">
             <MButton :loading="savingEditId === script.id" @click="saveNarration(script)">
               <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
@@ -355,6 +396,25 @@ onMounted(async () => {
               Chỉ sửa được <b>lời đọc</b>; chữ trên hình do bố cục scene quyết định. Sửa xong bấm "Lưu chỉnh sửa", rồi "Duyệt & render".
               Số/năm/ngày sẽ được đọc thành chữ tiếng Việt khi lồng tiếng.
             </p>
+          </template>
+          <!-- Kịch bản ĐÃ render, đang mở lại để sửa: lưu & render lại luôn -->
+          <template v-else-if="editingIds.has(script.id)">
+            <div class="flex flex-wrap items-center gap-2">
+              <MButton variant="primary" :loading="savingEditId === script.id" @click="saveAndRerender(script)">
+                <MIcon name="refresh" :size="16" /> Lưu &amp; render lại
+              </MButton>
+              <MButton :disabled="savingEditId === script.id" @click="cancelEdit(script)">Huỷ</MButton>
+            </div>
+            <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
+              Sửa <b>lời đọc</b> rồi bấm "Lưu &amp; render lại" — hệ thống dựng lại video mới từ lời thoại đã sửa
+              (video cũ vẫn giữ tới khi bản mới xong). Chữ trên hình do bố cục scene quyết định, không sửa ở đây.
+            </p>
+          </template>
+          <!-- Kịch bản đã render, chưa vào chế độ sửa: nút mở sửa lại -->
+          <template v-else-if="script.job_status === 'done' || script.job_status === 'failed'">
+            <MButton @click="startEdit(script)">
+              <MIcon name="edit" :size="16" /> Sửa lời thoại &amp; render lại
+            </MButton>
           </template>
         </div>
 
@@ -389,6 +449,9 @@ onMounted(async () => {
         <div class="flex items-center gap-2">
           <MButton v-if="playingJobId !== script.job_id" variant="primary" @click="playingJobId = script.job_id">
             Xem video
+          </MButton>
+          <MButton v-if="!editingIds.has(script.id)" @click="startEdit(script)">
+            <MIcon name="edit" :size="16" /> Sửa lời thoại &amp; render lại
           </MButton>
           <a
             class="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--mds-brand-600)] no-underline"

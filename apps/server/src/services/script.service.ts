@@ -35,10 +35,25 @@ export const getScriptDetail = async (userId: number, scriptId: number) => {
   };
 };
 
+/** Các trạng thái job đang chạy — cấm sửa/duyệt lại khi đang render dở */
+const ACTIVE_JOB_STATUSES = ["queued", "images", "tts", "rendering"] as const;
+
+/** true nếu script đang có job render chạy dở (không cho sửa/render lại lúc này) */
+const hasActiveJob = async (scriptId: number): Promise<boolean> => {
+  const [jobs] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM render_jobs WHERE script_id = ? AND status IN (?) LIMIT 1`,
+    [scriptId, ACTIVE_JOB_STATUSES as unknown as string[]]
+  );
+  return Boolean(jobs[0]);
+};
+
 /**
- * Sửa lời thoại (narration) từng scene TRƯỚC khi duyệt. Chỉ cho khi kịch bản
- * còn 'pending' (chưa render). Ghi đè scene.narration trong plan_json, re-validate
- * theo planSchema (fail-closed), dựng lại narration_md. IDOR qua getScriptOwned.
+ * Sửa lời thoại (narration) từng scene — cho phép CẢ trước khi duyệt (pending) LẪN
+ * sau khi đã render (approved), để người dùng phát hiện lỗi thì sửa rồi render lại.
+ * Chỉ cấm khi kịch bản đã bị từ chối hoặc đang có job render chạy dở. Ghi đè
+ * scene.narration trong plan_json, re-validate theo planSchema (fail-closed), dựng
+ * lại narration_md. IDOR qua getScriptOwned. (Không tự render lại — người dùng bấm
+ * "Duyệt & render" / "Render lại" sau khi lưu.)
  */
 export const updateScriptNarration = async (
   userId: number,
@@ -46,8 +61,11 @@ export const updateScriptNarration = async (
   edits: Array<{ id: string; narration: string }>
 ): Promise<void> => {
   const script = await getScriptOwned(userId, scriptId);
-  if (script.status !== "pending") {
-    throw badRequest("Chỉ sửa được kịch bản chưa duyệt.");
+  if (script.status === "rejected") {
+    throw badRequest("Kịch bản đã bị từ chối — không sửa được.");
+  }
+  if (await hasActiveJob(scriptId)) {
+    throw badRequest("Kịch bản đang render — đợi render xong rồi hãy sửa.");
   }
   const plan = JSON.parse(String(script.plan_json));
   const byId = new Map(edits.map((e) => [e.id, e.narration]));
@@ -76,11 +94,9 @@ export const approveScript = async (
   scriptId: number
 ): Promise<number> => {
   const script = await getScriptOwned(userId, scriptId);
-  const [jobs] = await pool.query<RowDataPacket[]>(
-    `SELECT id FROM render_jobs WHERE script_id = ? AND status IN ('queued','tts','rendering') LIMIT 1`,
-    [scriptId]
-  );
-  if (jobs[0]) throw badRequest("Kịch bản này đang có job render chạy dở.");
+  if (await hasActiveJob(scriptId)) {
+    throw badRequest("Kịch bản này đang có job render chạy dở.");
+  }
   if (script.status !== "approved") {
     await pool.query(`UPDATE scripts SET status = 'approved' WHERE id = ?`, [scriptId]);
   }
