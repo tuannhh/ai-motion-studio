@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { interpolate, spring } from "remotion";
 
 /**
@@ -128,6 +129,51 @@ export const seedOf = (s: string): number => {
 /** Chọn 1 phần tử theo seed chuỗi — cùng input luôn cùng kết quả */
 export const pickBySeed = <T,>(key: string, options: readonly T[]): T =>
   options[Math.floor(seedOf(key) * options.length) % options.length];
+
+/**
+ * Kiểu XUẤT HIỆN của 1 khối (item/card) — để list scene không luôn trượt y hệt
+ * một kiểu. Chọn theo seed(scene.id) nên mỗi scene một "tính cách" chuyển động
+ * khác nhau, còn trong 1 scene các item vẫn đồng nhất (đọc dễ). p là tiến độ 0→1.
+ */
+export type RevealStyle = "rise" | "slideL" | "slideR" | "pop" | "clipUp" | "zoomBlur";
+export const REVEAL_STYLES: readonly RevealStyle[] = [
+  "rise",
+  "slideL",
+  "slideR",
+  "pop",
+  "clipUp",
+  "zoomBlur",
+];
+/** Chọn kiểu reveal cho scene theo seed (đổi id → đổi tính cách chuyển động) */
+export const revealStyleOf = (sceneId: string): RevealStyle =>
+  pickBySeed(`${sceneId}-reveal`, REVEAL_STYLES);
+
+/** CSS transform/opacity/clip cho 1 khối theo kiểu reveal + tiến độ p (0→1) */
+export const entrance = (style: RevealStyle, p: number): CSSProperties => {
+  const inv = 1 - p;
+  switch (style) {
+    case "slideL":
+      return { opacity: p, transform: `translateX(${inv * -110}px)` };
+    case "slideR":
+      return { opacity: p, transform: `translateX(${inv * 110}px)` };
+    case "pop":
+      return { opacity: p, transform: `scale(${0.72 + p * 0.28})` };
+    case "clipUp":
+      return {
+        opacity: Math.min(1, p * 1.4),
+        clipPath: `inset(${inv * 100}% 0% 0% 0%)`,
+        transform: `translateY(${inv * 26}px)`,
+      };
+    case "zoomBlur":
+      return {
+        opacity: p,
+        transform: `scale(${1.12 - p * 0.12})`,
+        filter: p < 0.98 ? `blur(${inv * 10}px)` : undefined,
+      };
+    default: // rise
+      return { opacity: p, transform: `translateY(${inv * 44}px)` };
+  }
+};
 
 /** Idle breathing (quy tắc skill: phần tử đứng yên >2s phải thở) — scale quanh 1 */
 export const breathe = (frame: number, amplitude = 0.012) =>

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { flowSceneSchema } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
-import { drawProgress, enterSpring, popIn, spreadDelays } from "../core/motion";
+import { drawProgress, enterSpring, entrance, popIn, revealStyleOf, spreadDelays } from "../core/motion";
 import { Glass, IconChip, SafeArea, SceneHeader } from "../core/ui";
 
 /**
@@ -23,6 +23,8 @@ export const FlowScene: React.FC<{
   // Node hiện dần theo nhịp đọc; bước giữa node dùng cho cả delay connector
   const delays = spreadDelays(scene.nodes.length, sceneFrames);
   const stepStagger = delays.length > 1 ? delays[1] - delays[0] : 18;
+  // Kiểu xuất hiện đổi theo scene (không phải video nào cũng trượt y hệt)
+  const style = revealStyleOf(scene.id);
   const edgeLabel = (fromIdx: number) => {
     const from = scene.nodes[fromIdx]?.id;
     const to = scene.nodes[fromIdx + 1]?.id;
@@ -68,8 +70,7 @@ export const FlowScene: React.FC<{
                   alignItems: "center",
                   gap: 32,
                   padding: `${nodePad}px 36px`,
-                  opacity: p,
-                  transform: `translateY(${(1 - p) * 40}px) scale(${0.94 + p * 0.06})`,
+                  ...entrance(style, p),
                   ...(node.emphasis
                     ? {
                         border: `2.5px solid ${theme.accent}`,
