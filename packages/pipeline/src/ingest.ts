@@ -144,7 +144,7 @@ const isPrivateIp = (ip: string): boolean => {
 };
 
 /** Kiểm host của URL không trỏ tới IP nội bộ (resolve DNS trước khi fetch) */
-const assertPublicHost = async (hostname: string): Promise<void> => {
+export const assertPublicHost = async (hostname: string): Promise<void> => {
   const host = hostname.replace(/^\[|\]$/g, "");
   if (isIP(host)) {
     if (isPrivateIp(host)) throw new Error("Link trỏ tới địa chỉ nội bộ — từ chối.");
