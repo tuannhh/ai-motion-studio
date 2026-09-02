@@ -145,6 +145,41 @@ const lintScene = (scene: Scene): LintIssue[] => {
     }
   }
 
+  if (scene.type === "diagram") {
+    const nodeIds = new Set(scene.nodes.map((n) => n.id));
+    for (const e of scene.edges) {
+      if (!nodeIds.has(e.from) || !nodeIds.has(e.to)) {
+        err(`Edge ${e.from}→${e.to} trỏ tới node không tồn tại.`);
+      }
+      if (e.from === e.to) err(`Edge tự trỏ vào chính nó: ${e.from}.`);
+    }
+    // Mọi node (trừ gốc) nên có ít nhất 1 cạnh vào để dàn tầng đặt đúng chỗ; node
+    // cô lập hoàn toàn (không cạnh nào chạm tới) sẽ dồn về tầng 0 gây rối.
+    const touched = new Set<string>();
+    scene.edges.forEach((e) => {
+      touched.add(e.from);
+      touched.add(e.to);
+    });
+    const orphan = scene.nodes.filter((n) => !touched.has(n.id));
+    if (orphan.length > 0) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: `Node không có cạnh nào nối tới: ${orphan
+          .map((n) => n.id)
+          .join(", ")} — mọi node nên nằm trong ít nhất 1 edge.`,
+      });
+    }
+    const emphasized = scene.nodes.filter((n) => n.emphasis).length;
+    if (emphasized > 2) {
+      issues.push({
+        level: "warn",
+        sceneId: scene.id,
+        message: "Quá 2 node emphasis trong diagram — chỉ nhấn 1-2 nút chốt.",
+      });
+    }
+  }
+
   return issues;
 };
 

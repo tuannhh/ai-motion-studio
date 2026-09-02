@@ -23,6 +23,7 @@ import { ProgressChip } from "./core/ui";
 import { HookScene } from "./scenes/Hook";
 import { PointsScene } from "./scenes/Points";
 import { FlowScene } from "./scenes/Flow";
+import { DiagramScene } from "./scenes/Diagram";
 import { TimelineScene } from "./scenes/Timeline";
 import { CompareScene } from "./scenes/Compare";
 import { VersusScene } from "./scenes/Versus";
@@ -54,6 +55,8 @@ const SceneRenderer: React.FC<{
       return <PointsScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "flow":
       return <FlowScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+    case "diagram":
+      return <DiagramScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "timeline":
       return <TimelineScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "compare":
@@ -130,6 +133,9 @@ const autoRevealCues = (
       break;
     case "flow":
       scene.nodes.forEach((n, i) => (n.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12)));
+      break;
+    case "diagram":
+      scene.nodes.forEach((n, i) => (n.emphasis ? pop(ENTRY + i * 11, 0.5) : tick(ENTRY + i * 11)));
       break;
     case "compare":
       tick(ENTRY, 0.55);

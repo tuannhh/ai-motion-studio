@@ -130,6 +130,44 @@ export const flowSceneSchema = z.object({
     .max(6),
 });
 
+/**
+ * Sơ đồ node/edge tổng quát (P5) — khác "flow" (chuỗi bước tuyến tính dọc): diagram
+ * dùng cho kiến trúc/pipeline có NHÁNH & HỘI TỤ. AI chỉ đưa nodes + edges; engine tự
+ * dàn tầng (layered layout), định tuyến vuông góc, vẽ cạnh dần + hạt chạy + mũi tên.
+ * KHÔNG có toạ độ trong spec (thẩm mỹ/bố cục thuộc engine).
+ */
+export const diagramSceneSchema = z.object({
+  ...sceneBase,
+  type: z.literal("diagram"),
+  title: z.string().max(60).optional(),
+  sub: subField,
+  nodes: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        label: z.string().min(1).max(40),
+        icon: z.string().optional(),
+        /** box (mặc định), pill (bo tròn), hub (nút tròn trung tâm) */
+        kind: z.enum(["box", "pill", "hub"]).default("box"),
+        emphasis: z.boolean().default(false),
+      })
+    )
+    .min(2)
+    .max(7),
+  edges: z
+    .array(
+      z.object({
+        from: z.string(),
+        to: z.string(),
+        label: z.string().max(20).optional(),
+        /** đường nét đứt (quan hệ phụ/không bắt buộc) */
+        dashed: z.boolean().default(false),
+      })
+    )
+    .min(1)
+    .max(10),
+});
+
 export const timelineSceneSchema = z.object({
   ...sceneBase,
   type: z.literal("timeline"),
@@ -364,6 +402,7 @@ export const sceneSchema = z.discriminatedUnion("type", [
   hookSceneSchema,
   pointsSceneSchema,
   flowSceneSchema,
+  diagramSceneSchema,
   timelineSceneSchema,
   compareSceneSchema,
   versusSceneSchema,
@@ -444,6 +483,7 @@ export const DEFAULT_SCENE_SECONDS: Record<SceneType, number> = {
   hook: 3.2,
   points: 6,
   flow: 8,
+  diagram: 8.5,
   timeline: 7,
   compare: 6.5,
   versus: 5,

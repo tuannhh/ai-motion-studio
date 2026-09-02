@@ -1,5 +1,58 @@
 # Progress
 
+## 2026-09-02 (tiếp 4) — GĐ5 VFX: P5 XONG (diagram có motion bên trong), đã verify render + ĐO thời gian
+
+Làm theo `docs/VFX-ROADMAP.md` §4 (P5), model Opus 4.8, tiếp trên nhánh `vfx`. Đây là
+đợt "Khó" cuối trong nhóm P4/P5 — sơ đồ kiến trúc có CHUYỂN ĐỘNG THẬT bên trong (thứ
+reference editorial cố tình không có).
+
+**Quyết định kiến trúc:** thêm scene type MỚI `diagram` (KHÔNG nâng cấp `flow`) để giữ
+tương thích ngược spec v1 — `flow` vẫn là danh sách bước tuyến tính; `diagram` là
+node/edge rẽ nhánh + hội tụ. Engine sở hữu TOÀN BỘ bố cục: AI chỉ đưa `nodes` + `edges`,
+KHÔNG toạ độ.
+
+**Dàn tầng tự động (Sugiyama-lite)** — `scenes/Diagram.tsx` `layoutNodes()`: level =
+đường dài nhất từ gốc bằng relaxation (`level[to] ≥ level[from]+1`, tối đa n vòng, guard
+chu trình) ⇒ MỌI cạnh luôn đi XUỐNG tầng sâu hơn ⇒ định tuyến vuông góc (`routeEdge`)
+luôn hướng xuống, sạch, không rối. Nhóm theo level thành hàng, canh tâm mỗi hàng.
+
+**Chuyển động bên trong:**
+- Cạnh tự vẽ dần (`stroke-dashoffset` × `drawProgress`), mũi tên tam giác (`arrowHead`)
+  xoay theo hướng đoạn cuối, hiện sau khi vẽ xong.
+- HẠT SÁNG chạy vòng lặp dọc cạnh (`pointAtPolyline` nội suy điểm theo frame) — lõi
+  trắng + quầng accent (glow gate `!theme.flat`).
+- Node tiêu điểm ĐẬP nhẹ (`breathe`) + viền chạy (`RunningBorder`, gate `theme.flat`).
+- Nhãn cạnh có chip nền che line (mask ở midpoint) — line không xuyên qua chữ.
+- Hình học dùng chung tách ra `core/geometry.ts` (`Pt`, `polyLength`,
+  `pointAtPolyline`, `toPolyPoints`).
+
+**BẪY đã sửa (centering):** node đặt `left/top` + `transform: translate(-50%,-50%)` để
+canh tâm, NHƯNG `...entrance(revealStyle, p)` cũng trả `transform` → GHI ĐÈ translate
+canh tâm ⇒ node lệch xuống-phải nửa kích thước, cột phải (`img`) TRÀN mép canvas. Sửa:
+tách 2 lớp — lớp NGOÀI định vị + canh tâm + `breathe`(scale); lớp TRONG là thẻ mang
+`entrance` animation. Phát hiện qua render still, sửa xong render lại: mọi node canh tâm,
+không tràn.
+
+**Schema/validate/prompt:** `schema/spec.ts` thêm `diagramSceneSchema` (nodes 2-7:
+id/label≤40/icon?/kind box|pill|hub/emphasis; edges 1-10: from/to/label≤20/dashed),
+DEFAULT_SCENE_SECONDS `diagram: 8.5`. `schema/validate.ts` lint: edge trỏ node tồn tại,
+cấm self-loop, cảnh báo node cô lập + >2 emphasis. `prompts.ts` scene "3b. diagram"
+(rẽ nhánh/hội tụ dùng diagram, tuyến tính dùng flow; AI chỉ nodes+edges KHÔNG toạ độ;
+edge nông→sâu). `project.service.ts` sceneDisplayText case diagram.
+
+**Verify render (bắt buộc):** midnight + paper (flat) đều render sạch, canh tâm, không
+tràn; paper GIỮ bất biến `theme.flat` (không glow/blur, hạt = accent đặc không quầng,
+`RunningBorder` trả null). Contrast đạt: text luôn `theme.text`, accent chỉ cho
+viền/connector/icon. Không regression trên `demo-ai-workflow.json` (7 scene, flow s2 giữ
+running-border P4).
+
+**Chi phí render — ĐÃ ĐO (bắt buộc đợt Khó):** midnight 428 frame full mp4 = **~21s**
+(~0.049s/frame), NGANG baseline P0-P2/P4 (~0.057s/frame). Hình học SVG + hạt per-frame
+RẺ, không treo render. Bài học P4 (tránh stacked filter/backdrop-blur) vẫn giữ: dùng
+`stroke-dashoffset` + `transform` + `drop-shadow` đơn (gate flat).
+
+Còn lại roadmap: P3 (bộ chart dễ đọc) và P6 (VOX) — chỉ làm khi user yêu cầu.
+
 ## 2026-09-02 (tiếp 3) — GĐ5 VFX: P4 XONG (hiệu ứng khối), đã verify render + ĐO thời gian
 
 Làm theo `docs/VFX-ROADMAP.md` §4 (P4), model Opus 4.8, tiếp trên nhánh `vfx`. (P3 —

@@ -155,6 +155,11 @@ const sceneDisplayText = (s: any): string => {
     case "flow":
       push(s.title); (s.nodes ?? []).forEach((n: any) => push(n?.label));
       break;
+    case "diagram":
+      push(s.title);
+      (s.nodes ?? []).forEach((n: any) => push(n?.label));
+      (s.edges ?? []).forEach((e: any) => push(e?.label));
+      break;
     case "timeline":
       push(s.title);
       (s.steps ?? []).forEach((st: any) => push([st?.time, st?.label, st?.desc].filter(Boolean).join(" — ")));
