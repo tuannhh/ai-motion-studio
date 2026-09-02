@@ -1,5 +1,52 @@
 # Progress
 
+## 2026-09-02 (tiếp 3) — GĐ5 VFX: P4 XONG (hiệu ứng khối), đã verify render + ĐO thời gian
+
+Làm theo `docs/VFX-ROADMAP.md` §4 (P4), model Opus 4.8, tiếp trên nhánh `vfx`. (P3 —
+bộ chart — TẠM BỎ QUA theo yêu cầu user, làm P4 trước; P3 vẫn ☐ trong roadmap.)
+
+**File mới `core/surfaces.tsx`** — thư viện 4 "bề mặt" hiệu ứng khối cho 1 KHỐI TIÊU
+ĐIỂM/scene (tiết chế), TẤT CẢ gate theo `theme.flat` (paper → null, không lung linh):
+- `RunningBorder`: viền line ánh sáng chạy quanh chu vi (3 nét SVG stroke-dashoffset:
+  ring nền mờ + underglow nét rộng mờ + "sao chổi" sáng) — KHÔNG filter blur (underglow
+  bằng nét rộng, rẻ hơn drop-shadow từng frame). VIỀN-ONLY → không đè chữ.
+- `GlassSweep`: quét specular kính (1 vệt sáng chéo trượt qua rồi đỗ ngoài khung),
+  mixBlendMode screen + opacity thấp → chỉ ánh lên, không che chữ.
+- `CrystalFacets`: pha lê low-poly (8 tam giác cố định, cạnh sáng mảnh + fill accent
+  rất mờ, mỗi mặt lấp lánh lệch pha bằng sin(frame)); clip trong bo góc.
+- `CircuitTraces`: vi mạch (trace trực giao mờ + node + hạt xung chạy dọc trace bằng
+  nội suy điểm theo frame). Line ngang/dọc giữ vuông khi stretch → sạch.
+- `surfaceFor(key, theme, pool)`: chọn theo seed, trả null khi flat. `SurfaceOverlay`
+  dispatcher.
+
+**Wiring (1 khối tiêu điểm/scene, chỉ preset tối):**
+- `Glass` (`core/ui.tsx`) thêm prop optional `surface?`/`surfaceSeed?` + `position:
+  relative` → phủ overlay khi có surface (mặc định off, spec cũ không đổi).
+- Flow node emphasis → `running-border` (viền-only, chữ label giữ nét).
+- Stat: pha lê/vi mạch SAU con số (seed chọn), z-index dưới số → số luôn đọc rõ.
+- BigWord chip accent → `GlassSweep` lướt qua.
+
+**KHÔNG đụng schema/prompts** — bề mặt là thẩm mỹ thuần engine, chọn bằng seed (AI
+không điều khiển). Hợp đồng scene-spec v1 nguyên vẹn 100%, chi phí AI = 0. Back-catalogue
+tự đẹp hơn khi render lại (demo flow node "duyệt" tự có viền chạy, không đổi spec).
+
+**BẪY tương phản (đúng mối lo user nhắc lại):** `BigWord.tsx` chip accent cũ dùng
+`color: theme.flat ? theme.surface : theme.text` → chữ gần-TRẮNG trên nền accent đặc.
+Trên noir (accent đỏ #E5484D) chỉ ~3.3:1 (dưới AA). Sửa bằng `bestTextOn(theme.accent)`
+(helper WCAG đã thêm ở P2) → chữ gần-đen ~5.6:1. Đây là bug thứ 2 cùng loại với Outro
+CTA (P2) — quét lại theo lưu ý user thì lộ ra.
+
+**Chi phí render — ĐÃ ĐO (bắt buộc của P4):** midnight 731 frame full mp4 = **41.4s**
+(~0.057s/frame), NGANG baseline P0-P2 (P2: 814 frame ~48s). Bề mặt chỉ dùng
+transform/opacity/stroke-dashoffset/gradient — KHÔNG backdrop-blur, KHÔNG chồng
+text-shadow blur (bài học treo >10 phút). Không treo, không phình.
+
+**Đã verify render:** stills + full mp4 trên midnight (flow viền chạy + stat circuit +
+bigword sweep), noir (chip accent chữ đen trên đỏ + stat crystal), paper (flat — xác
+nhận KHÔNG có bề mặt nào: node/stat sạch trơn = invariant giữ). tsc sạch cả 4 package.
+
+Tiếp theo: P3 (bộ chart dễ đọc) hoặc P5 (diagram có motion) — theo chỉ định user.
+
 ## 2026-09-02 (tiếp 2) — GĐ5 VFX: P2 XONG (bố cục đa dạng + scene Versus), đã verify render
 
 Làm theo `docs/VFX-ROADMAP.md` §4 (P2), tiếp trên nhánh `vfx`. User lưu ý thêm: hạn

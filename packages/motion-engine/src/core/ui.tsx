@@ -7,6 +7,7 @@ import { type } from "../style/fonts";
 import { floatY, riseIn, sceneExitStyle } from "./motion";
 import { fitBox } from "./fit";
 import { RichText, stripMarkup } from "./RichText";
+import { SurfaceKind, SurfaceOverlay } from "./surfaces";
 
 /** bề rộng nội dung trong safe area (dùng để tự co headline) */
 const SAFE_W = WIDTH - SAFE_X * 2;
@@ -92,35 +93,50 @@ export const IconChip: React.FC<{
   </div>
 );
 
-/** Card surface chuẩn — glass ở preset tối, viền mực phẳng ở preset flat */
+/**
+ * Card surface chuẩn — glass ở preset tối, viền mực phẳng ở preset flat.
+ * `surface` (P4): phủ 1 bề mặt hiệu ứng (viền chạy/pha lê/vi mạch) cho KHỐI TIÊU
+ * ĐIỂM — chỉ hiện ở preset tối (SurfaceOverlay tự trả null khi flat). Chọn ở scene
+ * bằng surfaceFor(seed) và chỉ áp cho 1 khối nổi bật/scene (tiết chế).
+ */
 export const Glass: React.FC<{
   theme: Theme;
   children: React.ReactNode;
   style?: React.CSSProperties;
-}> = ({ theme, children, style }) => (
-  <div
-    style={
-      theme.flat
-        ? {
-            background: theme.surface,
-            border: `2px solid ${theme.surfaceBorder}`,
-            borderRadius: 18,
-            boxShadow: "0 2px 0 rgba(35,32,28,0.25)",
-            ...style,
-          }
-        : {
-            background: theme.surface,
-            border: `1.5px solid ${theme.surfaceBorder}`,
-            borderRadius: 32,
-            backdropFilter: "blur(18px)",
-            boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-            ...style,
-          }
-    }
-  >
-    {children}
-  </div>
-);
+  surface?: SurfaceKind | null;
+  surfaceSeed?: string;
+}> = ({ theme, children, style, surface, surfaceSeed }) => {
+  const radius = theme.flat ? 18 : 32;
+  return (
+    <div
+      style={
+        theme.flat
+          ? {
+              position: "relative",
+              background: theme.surface,
+              border: `2px solid ${theme.surfaceBorder}`,
+              borderRadius: radius,
+              boxShadow: "0 2px 0 rgba(35,32,28,0.25)",
+              ...style,
+            }
+          : {
+              position: "relative",
+              background: theme.surface,
+              border: `1.5px solid ${theme.surfaceBorder}`,
+              borderRadius: radius,
+              backdropFilter: "blur(18px)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+              ...style,
+            }
+      }
+    >
+      {children}
+      {surface ? (
+        <SurfaceOverlay kind={surface} theme={theme} radius={radius} seedKey={surfaceSeed} />
+      ) : null}
+    </div>
+  );
+};
 
 /** Nhãn nhỏ mono uppercase phía trên tiêu đề scene */
 export const Kicker: React.FC<{

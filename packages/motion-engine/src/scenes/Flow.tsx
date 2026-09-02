@@ -65,6 +65,9 @@ export const FlowScene: React.FC<{
             <React.Fragment key={node.id}>
               <Glass
                 theme={theme}
+                // P4: node tiêu điểm (emphasis) được viền line ánh sáng chạy — chỉ
+                // hiện ở preset tối (gate trong overlay). Viền-only nên KHÔNG đè chữ.
+                surface={node.emphasis ? "running-border" : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",

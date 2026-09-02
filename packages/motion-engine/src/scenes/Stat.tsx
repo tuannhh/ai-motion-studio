@@ -6,6 +6,7 @@ import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { enterSpring, popIn, riseIn } from "../core/motion";
 import { Icon, SafeArea } from "../core/ui";
+import { CircuitTraces, CrystalFacets, surfaceFor } from "../core/surfaces";
 
 const formatValue = (v: number): string => {
   const abs = Math.abs(v);
@@ -35,6 +36,8 @@ export const StatScene: React.FC<{
 
   const R = 330;
   const C = 2 * Math.PI * R;
+  // P4: bề mặt trang trí SAU con số (pha lê/vi mạch) — chỉ preset tối, z dưới số
+  const discSurface = surfaceFor(scene.id, theme, ["crystal", "circuit"]);
 
   return (
     <SafeArea>
@@ -77,7 +80,25 @@ export const StatScene: React.FC<{
               style={{ filter: `drop-shadow(0 0 22px ${theme.accent})` }}
             />
           </svg>
-          <div style={{ textAlign: "center" }}>
+          {discSurface ? (
+            <div
+              style={{
+                position: "absolute",
+                width: R * 2,
+                height: R * 2,
+                borderRadius: "50%",
+                overflow: "hidden",
+                zIndex: 0,
+              }}
+            >
+              {discSurface === "crystal" ? (
+                <CrystalFacets theme={theme} radius="50%" seedKey={scene.id} />
+              ) : (
+                <CircuitTraces theme={theme} radius="50%" />
+              )}
+            </div>
+          ) : null}
+          <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
             <div
               style={{
                 ...type.headline,

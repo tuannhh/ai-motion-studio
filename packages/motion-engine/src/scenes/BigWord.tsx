@@ -2,10 +2,11 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { bigwordSceneSchema, sceneDurationInFrames } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { bestTextOn, Theme } from "../style/presets";
 import { popSpring } from "../core/motion";
 import { KineticText } from "../core/KineticText";
 import { SafeArea } from "../core/ui";
+import { GlassSweep } from "../core/surfaces";
 import { fitOneLine, fitBox } from "../core/fit";
 import { type } from "../style/fonts";
 
@@ -52,15 +53,21 @@ export const BigWordScene: React.FC<{
               ...type.headline,
               fontSize: accentSize,
               lineHeight: 1.15,
-              color: theme.flat ? theme.surface : theme.text,
+              // Tương phản tính thật theo luminance của accent (không suy đoán qua
+              // preset) — chữ trên nền accent ĐẶC phải chọn đúng đen/trắng.
+              color: bestTextOn(theme.accent),
               background: theme.accent,
               padding: "10px 44px 22px",
               whiteSpace: "nowrap",
               borderRadius: theme.flat ? 8 : 20,
               boxShadow: theme.flat ? undefined : `0 0 80px ${theme.accent}66`,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
-            {phrase.text}
+            {/* P4: quét specular kính lướt qua khối chữ tiêu điểm (chỉ preset tối) */}
+            <GlassSweep theme={theme} radius={theme.flat ? 8 : 20} intensity={0.22} />
+            <span style={{ position: "relative", zIndex: 1 }}>{phrase.text}</span>
           </span>
         ) : (
           <KineticText
