@@ -66,7 +66,7 @@ mạch (đều "Dễ", bổ trợ nhau).
 |---|-----|--------|-----------|--------|
 | P0 | Nền chuyển động (premount + ease chữ ký) | Dễ | ~0.5 buổi | ✅ xong (2026-09-02) |
 | P1 | Nhấn từ khoá trong chữ (`**từ**`) | Dễ | ~1 buổi | ✅ xong (2026-09-02) |
-| P2 | Bố cục đa dạng (grid/checklist/zigzag/rail/VS) | Vừa | ~2 buổi | ☐ chưa làm |
+| P2 | Bố cục đa dạng (grid/checklist/zigzag/rail/VS) | Vừa | ~2 buổi | ✅ xong (2026-09-02) |
 | P3 | Bộ chart dễ đọc (donut/gauge/nhiệt kế/waffle/spark) | Vừa | ~2 buổi | ☐ chưa làm |
 | P4 | Hiệu ứng khối (line sáng/thuỷ tinh/pha lê/vi mạch) | Khó | ~2.5 buổi | ☐ chưa làm |
 | P5 | Diagram có graphic motion bên trong | Khó | ~2.5 buổi | ☐ chưa làm |

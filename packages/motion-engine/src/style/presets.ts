@@ -103,3 +103,30 @@ const hexToRgba = (hex: string, alpha: number): string => {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 };
+
+/** Luminance tương đối WCAG cho 1 kênh màu 0-255 */
+const relLuminance = (hex: string): number => {
+  const channel = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const r = channel(parseInt(hex.slice(1, 3), 16));
+  const g = channel(parseInt(hex.slice(3, 5), 16));
+  const b = channel(parseInt(hex.slice(5, 7), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/**
+ * Chọn chữ gần đen hay gần trắng để tương phản CAO NHẤT trên nền đặc màu bgHex —
+ * tính bằng luminance thật (WCAG), KHÔNG suy đoán qua preset tối/sáng: accent có thể
+ * bị override tuỳ ý (accentOverride) nên độ sáng thật của nó không phải lúc nào cũng
+ * khớp preset. Dùng cho chữ trên nền ĐẶC 1 màu (badge/CTA/huy hiệu VS) — 4/4 accent
+ * mặc định của engine đều tương phản tốt hơn với gần-đen dù preset tối hay sáng
+ * (accent là màu trung-sáng bão hoà, không phải màu rất tối cần chữ trắng).
+ */
+export const bestTextOn = (bgHex: string): string => {
+  const L = relLuminance(bgHex);
+  const contrastWithWhite = 1.05 / (L + 0.05);
+  const contrastWithBlack = (L + 0.05) / 0.05;
+  return contrastWithBlack >= contrastWithWhite ? "#0B0F1A" : "#FFFFFF";
+};

@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { outroSceneSchema } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { bestTextOn, Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { popIn, riseIn } from "../core/motion";
 import { KineticText, AccentUnderline } from "../core/KineticText";
@@ -44,7 +44,9 @@ export const OutroScene: React.FC<{
                 ...type.title,
                 display: "inline-block",
                 fontSize: 46,
-                color: theme.isDark ? "#0A0E17" : "#FFFFFF",
+                // Tương phản tính thật theo luminance của accent, không suy đoán qua
+                // preset tối/sáng (accent override có thể sáng/tối khác preset).
+                color: bestTextOn(theme.accent),
                 background: theme.accent,
                 borderRadius: 999,
                 padding: "28px 64px",

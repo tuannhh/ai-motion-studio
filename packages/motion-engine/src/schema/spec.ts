@@ -93,6 +93,14 @@ export const pointsSceneSchema = z.object({
     )
     .min(2)
     .max(5),
+  /**
+   * Ép buộc 1 dáng cụ thể — mặc định "auto" (engine tự chọn theo seed, xem
+   * Points.tsx). KHÔNG dạy AI dùng trường này (thẩm mỹ thuộc về engine); chỉ để
+   * chỉnh tay/debug khi cần.
+   */
+  layout: z
+    .enum(["auto", "cards", "bignum", "grid", "checklist", "zigzag", "numbered-rail"])
+    .default("auto"),
 });
 
 export const flowSceneSchema = z.object({
@@ -152,6 +160,27 @@ export const compareSceneSchema = z.object({
     label: z.string().max(28),
     points: z.array(z.string().max(60)).min(1).max(4),
   }),
+});
+
+const versusSideSchema = z.object({
+  label: z.string().min(1).max(28),
+  /** cụm/số ngắn ĐẠI DIỆN cho phía này — 1 câu chốt, KHÔNG phải danh sách nhiều ý */
+  value: z.string().min(1).max(40),
+  detail: z.string().max(60).optional(),
+  icon: z.string().optional(),
+});
+
+/**
+ * Đối đầu 2 phía kiểu "so găng" — mỗi bên đúng 1 giá trị/cụm chốt + huy hiệu VS ở
+ * giữa. Khác "compare" (bảng ưu/nhược nhiều điểm): versus là 1 cú đấm ngắn, dùng khi
+ * chỉ có 1 con số/câu đối lập rõ ràng mỗi bên (ví dụ "3 ngày" vs "5 phút").
+ */
+export const versusSceneSchema = z.object({
+  ...sceneBase,
+  type: z.literal("versus"),
+  title: z.string().max(60).optional(),
+  left: versusSideSchema,
+  right: versusSideSchema,
 });
 
 export const statSceneSchema = z.object({
@@ -337,6 +366,7 @@ export const sceneSchema = z.discriminatedUnion("type", [
   flowSceneSchema,
   timelineSceneSchema,
   compareSceneSchema,
+  versusSceneSchema,
   statSceneSchema,
   quoteSceneSchema,
   rankSceneSchema,
@@ -416,6 +446,7 @@ export const DEFAULT_SCENE_SECONDS: Record<SceneType, number> = {
   flow: 8,
   timeline: 7,
   compare: 6.5,
+  versus: 5,
   stat: 4,
   quote: 4.5,
   rank: 6,

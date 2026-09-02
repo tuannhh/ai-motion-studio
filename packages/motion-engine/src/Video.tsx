@@ -25,6 +25,7 @@ import { PointsScene } from "./scenes/Points";
 import { FlowScene } from "./scenes/Flow";
 import { TimelineScene } from "./scenes/Timeline";
 import { CompareScene } from "./scenes/Compare";
+import { VersusScene } from "./scenes/Versus";
 import { StatScene } from "./scenes/Stat";
 import { QuoteScene } from "./scenes/Quote";
 import { RankScene } from "./scenes/Rank";
@@ -57,6 +58,8 @@ const SceneRenderer: React.FC<{
       return <TimelineScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "compare":
       return <CompareScene scene={scene} theme={theme} />;
+    case "versus":
+      return <VersusScene scene={scene} theme={theme} />;
     case "stat":
       return <StatScene scene={scene} theme={theme} />;
     case "quote":
@@ -131,6 +134,9 @@ const autoRevealCues = (
     case "compare":
       tick(ENTRY, 0.55);
       tick(ENTRY + 12, 0.55);
+      break;
+    case "versus":
+      ding(ENTRY + 14, 0.7);
       break;
     case "terminal": {
       let f = ENTRY;

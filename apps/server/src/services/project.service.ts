@@ -164,6 +164,11 @@ const sceneDisplayText = (s: any): string => {
       push(`${s.left?.label ?? ""}: ${(s.left?.points ?? []).join("; ")}`);
       push(`${s.right?.label ?? ""}: ${(s.right?.points ?? []).join("; ")}`);
       break;
+    case "versus":
+      push(s.title);
+      push(`${s.left?.label ?? ""}: ${s.left?.value ?? ""}${s.left?.detail ? " — " + s.left.detail : ""}`);
+      push(`${s.right?.label ?? ""}: ${s.right?.value ?? ""}${s.right?.detail ? " — " + s.right.detail : ""}`);
+      break;
     case "stat":
       push(`${s.value ?? ""}${s.unit ?? ""} — ${s.label ?? ""}`); push(s.source);
       break;

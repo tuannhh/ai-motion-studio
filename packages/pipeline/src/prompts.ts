@@ -59,7 +59,8 @@ Các loại scene (mỗi scene BẮT BUỘC có "id" duy nhất, "type", "narrat
 2. points — 2-5 ý chính: { "type":"points", "title"?: "≤60", "sub"?, "items":[{"icon":"TênLucide","text":"≤90"}] }
 3. flow   — quy trình/luồng 2-6 bước: { "type":"flow", "title"?: "≤60", "sub"?, "nodes":[{"id","label":"≤48","icon"?,"emphasis"?:true}], "edges":[{"from","to","label"?:"≤24"}] } — edges nối các node KỀ NHAU theo thứ tự mảng, tối đa 2 node emphasis
 4. timeline — mốc thời gian/lộ trình 2-5 mốc: { "type":"timeline", "title"?, "sub"?, "steps":[{"time"?:"≤16","label":"≤48","desc"?:"≤80"}] }
-5. compare — so sánh 2 vế: { "type":"compare", "title"?, "sub"?, "left":{"label":"≤28","points":["≤60" x1-4]}, "right":{...} } — left là vế kém/cũ, right là vế tốt/mới
+5. compare — so sánh 2 vế NHIỀU ý mỗi bên: { "type":"compare", "title"?, "sub"?, "left":{"label":"≤28","points":["≤60" x1-4]}, "right":{...} } — left là vế kém/cũ, right là vế tốt/mới
+5b. versus — đối đầu 2 phía kiểu "so găng", MỖI BÊN ĐÚNG 1 giá trị/cụm chốt (không phải danh sách): { "type":"versus", "title"?, "left":{"label":"≤28","value":"≤40","detail"?:"≤60","icon"?}, "right":{...} } — dùng khi chỉ có 1 con số/câu đối lập rõ ràng mỗi bên (ví dụ "Dựng tay" value:"2-3 ngày" vs "AI Studio" value:"5 phút"); nhiều ý mỗi bên thì dùng "compare" thay vì "versus"
 6. stat   — 1 con số ấn tượng: { "type":"stat", "value": số, "unit"?: "%", "label":"≤90", "trend"?: "up"|"down", "source"?:"≤60 tên nguồn" }
 7. quote  — câu nói đắt: { "type":"quote", "text":"≤160", "author"?:"≤48" }
 8. rank   — xếp hạng/so sánh ĐỊNH LƯỢNG 2-6 dòng (benchmark, chi phí, thị phần): { "type":"rank", "title"?, "sub"?, "items":[{"label":"≤40","value": số ≥0,"unit"?:"≤10","highlight"?:true}], "source"?:"≤60" } — highlight đúng 1-2 dòng focal; chỉ dùng số liệu THẬT từ tư liệu/ý tưởng

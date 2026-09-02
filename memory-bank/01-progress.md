@@ -1,5 +1,46 @@
 # Progress
 
+## 2026-09-02 (tiếp 2) — GĐ5 VFX: P2 XONG (bố cục đa dạng + scene Versus), đã verify render
+
+Làm theo `docs/VFX-ROADMAP.md` §4 (P2), tiếp trên nhánh `vfx`. User lưu ý thêm: hạn
+chế chữ tương phản kém (chữ accent-xanh trên nền tối, hoặc chữ đen/trắng sai trên nền
+accent đặc) — áp dụng nguyên tắc này xuyên suốt P2 (xem BẪY dưới).
+
+**4 dáng mới cho scene `points`** (`Points.tsx`, cộng "cards"/"bignum" đã có = 7 dáng):
+- `grid`: lưới 2 cột, mỗi ô Glass icon+text căn giữa — nén 3-5 mục ngắn.
+- `checklist`: tick tròn viền `theme.good` (XANH LÁ, không phải accent) nảy vào từng
+  dòng — cố tình đổi hue khỏi accent-xanh-dương để đa dạng, không lặp lại "chữ/viền
+  xanh dương" ở mọi nơi.
+- `zigzag`: thẻ so le trái/phải quanh 1 trục dọc GIỮA, mốc tròn accent pop đúng tâm
+  dọc mỗi thẻ (dùng CSS `top:50%` per-item, không đo DOM — an toàn, không brittle).
+- `numbered-rail`: ray dọc trái + mốc tròn viền accent, SỐ bên trong dùng `theme.text`
+  (trắng/đen) chứ không phải accent — badge dễ đọc hơn hẳn.
+- `scene.layout` (mới, optional, default "auto"): escape-hatch ép 1 dáng cụ thể để
+  chỉnh tay/debug — KHÔNG dạy AI trường này trong prompts.ts (thẩm mỹ ở engine).
+
+**Scene mới `versus`** (`Versus.tsx`, `schema/spec.ts`, `Video.tsx`, `prompts.ts`
+mục 5b, `project.service.ts` — thiếu case này thì màn duyệt hiện trống "chữ trên
+hình"): đối đầu 2 phía kiểu "so găng", mỗi bên 1 giá trị/cụm chốt + huy hiệu VS tròn
+đè giữa — khác `compare` (bảng ưu/nhược nhiều điểm).
+
+**BẪY — tương phản chữ trên nền accent đặc (đúng thứ user nhắc):** `Outro.tsx` CTA
+cũ chọn màu chữ qua `theme.isDark` (suy đoán theo preset) — tính lại bằng luminance
+thật (`bestTextOn()` mới trong `style/presets.ts`, WCAG relative luminance, so
+contrast với trắng/đen) thì phát hiện preset "paper" (isDark=false) đang cho chữ
+TRẮNG trên nền cam accent chỉ đạt ~3.68:1 (dưới ngưỡng AA 4.5:1), trong khi gần-đen
+đạt ~5.33:1 — bug tương phản có thật, đã sửa. `bestTextOn()` dùng lại cho huy hiệu VS
+mới. Nguyên tắc áp dụng toàn P2: text nội dung luôn `theme.text` (không bao giờ
+`theme.accent`), accent chỉ dùng cho viền/icon/rail/badge nền đặc (có tính contrast
+đúng), glow/boxShadow mới đều gate theo `theme.flat`.
+
+**Đã verify render:** stills + full mp4 (27.1s, ~48s, không treo) trên spec ép layout
+qua `scene.layout` (grid 4 mục, checklist 3, zigzag 5, numbered-rail 2, versus) ở cả
+preset `midnight` (glow) và `paper` (flat — xác nhận không rò glow); render lại
+`demo-ai-workflow.json` không lỗi (seed re-map sang layout khác do thêm option mới
+vào `pickBySeed` — ĐÚNG theo thiết kế, không phải regression). tsc sạch cả 4 package.
+
+Tiếp theo: P3 (bộ chart dễ đọc: donut/gauge/nhiệt kế/waffle/spark).
+
 ## 2026-09-02 (tiếp) — GĐ5 VFX: P0 + P1 XONG, đã verify render
 
 Làm theo `docs/VFX-ROADMAP.md` §4 (P0, P1), nhánh git riêng `vfx`.
