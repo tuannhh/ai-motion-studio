@@ -66,7 +66,9 @@ export const KaraokeCaption: React.FC<{
         position: "absolute",
         left: SAFE_X,
         right: SAFE_X,
-        bottom: 150,
+        // 260px (không phải 150px) để không bị caption/tên kênh/thanh nút của
+        // TikTok/Reels/Shorts đè lên khi đăng — phản hồi thiết kế 2026-09-02.
+        bottom: 260,
         display: "flex",
         flexWrap: "wrap",
         justifyContent: "center",
@@ -85,8 +87,8 @@ export const KaraokeCaption: React.FC<{
             style={{
               ...type.title,
               fontWeight: 700,
-              fontSize: 46,
-              lineHeight: 1.35,
+              fontSize: 52,
+              lineHeight: 1.4,
               color: isAccent ? theme.accent : theme.text,
               opacity: started ? 0.55 + age * 0.45 : 0.28,
               transform: started ? `scale(${0.96 + age * 0.04})` : "scale(0.96)",

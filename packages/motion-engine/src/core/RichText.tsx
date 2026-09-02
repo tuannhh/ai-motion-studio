@@ -4,6 +4,11 @@ import React from "react";
  * Cú pháp nhấn từ khoá trong chữ trên hình (headline/title do AI viết):
  * **từ** → tô accent + gạch chân; ~~từ~~ → giảm nhấn (mờ). Markup lẻ (dấu không
  * khép cặp) tự strip ký hiệu, hiện chữ thường — không bao giờ để lộ ký hiệu vỡ hình.
+ *
+ * (P6 VOX từng có biến thể "marker" — dải bút dạ phủ nửa dưới chữ — nhưng phản hồi
+ * thiết kế thực tế 2026-09-02 cho là tương phản yếu (~3:1, dưới ngưỡng đọc rõ) và rối
+ * mắt. Đã bỏ, quay về accent màu + gạch chân cho MỌI flavor — tương phản cao hơn hẳn
+ * (accent trên nền theme, không phải trên chính accent).
  */
 
 type EmphasisParse = { text: string; accentWords: string[]; dimWords: string[] };
@@ -57,34 +62,13 @@ export const RichText: React.FC<{
   text: string;
   accent: string;
   underline?: boolean;
-  /**
-   * marker (P6 VOX): thay gạch chân bằng vệt BÚT DẠ — dải accent phủ nửa dưới chữ,
-   * chữ giữ nguyên màu (currentColor = theme.text) nên vẫn đọc rõ, không lo tương phản.
-   */
-  marker?: boolean;
-}> = ({ text, accent, underline = true, marker = false }) => {
+}> = ({ text, accent, underline = true }) => {
   const tokens = tokenize(text);
   if (tokens.length === 1 && tokens[0].kind === "plain") return <>{tokens[0].text}</>;
   return (
     <>
       {tokens.map((t, i) => {
         if (t.kind === "accent") {
-          if (marker) {
-            return (
-              <span
-                key={i}
-                style={{
-                  background: `linear-gradient(to top, ${accent} 0%, ${accent} 40%, transparent 40%)`,
-                  boxDecorationBreak: "clone",
-                  WebkitBoxDecorationBreak: "clone",
-                  padding: "0 4px",
-                  borderRadius: 3,
-                }}
-              >
-                {t.text}
-              </span>
-            );
-          }
           return (
             <span
               key={i}

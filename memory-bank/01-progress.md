@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-09-02 (tiếp 8) — Sửa thẩm mỹ engine theo phản hồi trực tiếp (VOX + core)
+
+Giám đốc thiết kế xem video "Agentic Enterprise" (render ở tiếp 7) trên điện thoại, chỉ ra
+5 lỗi cụ thể trên scene "annotate" + "versus" flavor VOX: (1) tương phản kém — chữ gần đen
+trên nền accent bão hoà đọc như "cùng tông"; (2) markup `**...**` hiện RAW ngoài hình (LỖI
+THẬT — `AnnotateScene` render `scene.headline` trực tiếp, KHÔNG qua `RichText`/`fitBox` như
+mọi scene khác); (3) khối chữ/ảnh đè sát nhau, thiếu giãn dòng; (4) chữ nhỏ khó đọc trên
+điện thoại; (5) phụ đề đặt quá thấp (`bottom:150`), dễ bị caption/tên kênh của
+TikTok/Reels/Shorts che khi đăng thật.
+
+**Sửa tại engine (đúng CLAUDE.md — không sửa prompt):**
+- `Annotate.tsx`: headline giờ qua `fitBox` (tự co cỡ, 2 dòng tối đa, 40-62px) + `RichText`
+  (xử lý đúng markup, hết hiện `**`) — bug chính đã fix. Thêm scrim gradient riêng sau lưng
+  khối chữ đầu (ảnh nền bận chi tiết vẫn đọc rõ chữ). Note box 40→44px, lineHeight 1.3→1.4.
+- `core/RichText.tsx`: **BỎ HẲN** biến thể `marker` (dải bút dạ P6 VOX) — đo lại thấy tương
+  phản chữ trắng/nền accent chỉ ~3:1 (sát ngưỡng tối thiểu WCAG cho chữ lớn), lại tạo viền
+  cắt nửa dưới chữ gây rối mắt. Quay về accent-màu + gạch chân cho MỌI flavor (đã dùng ổn
+  định trước P6) — đúng ý giám đốc thiết kế: "nhấn mạnh bằng bold đậm, đổi màu, không cần
+  khung".
+- `core/ui.tsx` `Kicker` (biến thể vox): từ thẻ ĐẶC accent + `bestTextOn` (chữ gần đen trên
+  nền accent — tương phản đo được ~6.5:1 nhưng NHÌN vẫn như "cùng tông xanh" vì cùng hue) →
+  thẻ VIỀN accent + nền `accentSoft` mờ + chữ màu accent (accent luôn nổi trên nền theme tối,
+  khác hẳn tông, không còn nhầm). `SceneHeader` bỏ prop `marker` khi gọi `RichText`.
+- `Versus.tsx`: card value 58→64px, label 26→28px, detail 26→29px + lineHeight 1.4, padding
+  card 48→52px, gap 16→20 (giãn dòng).
+- `core/Captions.tsx`: `bottom:150→260`, `fontSize:46→52`, `lineHeight:1.35→1.4` — né vùng
+  UI nền tảng short-form khi đăng thật.
+
+**Verify:** `tsc --noEmit` sạch → `pnpm still` render lại 7 scene của CHÍNH spec video đã
+giao (không tốn API) → soát bằng mắt scene-1/2/4/5/7: markup hết lộ, kicker/badge đọc rõ,
+không còn đè khối, phụ đề cao hơn rõ rệt. Render lại mp4 đầy đủ (đúng 58.2s, cùng
+audio/ảnh cũ — chỉ engine đổi) → gửi lại bản mới cho giám đốc thiết kế.
+
+Bài học: `bestTextOn` (WCAG luminance) đúng toán học nhưng KHÔNG bắt được cảm nhận "cùng
+tông màu" (hue giống nhau dù độ sáng khác xa) — với nền/badge dùng chính `theme.accent`,
+ưu tiên kiểu viền/nhạt (accent nổi trên nền theme) hơn kiểu đặc màu (chữ tương phản nhân tạo
+trên chính accent). Cũng là bài học 2: 1 feature mới (P6 marker) có thể bị phản hồi thật đảo
+ngược ngay buổi sau — đừng ngại bỏ nếu bằng chứng thị giác rõ ràng, dù mới thêm.
+
 ## 2026-09-02 (tiếp 7) — Google Search grounding (AI tự tra cứu web) THẬT SỰ HOẠT ĐỘNG
 
 Bối cảnh: `source_mode: "ai"/"combine"` đã có sẵn ở DB/server/web từ trước, nhưng CLI

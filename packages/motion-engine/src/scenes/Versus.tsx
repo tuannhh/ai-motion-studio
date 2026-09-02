@@ -36,8 +36,8 @@ export const VersusScene: React.FC<{
           flexDirection: "column",
           alignItems: "center",
           textAlign: "center",
-          padding: "48px 24px",
-          gap: 16,
+          padding: "52px 26px",
+          gap: 20,
           opacity: p,
           transform: `translateX(${(1 - p) * (isLeft ? -90 : 90)}px)`,
         }}
@@ -46,7 +46,7 @@ export const VersusScene: React.FC<{
         <span
           style={{
             ...type.label,
-            fontSize: 26,
+            fontSize: 28,
             color: theme.textDim,
           }}
         >
@@ -55,15 +55,17 @@ export const VersusScene: React.FC<{
         <span
           style={{
             ...type.headline,
-            fontSize: 58,
-            lineHeight: 1.05,
+            fontSize: 64,
+            lineHeight: 1.1,
             color: theme.text,
           }}
         >
           {data.value}
         </span>
         {data.detail ? (
-          <span style={{ ...type.body, fontSize: 26, color: theme.textDim }}>{data.detail}</span>
+          <span style={{ ...type.body, fontSize: 29, lineHeight: 1.4, color: theme.textDim }}>
+            {data.detail}
+          </span>
         ) : null}
       </Glass>
     );

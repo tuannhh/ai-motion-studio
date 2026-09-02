@@ -7,6 +7,8 @@ import { type } from "../style/fonts";
 import { drawProgress, enterSpring, popSpring } from "../core/motion";
 import { PhotoBackdrop } from "../core/PhotoBackdrop";
 import { Kicker } from "../core/ui";
+import { RichText, stripMarkup } from "../core/RichText";
+import { fitBox } from "../core/fit";
 
 /** Hash chuỗi → số (để wobble tất định cho vòng khoanh vẽ tay VOX). */
 const hashStr = (s: string): number => {
@@ -82,6 +84,21 @@ export const AnnotateScene: React.FC<{
         />
       ) : null}
 
+      {/* scrim riêng sau lưng khối chữ đầu — đảm bảo đọc rõ dù ảnh nền bận chi tiết
+          (midScrim của PhotoBackdrop chỉ phủ đều toàn khung, không đủ tối riêng vùng chữ) */}
+      {scene.headline || scene.kicker ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: SAFE_TOP + 340,
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.32) 60%, transparent 100%)",
+          }}
+        />
+      ) : null}
+
       {/* header trên vùng safe */}
       <div
         style={{
@@ -94,22 +111,35 @@ export const AnnotateScene: React.FC<{
         }}
       >
         {scene.kicker ? <Kicker theme={theme}>{scene.kicker}</Kicker> : null}
-        {scene.headline ? (
-          <h2
-            style={{
-              ...type.title,
-              fontSize: 62,
-              fontWeight: vox ? 900 : 700,
-              letterSpacing: vox ? "-0.02em" : "-0.01em",
-              lineHeight: vox ? 1.02 : 1.14,
-              color: theme.text,
-              margin: "14px 0 0",
-              textShadow: theme.flat ? undefined : "0 4px 30px rgba(0,0,0,0.6)",
-            }}
-          >
-            {vox ? scene.headline.toLocaleUpperCase("vi-VN") : scene.headline}
-          </h2>
-        ) : null}
+        {scene.headline
+          ? (() => {
+              const displayHeadline = vox
+                ? scene.headline.toLocaleUpperCase("vi-VN")
+                : scene.headline;
+              const fontSize = fitBox(stripMarkup(displayHeadline), WIDTH - SAFE_X * 2, 2, {
+                max: 62,
+                min: 40,
+                fontWeight: vox ? 900 : 700,
+                letterSpacing: vox ? "-0.02em" : "-0.01em",
+              });
+              return (
+                <h2
+                  style={{
+                    ...type.title,
+                    fontSize,
+                    fontWeight: vox ? 900 : 700,
+                    letterSpacing: vox ? "-0.02em" : "-0.01em",
+                    lineHeight: vox ? 1.14 : 1.2,
+                    color: theme.text,
+                    margin: "22px 0 0",
+                    textShadow: theme.flat ? undefined : "0 4px 30px rgba(0,0,0,0.6)",
+                  }}
+                >
+                  <RichText text={displayHeadline} accent={theme.accent} />
+                </h2>
+              );
+            })()
+          : null}
       </div>
 
       {/* mũi tên + ring focus */}
@@ -170,9 +200,9 @@ export const AnnotateScene: React.FC<{
         <p
           style={{
             ...type.body,
-            fontSize: 40,
+            fontSize: 44,
             fontWeight: 700,
-            lineHeight: 1.3,
+            lineHeight: 1.4,
             margin: 0,
           }}
         >

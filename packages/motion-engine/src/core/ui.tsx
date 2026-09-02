@@ -2,7 +2,7 @@ import React from "react";
 import * as lucide from "lucide-react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { SAFE_BOTTOM, SAFE_TOP, SAFE_X, WIDTH } from "../schema/spec";
-import { Theme, bestTextOn } from "../style/presets";
+import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { floatY, riseIn, sceneExitStyle } from "./motion";
 import { fitBox } from "./fit";
@@ -146,20 +146,24 @@ export const Kicker: React.FC<{
 }> = ({ theme, children, delay = 0 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  // VOX: nhãn danh mục thành THẺ ĐẶC accent (chữ tương phản), không có gạch dẫn.
+  // VOX: nhãn danh mục thành THẺ viền accent (chữ accent trên nền mờ) — tương phản
+  // cao hơn hẳn thẻ ĐẶC accent trước đây (chữ luôn nổi trên nền theme, không phải
+  // trên chính màu accent) + nhẹ mắt hơn (phản hồi thiết kế 2026-09-02: thẻ đặc màu
+  // đọc như "chữ trên nền cùng tông", khó đọc).
   if (theme.flavor === "vox") {
     return (
       <div
         style={{
           ...type.label,
-          fontSize: 26,
+          fontSize: 28,
           fontWeight: 800,
           letterSpacing: "0.06em",
-          color: bestTextOn(theme.accent),
-          background: theme.accent,
-          padding: "9px 18px",
+          color: theme.accent,
+          background: theme.accentSoft,
+          border: `2px solid ${theme.accent}`,
+          padding: "10px 20px",
           borderRadius: 6,
-          marginBottom: 24,
+          marginBottom: 32,
           display: "inline-block",
           ...riseIn({ frame, fps, delay }),
         }}
@@ -222,7 +226,7 @@ export const SceneHeader: React.FC<{
         >
           {vox ? (
             <span style={{ display: "inline-block", transform: "scaleX(0.9)", transformOrigin: "left top" }}>
-              <RichText text={displayTitle} accent={theme.accent} marker />
+              <RichText text={displayTitle} accent={theme.accent} />
             </span>
           ) : (
             <RichText text={title} accent={theme.accent} />
