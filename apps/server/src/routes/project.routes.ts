@@ -32,7 +32,7 @@ const createSchema = z.object({
   watermarkPresetId: z.number().int().positive().optional(),
 });
 
-const ALLOWED_SOURCE_EXT = /\.(txt|md|docx|pdf|mp3|wav|m4a|aac|ogg|flac|mp4|mov|webm)$/i;
+const ALLOWED_SOURCE_EXT = /\.(txt|md|docx|pdf|mp3|wav|m4a|aac|ogg|flac|mp4|mov|webm|jpg|jpeg|png|webp)$/i;
 
 const upload = multer({
   dest: storagePaths.temp,
@@ -87,7 +87,7 @@ projectRoutes.post(
     if (!req.file) throw badRequest("Thiếu file tư liệu (field 'file').");
     if (!ALLOWED_SOURCE_EXT.test(req.file.originalname)) {
       throw badRequest(
-        "Định dạng chưa hỗ trợ — dùng txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm."
+        "Định dạng chưa hỗ trợ — dùng txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm, jpg, png, webp."
       );
     }
     const sourceId = await addSource(req.user!.id, idParam(req.params.id), req.file);

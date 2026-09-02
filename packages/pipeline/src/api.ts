@@ -7,7 +7,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateJson, VoiceProfile } from "./gemini";
-import { generateSceneImage, generateUiImage, reviewImageSafety } from "./images";
+import {
+  describeImageForRedraw,
+  generateSceneImage,
+  generateUiImage,
+  reviewImageSafety,
+} from "./images";
 import { searchWebImage } from "./webimage";
 import { buildPlansPrompt, buildRepairPrompt, Plan, plansSchema } from "./prompts";
 import { generateVoiceover } from "./tts";
@@ -38,6 +43,8 @@ export type GeneratePlansOptions = {
   webSearch?: boolean;
   /** serie manager: tên + số tập bắt đầu + ngữ cảnh tập trước */
   series?: { name: string; startEpisode: number; context?: string };
+  /** ảnh thật người dùng tải lên (index + caption) để AI chèn 'userimg:N' */
+  userImages?: { index: number; caption: string }[];
 };
 
 /** Tách plan → spec engine (bỏ narration) + map sceneId → narration */
@@ -154,6 +161,7 @@ export const generatePlans = async (
         : undefined,
       scriptPipeline: opts.scriptPipeline,
       series: opts.series,
+      userImages: opts.userImages,
     }),
     { webSearch: opts.webSearch }
   );
@@ -224,13 +232,17 @@ export const generateSpecImages = async (
   plan: Plan,
   spec: VideoSpec,
   jobDir: string,
-  onProgress?: ImageProgress
+  onProgress?: ImageProgress,
+  /** ảnh THẬT người dùng tải lên (index → file trên đĩa) để giải 'userimg:N' */
+  userImages?: { index: number; storedPath: string; caption: string }[]
 ): Promise<string[]> => {
   const warnings: string[] = [];
   const tasks: Array<{
     sceneIndex: number;
-    kind: "image" | "uiImage" | "bgImage" | "webImage" | "webBg";
+    kind: "image" | "uiImage" | "bgImage" | "webImage" | "webBg" | "userImage" | "userBg";
     prompt: string;
+    /** với userImage/userBg: file gốc + có vẽ lại (redraw) hay dùng nguyên ảnh */
+    ref?: { storedPath: string; redraw: boolean };
   }> = [];
   // Tiền tố "web:" trong imagePrompt/bgImagePrompt (hoặc media.image) = dùng ẢNH THẬT
   // từ internet (Openverse CC) thay vì ảnh AI — phần sau "web:" là truy vấn (tiếng Anh).
@@ -238,28 +250,46 @@ export const generateSpecImages = async (
     typeof v === "string" && v.trim().toLowerCase().startsWith("web:")
       ? v.trim().slice(4).trim()
       : null;
+  // Tiền tố "userimg:N" hoặc "userimg:N:redraw" = ảnh THẬT người dùng đã tải lên.
+  const userRef = (v: unknown): { storedPath: string; redraw: boolean } | null => {
+    if (typeof v !== "string") return null;
+    const m = v.trim().toLowerCase().match(/^userimg:(\d+)(:redraw)?$/);
+    if (!m) return null;
+    const src = userImages?.find((u) => u.index === Number(m[1]));
+    return src ? { storedPath: src.storedPath, redraw: Boolean(m[2]) } : null;
+  };
   plan.scenes.forEach((s: any, i) => {
     const type = spec.scenes[i].type;
-    // media: dùng ảnh thật internet khi image = "web:<query>"
-    const mediaWeb = type === "media" ? webQuery(s.image) : null;
-    if (mediaWeb) tasks.push({ sceneIndex: i, kind: "webImage", prompt: mediaWeb });
+    // media: ưu tiên ảnh thật người dùng, rồi ảnh thật internet, cuối cùng mới ảnh AI
+    if (type === "media") {
+      const uref = userRef(s.image);
+      const mediaWeb = webQuery(s.image);
+      if (uref) tasks.push({ sceneIndex: i, kind: "userImage", prompt: "", ref: uref });
+      else if (mediaWeb) tasks.push({ sceneIndex: i, kind: "webImage", prompt: mediaWeb });
+    }
     if (s.imagePrompt && type === "annotate") {
+      const uref = userRef(s.imagePrompt);
       const wq = webQuery(s.imagePrompt);
       tasks.push(
-        wq
-          ? { sceneIndex: i, kind: "webImage", prompt: wq }
-          : { sceneIndex: i, kind: "image", prompt: s.imagePrompt }
+        uref
+          ? { sceneIndex: i, kind: "userImage", prompt: "", ref: uref }
+          : wq
+            ? { sceneIndex: i, kind: "webImage", prompt: wq }
+            : { sceneIndex: i, kind: "image", prompt: s.imagePrompt }
       );
     }
     if (s.imagePrompt && type === "screenshot") {
       tasks.push({ sceneIndex: i, kind: "uiImage", prompt: s.imagePrompt });
     }
     if (s.bgImagePrompt) {
+      const uref = userRef(s.bgImagePrompt);
       const wq = webQuery(s.bgImagePrompt);
       tasks.push(
-        wq
-          ? { sceneIndex: i, kind: "webBg", prompt: wq }
-          : { sceneIndex: i, kind: "bgImage", prompt: s.bgImagePrompt }
+        uref
+          ? { sceneIndex: i, kind: "userBg", prompt: "", ref: uref }
+          : wq
+            ? { sceneIndex: i, kind: "webBg", prompt: wq }
+            : { sceneIndex: i, kind: "bgImage", prompt: s.bgImagePrompt }
       );
     }
   });
@@ -269,10 +299,40 @@ export const generateSpecImages = async (
   // lỗi để mapPool dừng cả cụm (fail-closed); ảnh nền hỏng chỉ cảnh báo.
   await mapPool(tasks, aiPoolSize(), async (task) => {
     const scene = spec.scenes[task.sceneIndex] as any;
-    const isBg = task.kind === "bgImage" || task.kind === "webBg";
+    const isBg = task.kind === "bgImage" || task.kind === "webBg" || task.kind === "userBg";
     const rel = `images/${scene.id}-${isBg ? "bg" : "main"}`;
     try {
-      if (task.kind === "webImage" || task.kind === "webBg") {
+      if (task.kind === "userImage" || task.kind === "userBg") {
+        // Ảnh THẬT người dùng tải lên: qua cổng an toàn nội dung (guardrail áp cho
+        // cả ảnh của chính user). redraw = AI vẽ lại theo mô tả; ngược lại dùng
+        // nguyên ảnh (copy vào jobDir).
+        const { storedPath, redraw } = task.ref!;
+        const buf = fs.readFileSync(storedPath);
+        const ext = (path.extname(storedPath) || ".jpg").toLowerCase();
+        const mime =
+          ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+        if (!(await reviewImageSafety(buf, mime))) {
+          throw new Error("ảnh của bạn không qua cổng an toàn nội dung (bản đồ/cờ/lãnh đạo/chính trị...)");
+        }
+        if (redraw) {
+          const desc = await describeImageForRedraw(buf, mime);
+          const generated = await generateSceneImage(desc, path.join(jobDir, rel));
+          if (isBg) scene.bgImage = path.relative(jobDir, generated.file);
+          else scene.image = path.relative(jobDir, generated.file);
+          if (generated.requiresReview) {
+            warnings.push(`[${scene.id}] Ảnh vẽ lại chưa thật đạt — đã dùng bản tốt nhất, có thể "Render lại".`);
+          }
+        } else {
+          const dest = path.join(jobDir, rel + ext);
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.copyFileSync(storedPath, dest);
+          if (isBg) scene.bgImage = path.relative(jobDir, dest);
+          else {
+            scene.image = path.relative(jobDir, dest);
+            if (scene.type === "media" && !scene.credit) scene.credit = "Ảnh: tư liệu của bạn";
+          }
+        }
+      } else if (task.kind === "webImage" || task.kind === "webBg") {
         // Ảnh THẬT internet (CC) — tải về jobDir, qua cổng an toàn nội dung; gắn credit
         const web = await searchWebImage(task.prompt, path.join(jobDir, rel), (buf, mime) =>
           reviewImageSafety(buf, mime)

@@ -166,6 +166,45 @@ export const reviewImageSafety = async (buffer: Buffer, mimeType: string): Promi
   }
 };
 
+/**
+ * VẼ LẠI ảnh thật: content model soi ảnh tham chiếu và viết BẢN MÔ TẢ minh hoạ
+ * (chủ thể/bố cục/màu/không khí) — KHÔNG sao chép chữ, logo, gương mặt người thật,
+ * và tự loại bỏ chủ đề CẤM (thay bằng trung tính). Kết quả đưa vào generateSceneImage
+ * để AI dựng tranh minh hoạ theo bố cục ảnh gốc (proven describe→generate, không
+ * dùng image-to-image chưa kiểm chứng). Lỗi → ném (caller fail-closed/cảnh báo).
+ */
+export const describeImageForRedraw = async (
+  buffer: Buffer,
+  mimeType: string
+): Promise<string> => {
+  const { contentModel } = config();
+  const instruction =
+    `Bạn là giám đốc mỹ thuật. Xem ẢNH THẬT đính kèm và viết một BẢN MÔ TẢ ngắn (2-4 câu, tiếng Việt) để hoạ sĩ VẼ LẠI ` +
+    `thành tranh minh hoạ cho video — giữ CHỦ THỂ CHÍNH, bố cục, góc nhìn và bảng màu/không khí của ảnh gốc. ` +
+    `TUYỆT ĐỐI KHÔNG chép lại: chữ/số/logo/watermark/giao diện, và KHÔNG mô tả gương mặt nhận diện được của người thật (tả chung: "một người", "bàn tay"...). ` +
+    `Nếu ảnh có ${BANNED_IMAGE_SUBJECTS} — hãy BỎ các yếu tố đó, thay bằng bối cảnh trung tính. ` +
+    `Chỉ trả về đoạn mô tả cảnh, không thêm lời dẫn.`;
+  const data = await postJson(
+    `https://generativelanguage.googleapis.com/v1beta/models/${contentModel}:generateContent`,
+    {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: instruction },
+            { inlineData: { mimeType, data: buffer.toString("base64") } },
+          ],
+        },
+      ],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 512 },
+    },
+    45_000
+  );
+  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("").trim();
+  if (!text) throw new Error("Không mô tả được ảnh tham chiếu để vẽ lại.");
+  return text;
+};
+
 export type GeneratedImage = {
   file: string;
   mimeType: string;

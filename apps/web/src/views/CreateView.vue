@@ -117,7 +117,7 @@ type UploadItem = {
 };
 const uploadItems = ref<UploadItem[]>([]);
 
-const ACCEPT = ".txt,.md,.docx,.pdf,.mp3,.wav,.m4a,.mp4,.mov,.webm";
+const ACCEPT = ".txt,.md,.docx,.pdf,.mp3,.wav,.m4a,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp";
 
 function onSelectFiles(files: File[]): void {
   for (const file of files) {
@@ -369,7 +369,7 @@ async function submit(): Promise<void> {
         <p class="m-0 mb-1 text-[13px] font-medium">
           Tư liệu tham khảo
           <span class="font-normal text-[var(--mds-text-secondary)]">
-            — txt, docx, pdf, âm thanh, video (≤18MB/file)</span>
+            — txt, docx, pdf, âm thanh, video, ảnh (jpg/png/webp) (≤18MB/file). Ảnh thật của bạn sẽ được AI ưu tiên dùng làm minh hoạ.</span>
         </p>
         <MUpload
           v-model="uploadItems"

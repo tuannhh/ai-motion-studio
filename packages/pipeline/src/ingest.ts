@@ -24,6 +24,14 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webm": "video/webm",
 };
 
+/** Ảnh THẬT do người dùng tải lên (Drive/máy) — làm tư liệu hình ảnh cho scene */
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
 /** Giới hạn inline của Gemini API (~20MB cả request) */
 const MAX_INLINE_BYTES = 18 * 1024 * 1024;
 
@@ -76,6 +84,49 @@ const geminiExtract = async (filePath: string, mimeType: string): Promise<string
   return text;
 };
 
+const IMAGE_CAPTION_PROMPT = `Bạn là biên tập ảnh cho video. Mô tả ẢNH đính kèm để dùng làm tư liệu hình ảnh minh hoạ:
+1. DÒNG ĐẦU TIÊN: một chú thích ngắn gọn (tối đa 120 ký tự) nêu chủ thể chính của ảnh.
+2. Các dòng sau: mô tả chi tiết bối cảnh, màu sắc, bố cục; nếu ảnh có CHỮ thì OCR nguyên văn phần chữ.
+Trả về text thuần tiếng Việt. KHÔNG bịa chi tiết không có trong ảnh.`;
+
+/** Sinh chú thích + mô tả cho 1 ảnh (dòng đầu là caption ngắn để hiển thị) */
+const geminiCaptionImage = async (filePath: string, mimeType: string): Promise<string> => {
+  const { geminiApiKey, contentModel } = config();
+  if (!geminiApiKey) throw new Error("Thiếu GEMINI_API_KEY.");
+  const bytes = fs.readFileSync(filePath);
+  if (bytes.length > MAX_INLINE_BYTES) {
+    throw new Error(
+      `Ảnh ${path.basename(filePath)} nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén nhỏ hơn.`
+    );
+  }
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${contentModel}:generateContent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: IMAGE_CAPTION_PROMPT },
+              { inlineData: { mimeType, data: bytes.toString("base64") } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
+      }),
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Gemini caption ảnh HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+  const data: any = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("");
+  if (!text?.trim()) throw new Error(`Gemini không mô tả được ảnh ${path.basename(filePath)}.`);
+  return text.trim();
+};
+
 /** Bóc text .docx không cần dependency: unzip word/document.xml rồi strip tag */
 const extractDocx = (filePath: string): string => {
   const r = spawnSync("unzip", ["-p", filePath, "word/document.xml"], {
@@ -108,6 +159,12 @@ export const ingestFile = async (filePath: string): Promise<IngestedSource> => {
   }
   if (ext === ".doc") {
     throw new Error(`${name}: định dạng .doc cũ chưa hỗ trợ — hãy lưu lại thành .docx hoặc .pdf.`);
+  }
+  const imageMime = IMAGE_MIME_BY_EXT[ext];
+  if (imageMime) {
+    // Ảnh THẬT người dùng tải lên: giữ nguyên file trên đĩa (dùng làm asset khi
+    // render), extracted_text = chú thích để AI biết nội dung ảnh khi viết kịch bản.
+    return { name, text: await geminiCaptionImage(abs, imageMime), method: `image:${imageMime}` };
   }
   const mime = MIME_BY_EXT[ext];
   if (!mime) {

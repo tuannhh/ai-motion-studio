@@ -5,7 +5,7 @@ import { pool } from "../db";
 import { appConfig, storagePaths } from "../config";
 import { getEffectiveWatermark } from "./watermark.service";
 import { getPresetForRender } from "./watermark-preset.service";
-import { voiceProfileOf } from "./project.service";
+import { getProjectImageSources, voiceProfileOf } from "./project.service";
 import {
   generateSpecImages,
   planToSpec,
@@ -95,7 +95,7 @@ const setProgress = (jobId: number, progress: number) =>
 
 const processJob = async (jobId: number): Promise<void> => {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT j.id, s.plan_json, s.slug, p.user_id, p.watermark_preset_id,
+    `SELECT j.id, s.plan_json, s.slug, s.project_id, p.user_id, p.watermark_preset_id,
             p.voice_gender, p.voice_region, p.voice_style, p.voice_speed,
             t.profile_json AS template_profile,
             m.stored_path AS music_path
@@ -156,8 +156,14 @@ const processJob = async (jobId: number): Promise<void> => {
 
   // Pha sinh ảnh minh họa (Gemini image) — 5→30%
   await pool.query(`UPDATE render_jobs SET status = 'images' WHERE id = ?`, [jobId]);
-  const imgWarnings = await generateSpecImages(plan, spec, jobDir, (done, total) =>
-    void setProgress(jobId, 5 + Math.round((done / Math.max(1, total)) * 25))
+  // Ảnh thật người dùng đã tải lên (để giải các token 'userimg:N' trong plan)
+  const userImages = await getProjectImageSources(Number(row.project_id));
+  const imgWarnings = await generateSpecImages(
+    plan,
+    spec,
+    jobDir,
+    (done, total) => void setProgress(jobId, 5 + Math.round((done / Math.max(1, total)) * 25)),
+    userImages
   );
   if (imgWarnings.length) {
     console.log(`[worker] Job ${jobId} ảnh nền bị bỏ: ${imgWarnings.join(" | ")}`);

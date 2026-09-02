@@ -331,6 +331,33 @@ export const deleteSource = async (
   if (rows[0].mime !== "text/link") fs.rmSync(String(rows[0].stored_path), { force: true });
 };
 
+/**
+ * Danh mục ẢNH THẬT người dùng đã tải lên cho project (extract_method 'image:*'),
+ * theo thứ tự id ổn định → index 1..N. Dùng CHUNG cho lúc sinh kịch bản (cho AI
+ * biết có ảnh nào để tham chiếu 'userimg:N') và lúc render (map index → file thật).
+ * caption = dòng đầu extracted_text (mô tả ngắn) để AI/creator nhận diện ảnh.
+ */
+export type UserImageSource = { index: number; storedPath: string; caption: string };
+
+export const getProjectImageSources = async (
+  projectId: number
+): Promise<UserImageSource[]> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT stored_path, extracted_text FROM project_sources
+      WHERE project_id = ? AND status = 'ready' AND extract_method LIKE 'image:%'
+      ORDER BY id`,
+    [projectId]
+  );
+  return rows.map((r, i) => ({
+    index: i + 1,
+    storedPath: String(r.stored_path),
+    caption: String(r.extracted_text ?? "")
+      .split("\n")[0]
+      .trim()
+      .slice(0, 160) || "ảnh không có mô tả",
+  }));
+};
+
 const voiceProfileOf = (project: RowDataPacket): VoiceProfile => ({
   gender: project.voice_gender,
   region: project.voice_region,
@@ -376,6 +403,9 @@ export const generateScripts = async (
         .map((s) => `--- Nguồn: ${s.file_name} ---\n${s.extracted_text}`)
         .join("\n\n");
 
+      // Ảnh thật người dùng tải lên → AI có thể chèn 'userimg:N' vào scene media/annotate
+      const userImages = await getProjectImageSources(projectId);
+
       // Template-from-video: profile ép style, workflow quyết định gate duyệt
       const tpl = project.template_id
         ? await getReadyProfile(userId, Number(project.template_id))
@@ -406,6 +436,7 @@ export const generateScripts = async (
         webSearch:
           project.source_mode === "ai" || project.source_mode === "combine",
         series,
+        userImages: userImages.map((u) => ({ index: u.index, caption: u.caption })),
       });
 
       // Sinh lại = thay thế bộ kịch bản cũ chưa duyệt (job đã render giữ nguyên qua script cũ bị xoá? Không — xoá cascade).
