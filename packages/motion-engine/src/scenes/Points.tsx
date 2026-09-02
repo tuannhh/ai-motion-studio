@@ -4,15 +4,17 @@ import { z } from "zod";
 import { pointsSceneSchema } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
-import { STAGGER, enterSpring, popIn } from "../core/motion";
+import { enterSpring, popIn, spreadDelays } from "../core/motion";
 import { Glass, IconChip, SafeArea, SceneHeader } from "../core/ui";
 
 export const PointsScene: React.FC<{
   scene: z.infer<typeof pointsSceneSchema>;
   theme: Theme;
-}> = ({ scene, theme }) => {
+  sceneFrames?: number;
+}> = ({ scene, theme, sceneFrames = 150 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const delays = spreadDelays(scene.items.length, sceneFrames);
 
   return (
     <SafeArea>
@@ -25,7 +27,7 @@ export const PointsScene: React.FC<{
 
       <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
         {scene.items.map((item, i) => {
-          const delay = 14 + i * STAGGER;
+          const delay = delays[i];
           const p = enterSpring({ frame, fps, delay });
           return (
             <Glass

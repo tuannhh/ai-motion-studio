@@ -4,7 +4,7 @@ import { z } from "zod";
 import { flowSceneSchema } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
-import { STAGGER, drawProgress, enterSpring, popIn } from "../core/motion";
+import { drawProgress, enterSpring, popIn, spreadDelays } from "../core/motion";
 import { Glass, IconChip, SafeArea, SceneHeader } from "../core/ui";
 
 /**
@@ -15,11 +15,14 @@ import { Glass, IconChip, SafeArea, SceneHeader } from "../core/ui";
 export const FlowScene: React.FC<{
   scene: z.infer<typeof flowSceneSchema>;
   theme: Theme;
-}> = ({ scene, theme }) => {
+  sceneFrames?: number;
+}> = ({ scene, theme, sceneFrames = 180 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const stepStagger = STAGGER + 6;
+  // Node hiện dần theo nhịp đọc; bước giữa node dùng cho cả delay connector
+  const delays = spreadDelays(scene.nodes.length, sceneFrames);
+  const stepStagger = delays.length > 1 ? delays[1] - delays[0] : 18;
   const edgeLabel = (fromIdx: number) => {
     const from = scene.nodes[fromIdx]?.id;
     const to = scene.nodes[fromIdx + 1]?.id;
@@ -44,7 +47,7 @@ export const FlowScene: React.FC<{
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch" }}>
         {scene.nodes.map((node, i) => {
-          const delay = 12 + i * stepStagger;
+          const delay = delays[i];
           const p = enterSpring({ frame, fps, delay });
           const connDelay = delay + stepStagger * 0.55;
           const connP = drawProgress({ frame, fps, delay: connDelay });

@@ -4,17 +4,19 @@ import { z } from "zod";
 import { timelineSceneSchema } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
-import { STAGGER, drawProgress, enterSpring, popSpring } from "../core/motion";
+import { drawProgress, enterSpring, popSpring, spreadDelays } from "../core/motion";
 import { SafeArea, SceneHeader } from "../core/ui";
 
 /** Timeline dọc: trục vẽ dần, mốc tròn pop + card nội dung trượt vào */
 export const TimelineScene: React.FC<{
   scene: z.infer<typeof timelineSceneSchema>;
   theme: Theme;
-}> = ({ scene, theme }) => {
+  sceneFrames?: number;
+}> = ({ scene, theme, sceneFrames = 180 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const stepStagger = STAGGER + 5;
+  const delays = spreadDelays(scene.steps.length, sceneFrames);
+  const stepStagger = delays.length > 1 ? delays[1] - delays[0] : 18;
 
   return (
     <SafeArea>
@@ -43,7 +45,7 @@ export const TimelineScene: React.FC<{
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 46 }}>
           {scene.steps.map((step, i) => {
-            const delay = 16 + i * stepStagger;
+            const delay = delays[i];
             const p = enterSpring({ frame, fps, delay });
             const dot = popSpring({ frame, fps, delay: delay - 2 });
             return (

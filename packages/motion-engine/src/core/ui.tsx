@@ -166,6 +166,10 @@ export const SceneHeader: React.FC<{
         <h2
           style={{
             ...type.headline,
+            // Chính: đậm hơn, hàng khít lại để khối tiêu đề nổi bật rõ so với phụ
+            fontWeight: 800,
+            lineHeight: 1.04,
+            letterSpacing: "-0.01em",
             fontSize: fitBox(title, SAFE_W, 3, { max: size, min: Math.round(size * 0.6) }),
             color: theme.text,
             margin: 0,
@@ -179,10 +183,12 @@ export const SceneHeader: React.FC<{
         <p
           style={{
             ...type.sub,
-            fontSize: 36,
+            // Phụ: nhỏ hơn + nhẹ hơn + mờ hơn → tách bậc rõ với tiêu đề chính
+            fontSize: 32,
+            fontWeight: 400,
             color: theme.textDim,
             margin: 0,
-            marginTop: 16,
+            marginTop: 18,
             ...riseIn({ frame, fps, delay: 10 }),
           }}
         >
@@ -215,9 +221,9 @@ export const ProgressChip: React.FC<{
         ...riseIn({ frame, fps, delay: 0 }),
       }}
     >
-      <span style={{ ...type.mono, fontSize: 26, color: theme.textDim }}>
-        {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
-      </span>
+      {/* Bộ đếm trang "01 / 08" đã BỎ theo phản hồi (quá nhỏ, khó nhìn, gây rối);
+          giữ lại chip serie khi video thuộc một serie. Span rỗng để flex canh phải. */}
+      <span />
       {series ? (
         <span
           style={{

@@ -44,15 +44,17 @@ const SceneRenderer: React.FC<{
   theme: Theme;
   channelHandle?: string;
 }> = ({ scene, theme, channelHandle }) => {
+  // Thời lượng scene (frame) để rải reveal item theo nhịp đọc ("nói tới đâu hiện tới đó")
+  const sceneFrames = sceneDurationInFrames(scene);
   switch (scene.type) {
     case "hook":
       return <HookScene scene={scene} theme={theme} />;
     case "points":
-      return <PointsScene scene={scene} theme={theme} />;
+      return <PointsScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "flow":
-      return <FlowScene scene={scene} theme={theme} />;
+      return <FlowScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "timeline":
-      return <TimelineScene scene={scene} theme={theme} />;
+      return <TimelineScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "compare":
       return <CompareScene scene={scene} theme={theme} />;
     case "stat":
@@ -60,7 +62,7 @@ const SceneRenderer: React.FC<{
     case "quote":
       return <QuoteScene scene={scene} theme={theme} />;
     case "rank":
-      return <RankScene scene={scene} theme={theme} />;
+      return <RankScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
     case "chart":
       return <ChartScene scene={scene} theme={theme} />;
     case "media":

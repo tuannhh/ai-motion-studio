@@ -44,6 +44,26 @@ export const popIn = (args: SpringArgs) => {
 /** Delay stagger tiêu chuẩn giữa các item trong list/diagram (frame) */
 export const STAGGER = 9;
 
+/**
+ * Delay reveal RẢI ĐỀU theo độ dài scene: item hiện dần trong lúc voiceover đang
+ * đọc ("nói tới đâu hiện tới đó") thay vì hiện dồn hết trong ~1 giây đầu. Trải từ
+ * ~8% tới ~62% thời lượng scene (xong sớm trước khi hết cảnh để người xem kịp đọc
+ * mục cuối). Bước giữa các item được kẹp [12,58] frame để không dồn cục / không lê
+ * quá chậm. Trả về mảng delay (frame) theo từng item.
+ */
+export const spreadDelays = (
+  count: number,
+  sceneFrames: number,
+  startFrac = 0.08,
+  endFrac = 0.62
+): number[] => {
+  const start = Math.round(sceneFrames * startFrac);
+  if (count <= 1) return [start];
+  const rawStep = (sceneFrames * endFrac - start) / (count - 1);
+  const step = Math.min(Math.max(rawStep, 12), 58);
+  return Array.from({ length: count }, (_, i) => Math.round(start + i * step));
+};
+
 /** Vẽ đường theo tiến độ 0→1 (stroke-dashoffset) */
 export const drawProgress = ({ frame, fps, delay = 0 }: SpringArgs) =>
   spring({

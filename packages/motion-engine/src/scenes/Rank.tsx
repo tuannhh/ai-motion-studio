@@ -4,7 +4,7 @@ import { z } from "zod";
 import { rankSceneSchema } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
-import { STAGGER, drawProgress, enterSpring } from "../core/motion";
+import { drawProgress, enterSpring, spreadDelays } from "../core/motion";
 import { SafeArea, SceneHeader } from "../core/ui";
 
 const formatValue = (v: number): string =>
@@ -16,10 +16,12 @@ const formatValue = (v: number): string =>
 export const RankScene: React.FC<{
   scene: z.infer<typeof rankSceneSchema>;
   theme: Theme;
-}> = ({ scene, theme }) => {
+  sceneFrames?: number;
+}> = ({ scene, theme, sceneFrames = 180 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const max = Math.max(...scene.items.map((i) => i.value), 1);
+  const delays = spreadDelays(scene.items.length, sceneFrames);
 
   return (
     <SafeArea>
@@ -31,7 +33,7 @@ export const RankScene: React.FC<{
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
         {scene.items.map((item, i) => {
-          const delay = 12 + i * (STAGGER + 3);
+          const delay = delays[i];
           const p = enterSpring({ frame, fps, delay });
           const bar = drawProgress({ frame, fps, delay: delay + 6 });
           const color = item.highlight ? theme.accent : theme.textDim;

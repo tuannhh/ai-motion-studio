@@ -133,8 +133,8 @@ export const AccentUnderline: React.FC<{
     config: { damping: 200, stiffness: 80, mass: 0.7 },
   });
   const h = 22;
-  // đường lượn nhẹ như quẹt bút dạ (không thẳng đơ)
-  const d = `M 4 ${h * 0.62} Q ${width * 0.3} ${h * 0.12}, ${width * 0.54} ${h * 0.5} T ${width - 4} ${h * 0.4}`;
+  // Đường kẻ THẲNG (theo phản hồi: bỏ nét lượn khó hiểu) — vẫn tự vẽ trái→phải
+  const d = `M 4 ${h * 0.5} L ${width - 4} ${h * 0.5}`;
   const evolved = evolvePath(p, d);
   return (
     <svg
