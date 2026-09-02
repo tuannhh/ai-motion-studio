@@ -1,5 +1,8 @@
 import { StylePreset } from "../schema/spec";
 
+/** Flavor phong cách chồng lên preset màu (không đổi màu) — xem P6 VOX. */
+export type Flavor = "vox";
+
 export type Theme = {
   /** màu blob gradient nền (3 màu, chuyển động chậm) — bỏ qua khi flat */
   bgBase: string;
@@ -19,6 +22,8 @@ export type Theme = {
    * KHÔNG glow, KHÔNG blur, KHÔNG shadow đậm, nền phẳng, viền nét rõ.
    */
   flat: boolean;
+  /** Flavor phong cách (P6) — bỏ trống = chuẩn; "vox" = explainer kiểu VOX. */
+  flavor?: Flavor;
 };
 
 export const THEMES: Record<StylePreset, Theme> = {
@@ -86,9 +91,11 @@ export const THEMES: Record<StylePreset, Theme> = {
 
 export const resolveTheme = (
   preset: StylePreset,
-  accentOverride?: string
+  accentOverride?: string,
+  flavor?: Flavor
 ): Theme => {
-  const t = THEMES[preset];
+  const base = THEMES[preset];
+  const t: Theme = flavor ? { ...base, flavor } : base;
   if (!accentOverride) return t;
   return {
     ...t,

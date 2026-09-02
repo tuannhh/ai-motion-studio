@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "meta": { "title": "Demo VOX Explainer", "slug": "demo-vox-explainer", "language": "vi" },
+  "style": { "preset": "midnight", "flavor": "vox" },
+  "audio": { "musicVolume": 0.12 },
+  "scenes": [
+    { "id": "hook", "type": "hook", "badge": "Giải thích", "headline": "Vì sao AI **thay đổi** cách ta làm video?", "sub": "Ba phút để hiểu tận gốc." },
+    {
+      "id": "pts", "type": "points", "title": "Ba thứ **không thể** bỏ qua",
+      "items": [
+        { "icon": "Zap", "text": "Dựng video nhanh gấp 10 lần" },
+        { "icon": "PiggyBank", "text": "Không cần ê-kíp quay dựng" },
+        { "icon": "ShieldCheck", "text": "Thương hiệu đồng bộ mọi tập" }
+      ]
+    },
+    {
+      "id": "ann", "type": "annotate",
+      "kicker": "Ví dụ thật",
+      "headline": "Chỗ này mới là **điểm mấu chốt**",
+      "image": "assets/demo-ui-events.jpg",
+      "note": "AI khoanh đúng thứ cần chú ý",
+      "fx": 0.62, "fy": 0.4
+    },
+    {
+      "id": "dn", "type": "chart", "variant": "donut", "title": "Đã **chuyển đổi** phần lớn", "unit": "%",
+      "points": [{ "label": "quy trình", "value": 72 }]
+    },
+    { "id": "outro", "type": "outro", "headline": "Đừng **bỏ lỡ**", "cta": "Xem ngay", "handle": "@ai.motion.studio" }
+  ]
+}

@@ -451,6 +451,12 @@ export const videoSpecSchema = z.object({
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
+    /**
+     * "Flavor" phong cách chồng lên preset màu (KHÔNG đổi bảng màu): "vox" = explainer
+     * kiểu VOX — tiêu đề nén/hoa/đậm, nhấn từ khoá kiểu bút dạ, khoanh tròn vẽ tay.
+     * Bỏ trống ⇒ phong cách chuẩn.
+     */
+    flavor: z.enum(["vox"]).optional(),
     /** karaoke caption đáy màn (bật khi voiceover có words) */
     captions: z.boolean().default(true),
     /** progress chip "01 / 08" góc trên */

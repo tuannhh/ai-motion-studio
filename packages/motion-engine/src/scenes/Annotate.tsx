@@ -2,11 +2,37 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { HEIGHT, SAFE_TOP, SAFE_X, WIDTH, annotateSceneSchema } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { Theme, bestTextOn } from "../style/presets";
 import { type } from "../style/fonts";
 import { drawProgress, enterSpring, popSpring } from "../core/motion";
 import { PhotoBackdrop } from "../core/PhotoBackdrop";
 import { Kicker } from "../core/ui";
+
+/** Hash chuỗi → số (để wobble tất định cho vòng khoanh vẽ tay VOX). */
+const hashStr = (s: string): number => {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+/** Đường ellipse "vẽ tay": lấy mẫu quanh cung có nhiễu bán kính nhỏ + overshoot 1 vòng. */
+const roughEllipse = (cx: number, cy: number, rx: number, ry: number, seed: number): string => {
+  const N = 46;
+  const start = -0.4;
+  const end = Math.PI * 2 + 0.5;
+  let d = "";
+  for (let i = 0; i <= N; i++) {
+    const t = start + (end - start) * (i / N);
+    const j = 1 + Math.sin(i * 2.7 + seed) * 0.035;
+    const x = cx + Math.cos(t) * rx * j;
+    const y = cy + Math.sin(t) * ry * j;
+    d += `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)} `;
+  }
+  return d.trim();
+};
 
 /**
  * "Ảnh thật + chú thích đỏ" — pattern chủ lực của AI News: ảnh full-bleed
@@ -20,11 +46,14 @@ export const AnnotateScene: React.FC<{
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
+  const vox = theme.flavor === "vox";
   const headIn = enterSpring({ frame, fps, delay: 4 });
   const noteIn = popSpring({ frame, fps, delay: 22 });
   const arrow = drawProgress({ frame, fps, delay: 30 });
   const ringIn = popSpring({ frame, fps, delay: 34 });
   const pulse = 1 + Math.sin(Math.max(0, frame - 40) / 9) * 0.06;
+  const ellipseDraw = drawProgress({ frame, fps, delay: 30 });
+  const dashE = 1150;
 
   const fx = scene.fx * WIDTH;
   const fy = scene.fy * HEIGHT;
@@ -70,13 +99,15 @@ export const AnnotateScene: React.FC<{
             style={{
               ...type.title,
               fontSize: 62,
-              lineHeight: 1.14,
+              fontWeight: vox ? 900 : 700,
+              letterSpacing: vox ? "-0.02em" : "-0.01em",
+              lineHeight: vox ? 1.02 : 1.14,
               color: theme.text,
               margin: "14px 0 0",
               textShadow: theme.flat ? undefined : "0 4px 30px rgba(0,0,0,0.6)",
             }}
           >
-            {scene.headline}
+            {vox ? scene.headline.toLocaleUpperCase("vi-VN") : scene.headline}
           </h2>
         ) : null}
       </div>
@@ -96,7 +127,18 @@ export const AnnotateScene: React.FC<{
           strokeDasharray={dash}
           strokeDashoffset={dash * (1 - arrow)}
         />
-        {arrow > 0.96 ? (
+        {vox ? (
+          // VOX: khoanh tròn "vẽ tay" quanh điểm focus (thay vòng ring sạch)
+          <path
+            d={roughEllipse(fx, fy, 172, 122, hashStr(scene.id))}
+            fill="none"
+            stroke={theme.accent}
+            strokeWidth={9}
+            strokeLinecap="round"
+            strokeDasharray={dashE}
+            strokeDashoffset={dashE * (1 - ellipseDraw)}
+          />
+        ) : arrow > 0.96 ? (
           <circle
             cx={fx}
             cy={fy}
@@ -114,9 +156,9 @@ export const AnnotateScene: React.FC<{
           position: "absolute",
           top: noteY,
           left: "50%",
-          transform: `translate(-50%, -50%) rotate(-1.5deg) scale(${noteIn})`,
+          transform: `translate(-50%, -50%) rotate(${vox ? -2.5 : -1.5}deg) scale(${noteIn})`,
           background: theme.accent,
-          color: "#FFFFFF",
+          color: bestTextOn(theme.accent),
           padding: "26px 34px",
           borderRadius: 12,
           maxWidth: WIDTH - SAFE_X * 2 - 60,

@@ -233,6 +233,14 @@ const TRANSITIONS: Array<(slug: string, index: number, theme: Theme) => Transiti
 ];
 
 /**
+ * P6 VOX: pool con CHỈ gồm transition dứt khoát/năng lượng cao (bỏ slide/fade/wipe
+ * êm) — "cắt cảnh nhanh gọn" đặc trưng explainer VOX. KHÔNG đụng TRANSITION_FRAMES
+ * (thời lượng chuyển cảnh) vì hằng số đó chi phối toàn bộ phép tính duration/cue —
+ * chỉ đổi KIỂU cắt, giữ nguyên nhịp thời gian đã kiểm chứng.
+ */
+const VOX_TRANSITION_IDX: number[] = [4, 5, 6, 8, 9, 10];
+
+/**
  * Chọn transition theo seed nhưng KHÔNG lặp lại đúng kiểu vừa dùng ở scene trước
  * (trước đây 2 cảnh liền nhau có thể trùng transition → cảm giác "đơn điệu").
  */
@@ -241,17 +249,19 @@ const transitionFor = (
   index: number,
   theme: Theme
 ): TransitionPresentation<any> => {
-  const n = TRANSITIONS.length;
-  let pick = Math.floor(seedOf(`${slug}-t-${index}`) * n) % n;
+  const pool: number[] =
+    theme.flavor === "vox" ? VOX_TRANSITION_IDX : TRANSITIONS.map((_, i) => i);
+  const n = pool.length;
+  let pick = pool[Math.floor(seedOf(`${slug}-t-${index}`) * n) % n];
   if (index > 0) {
-    const prev = Math.floor(seedOf(`${slug}-t-${index - 1}`) * n) % n;
-    if (pick === prev) pick = (pick + 1) % n;
+    const prev = pool[Math.floor(seedOf(`${slug}-t-${index - 1}`) * n) % n];
+    if (pick === prev) pick = pool[(pool.indexOf(pick) + 1) % n];
   }
   return TRANSITIONS[pick](slug, index, theme);
 };
 
 export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
-  const theme = resolveTheme(spec.style.preset, spec.style.accent);
+  const theme = resolveTheme(spec.style.preset, spec.style.accent, spec.style.flavor);
   const total = spec.scenes.length;
 
   return (

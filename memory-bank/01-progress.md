@@ -1,5 +1,45 @@
 # Progress
 
+## 2026-09-02 (tiếp 6, tài khoản mới) — GĐ5 VFX: P6 XONG (VOX) — TOÀN BỘ GĐ5 (P0→P6) HOÀN TẤT
+
+Tiếp nối đúng quy trình bàn giao đa tài khoản: tài khoản trước làm hết P0→P5 (đã commit,
+xem log `f65fb16/b514b0f/137e6db/06a1205/0b7a2c0`) rồi bắt đầu P6 thì hết quota, để lại
+**8 file sửa CHƯA COMMIT** trên nhánh `vfx` (đã có sẵn 1 spec verify `verify-p6-vox.json`
++ 5 still đã render ở `out/verify-p6-vox.*.png` chứng minh phần lớn đã chạy được). Phiên
+này: kiểm tra kỹ code dở → xác nhận đúng hướng, hoàn thiện nốt phần thiếu, verify lại,
+rồi commit.
+
+**Đã có sẵn (từ tài khoản trước, giữ nguyên):** `Flavor` type chồng lên preset màu qua
+`theme.flavor` (`resolveTheme` thêm tham số flavor, KHÔNG đổi bảng màu — spec cũ không
+đổi); `schema/spec.ts` + `prompts.ts` thêm `style.flavor?: "vox"` optional; `SceneHeader`
++ `Kicker` (`core/ui.tsx`) khi vox: tiêu đề HOA/900/nén `scaleX(0.9)` (bù bề rộng qua
+fitBox), Kicker → thẻ đặc accent (`bestTextOn` chọn màu chữ tương phản); `RichText` thêm
+prop `marker` (vệt bút dạ nền accent phủ 40% dưới chữ, tái dùng markup `**từ**` của P1);
+`Annotate.tsx` khoanh tròn vẽ tay "wobble" tất định (`roughEllipse(cx,cy,rx,ry,seed)` +
+hash chuỗi) thay vòng ring sạch khi vox.
+
+**Phiên này hoàn thiện thêm (phần còn thiếu so với `docs/VFX-ROADMAP.md` §4 P6):**
+- **"Cắt cảnh nhanh gọn"** (`Video.tsx` `transitionFor`): pool con 6 transition "năng
+  lượng cao" (whip-pan, scale-through, mask-wipe, blur-zoom, iris, push-diagonal) — bỏ
+  slide/fade/wipe êm — CHỈ áp khi `theme.flavor==="vox"`. **CỐ Ý KHÔNG đụng
+  `TRANSITION_FRAMES`** (hằng số này chi phối toàn bộ phép tính duration/cue đã kiểm
+  chứng ở P0-P5 — đổi nó rủi ro cao, không đáng cho một hiệu ứng thẩm mỹ).
+- **Demo chính thức** `examples/demo-vox-explainer.json` (5 scene: hook/points/annotate/
+  chart donut/outro, ảnh annotate dùng `demo-ui-events.jpg` có sẵn — an toàn, không dùng
+  ảnh nhạy cảm).
+- **Verify render ĐẦY ĐỦ 2 preset** (trước đó chỉ có midnight): stills 5/5 scene sạch ở
+  CẢ midnight lẫn paper (flat giữ đúng bất biến — khoanh tay/kicker/marker KHÔNG glow
+  trên paper). Full mp4 715 frame ≈47s (~0.066s/frame, ngang baseline P0-P5, không treo).
+  Contact-sheet (ffmpeg tile mỗi 60 frame) xác nhận transition năng lượng cao chạy mượt
+  qua cả 4 lần cắt cảnh, donut animate 0→72% xuyên transition không vỡ. typecheck
+  engine+pipeline sạch (2 lỗi kiểu do TS không widen union tuple đã sửa bằng annotation
+  `number[]` tường minh).
+
+**TRẠNG THÁI: GĐ5 VFX & bố cục động (P0→P6) HOÀN TẤT.** Đã tick hết ở
+`docs/VFX-ROADMAP.md` §3. Còn ĐANG DỞ trên nhánh `vfx`, **CHƯA commit lần cuối** (sẽ
+commit ngay sau mục progress này) — CHƯA push GitHub (theo ràng buộc vận hành), CHƯA
+merge vào nhánh chính (chờ user duyệt xem video thật).
+
 ## 2026-09-02 (tiếp 5) — GĐ5 VFX: P3 XONG (bộ chart dễ đọc), đã verify render 2 preset
 
 Làm theo `docs/VFX-ROADMAP.md` §4 (P3), model Opus 4.8, nhánh `vfx`. Mở rộng `chart` từ

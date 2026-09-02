@@ -66,7 +66,7 @@ export const planToSpec = (
       language: "vi",
       series: plan.series,
     },
-    style: { preset: plan.preset, captions: true, progress: true },
+    style: { preset: plan.preset, flavor: plan.flavor, captions: true, progress: true },
     audio: { musicVolume: 0.12, autoSfx: true, sfxVolume: 0.4 },
     scenes,
   };

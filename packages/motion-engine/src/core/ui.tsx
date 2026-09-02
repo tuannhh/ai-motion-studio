@@ -2,7 +2,7 @@ import React from "react";
 import * as lucide from "lucide-react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { SAFE_BOTTOM, SAFE_TOP, SAFE_X, WIDTH } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { Theme, bestTextOn } from "../style/presets";
 import { type } from "../style/fonts";
 import { floatY, riseIn, sceneExitStyle } from "./motion";
 import { fitBox } from "./fit";
@@ -146,6 +146,28 @@ export const Kicker: React.FC<{
 }> = ({ theme, children, delay = 0 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  // VOX: nhãn danh mục thành THẺ ĐẶC accent (chữ tương phản), không có gạch dẫn.
+  if (theme.flavor === "vox") {
+    return (
+      <div
+        style={{
+          ...type.label,
+          fontSize: 26,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          color: bestTextOn(theme.accent),
+          background: theme.accent,
+          padding: "9px 18px",
+          borderRadius: 6,
+          marginBottom: 24,
+          display: "inline-block",
+          ...riseIn({ frame, fps, delay }),
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -176,6 +198,11 @@ export const SceneHeader: React.FC<{
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   if (!title && !kicker && !sub) return null;
+  const vox = theme.flavor === "vox";
+  // VOX: tiêu đề HOA + đậm nhất (900) + nén ngang (scaleX 0.9) → dáng condensed đặc
+  // trưng. fitBox đo trên chữ ĐÃ HOA & bù bề rộng cho phần nén để không tràn.
+  const displayTitle = title ? (vox ? title.toLocaleUpperCase("vi-VN") : title) : "";
+  const fitW = vox ? SAFE_W / 0.9 : SAFE_W;
   return (
     <div style={{ marginBottom: 48 }}>
       {kicker ? <Kicker theme={theme}>{kicker}</Kicker> : null}
@@ -184,16 +211,22 @@ export const SceneHeader: React.FC<{
           style={{
             ...type.headline,
             // Chính: đậm hơn, hàng khít lại để khối tiêu đề nổi bật rõ so với phụ
-            fontWeight: 800,
-            lineHeight: 1.04,
-            letterSpacing: "-0.01em",
-            fontSize: fitBox(stripMarkup(title), SAFE_W, 3, { max: size, min: Math.round(size * 0.6) }),
+            fontWeight: vox ? 900 : 800,
+            lineHeight: vox ? 0.98 : 1.04,
+            letterSpacing: vox ? "-0.02em" : "-0.01em",
+            fontSize: fitBox(stripMarkup(displayTitle), fitW, 3, { max: size, min: Math.round(size * 0.6) }),
             color: theme.text,
             margin: 0,
             ...riseIn({ frame, fps, delay: 4 }),
           }}
         >
-          <RichText text={title} accent={theme.accent} />
+          {vox ? (
+            <span style={{ display: "inline-block", transform: "scaleX(0.9)", transformOrigin: "left top" }}>
+              <RichText text={displayTitle} accent={theme.accent} marker />
+            </span>
+          ) : (
+            <RichText text={title} accent={theme.accent} />
+          )}
         </h2>
       ) : null}
       {sub ? (

@@ -24,6 +24,8 @@ export const planSchema = z.object({
   angle: z.string().min(1).max(120),
   slug: z.string().regex(/^[a-z0-9-]+$/),
   preset: z.enum(["midnight", "aurora", "paper", "noir"]),
+  /** flavor phong cách (tuỳ chọn) — "vox" = explainer năng lượng cao kiểu VOX */
+  flavor: z.enum(["vox"]).optional(),
   /** serie: hiện tên + tập + track tiến độ trên video */
   series: z
     .object({
@@ -48,11 +50,13 @@ Mỗi phần tử của mảng JSON là một PLAN:
   "angle": "góc nhìn hoặc 'Tập N: ...' nếu là serie",
   "slug": "chi-gom-chu-thuong-so-va-gach-ngang",
   "preset": "midnight" | "aurora" | "paper" | "noir",
+  "flavor"?: "vox" — CHỈ thêm khi muốn phong cách explainer năng lượng cao,
   "series"?: { "name": "≤40", "episode": N, "total": N } — CHỈ khi làm serie,
   "scenes": [ ... 6-9 scene ... ]
 }
 
 Chọn preset theo chất nội dung: midnight (công nghệ/AI, tối xanh), noir (tin nóng/case study, gần đen + đỏ), paper (kiến thức nền tảng/giáo dục, kem + cam đất, tối giản), aurora (sáng tạo/tương lai, tím).
+"flavor": "vox" (tuỳ chọn) — phong cách explainer kiểu VOX: tiêu đề IN HOA nén đậm, nhấn từ khoá **...** thành vệt bút dạ, khoanh tròn vẽ tay quanh điểm nhấn trên ảnh (scene annotate). Dùng cho nội dung giải thích sôi nổi/đại chúng; BỎ TRỐNG cho phong cách chuẩn (điềm đạm). Không đổi bảng màu preset. Khi bật vox nên có ≥1 scene "annotate" để tận dụng khoanh tròn vẽ tay.
 
 Các loại scene (mỗi scene BẮT BUỘC có "id" duy nhất, "type", "narration"; các scene có "title" đều có thể thêm "sub": "≤110" — một câu bình luận biên tập, sẽ hiện chữ serif nghiêng):
 1. hook   — mở đầu 2s giữ chân người xem: { "type":"hook", "badge"?: "≤28 ký tự", "headline": "≤90 ký tự, câu đắt giá", "sub"?: "≤110" }

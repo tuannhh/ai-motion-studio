@@ -70,7 +70,7 @@ mạch (đều "Dễ", bổ trợ nhau).
 | P3 | Bộ chart dễ đọc (donut/gauge/nhiệt kế/waffle/spark) | Vừa | ~2 buổi | ✅ xong (2026-09-02) |
 | P4 | Hiệu ứng khối (line sáng/thuỷ tinh/pha lê/vi mạch) | Khó | ~2.5 buổi | ✅ xong (2026-09-02) |
 | P5 | Diagram có graphic motion bên trong | Khó | ~2.5 buổi | ✅ xong (2026-09-02) |
-| P6 | Phong cách VOX | Vừa | ~1.5 buổi | ☐ chưa làm |
+| P6 | Phong cách VOX | Vừa | ~1.5 buổi | ✅ xong (2026-09-02) |
 
 **Chi phí AI ≈ 0** cho phần lớn: đây là code engine render local. Chỉ P1/P3/P6 đụng
 nhẹ `prompts.ts` (dạy AI đánh dấu từ khoá / chọn kiểu chart) → vài token/lần sinh.
@@ -167,6 +167,21 @@ nhẹ `prompts.ts` (dạy AI đánh dấu từ khoá / chọn kiểu chart) → 
 - **Verify:** render 1 video flavor VOX — nhận diện được phong cách, vẫn trong khung an
   toàn.
 - **Rủi ro:** Vừa (thẩm mỹ chủ quan → làm cuối, tinh chỉnh theo phản hồi user).
+- **✅ ĐÃ LÀM (2026-09-02):** `Flavor` chồng lên preset màu qua `theme.flavor` (KHÔNG
+  đổi bảng màu, `resolveTheme(preset, accentOverride, flavor)`), `schema/spec.ts` +
+  `prompts.ts` thêm `style.flavor?: "vox"` optional (spec cũ không đổi). SceneHeader +
+  Kicker (`core/ui.tsx`) khi `flavor==="vox"`: tiêu đề HOA/900/nén `scaleX(0.9)` (fitBox
+  bù bề rộng), Kicker thành thẻ đặc accent (`bestTextOn` chọn chữ tương phản). RichText
+  thêm prop `marker` (vệt bút dạ nền accent phủ 40% dưới chữ, thay gạch chân — dùng lại
+  markup `**từ**` của P1). Annotate: khoanh tròn vẽ tay "wobble" tất định (`roughEllipse`
+  + hash seed) thay vòng ring sạch. Transition: pool con "cắt cảnh nhanh" 6 kiểu năng
+  lượng cao (whip-pan/scale-through/mask-wipe/blur-zoom/iris/push-diagonal, bỏ
+  slide/fade/wipe êm) — KHÔNG đụng `TRANSITION_FRAMES` (an toàn cho mọi phép tính
+  duration/cue đã kiểm chứng). Demo: `examples/demo-vox-explainer.json`.
+  **Verify render:** stills 5 scene sạch ở CẢ midnight lẫn paper (flat giữ đúng — không
+  glow trên khoanh tay/kicker/marker); full mp4 715 frame ~47s (~0.066s/frame, ngang
+  baseline), contact-sheet xác nhận transition năng lượng cao chạy đúng không vỡ khung,
+  donut animate 0→72% xuyên transition. typecheck engine+pipeline sạch.
 
 ---
 
