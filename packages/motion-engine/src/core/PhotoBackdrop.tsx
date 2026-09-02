@@ -16,29 +16,44 @@ const asSrc = (file: string) =>
  * đều Ken Burns chậm (quy tắc remotion-skill), phủ scrim tối 2 đầu để
  * headline trên và caption dưới luôn đọc được trên mọi ảnh.
  */
+/** Hướng Ken Burns AI có thể chỉ định (tái tạo hiệu ứng học từ video mẫu) */
+export type KenBurnsMotion =
+  | "auto"
+  | "zoom-in"
+  | "zoom-out"
+  | "pan-left"
+  | "pan-right"
+  | "still";
+
 export const PhotoBackdrop: React.FC<{
   src: string;
   theme: Theme;
   /** độ tối scrim giữa khung (annotate cần ảnh rõ hơn → thấp) */
   midScrim?: number;
   /**
-   * seed [0,1) biến thể Ken Burns: <0.5 zoom-in, ≥0.5 zoom-out + đảo hướng pan
-   * (quy tắc skill: các shot liên tiếp nên luân phiên chiều zoom).
+   * seed [0,1) biến thể Ken Burns khi motion="auto": <0.5 zoom-in, ≥0.5 zoom-out
+   * + đảo hướng pan (quy tắc skill: các shot liên tiếp nên luân phiên chiều zoom).
    */
   seed?: number;
-}> = ({ src, theme, midScrim = 0.42, seed = 0 }) => {
+  /** hướng chuyển động camera do AI chỉ định; "auto" → dùng seed */
+  motion?: KenBurnsMotion;
+}> = ({ src, theme, midScrim = 0.42, seed = 0, motion = "auto" }) => {
   const frame = useCurrentFrame();
-  const zoomOut = seed >= 0.5;
-  // Ken Burns: zoom chậm + trôi chéo nhẹ, clamp để scene dài không lố
-  const zoom = interpolate(
-    frame,
-    [0, 360],
-    zoomOut ? [1.14, 1.06] : [1.06, 1.14],
-    { extrapolateRight: "clamp" }
-  );
-  const pan = interpolate(frame, [0, 360], [0, zoomOut ? 28 : -28], {
-    extrapolateRight: "clamp",
-  });
+  // motion="auto": luân phiên theo seed. Còn lại: honor đúng hướng AI học được.
+  const dir: Exclude<KenBurnsMotion, "auto"> =
+    motion === "auto" ? (seed >= 0.5 ? "zoom-out" : "zoom-in") : motion;
+  // Từng hướng → cặp scale + vector pan (px ở scale gốc). Zoom luôn chậm & clamp.
+  const KB: Record<Exclude<KenBurnsMotion, "auto">, { scale: [number, number]; px: number; py: number }> = {
+    "zoom-in": { scale: [1.06, 1.16], px: -18, py: -12 },
+    "zoom-out": { scale: [1.16, 1.06], px: 18, py: 12 },
+    "pan-left": { scale: [1.12, 1.12], px: 46, py: 0 },
+    "pan-right": { scale: [1.12, 1.12], px: -46, py: 0 },
+    still: { scale: [1.04, 1.04], px: 0, py: 0 },
+  };
+  const kb = KB[dir];
+  const zoom = interpolate(frame, [0, 360], kb.scale, { extrapolateRight: "clamp" });
+  const panX = interpolate(frame, [0, 360], [0, kb.px], { extrapolateRight: "clamp" });
+  const panY = interpolate(frame, [0, 360], [0, kb.py], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
@@ -48,7 +63,7 @@ export const PhotoBackdrop: React.FC<{
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          transform: `scale(${zoom}) translate(${pan}px, ${pan * 0.6}px)`,
+          transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
         }}
       />
       {/* Grade soft-light màu accent: đồng nhất ảnh AI/tư liệu về tông preset */}

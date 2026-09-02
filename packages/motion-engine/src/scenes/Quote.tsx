@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
-import { quoteSceneSchema } from "../schema/spec";
+import { quoteSceneSchema, WIDTH, SAFE_X } from "../schema/spec";
 import { Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { popIn, riseIn } from "../core/motion";
@@ -26,7 +26,13 @@ export const QuoteScene: React.FC<{
         fontSize={68}
         fontWeight={700}
         delay={8}
-        maxCharsPerLine={22}
+        maxCharsPerLine={18}
+        maxLines={5}
+        // co chữ để LUÔN nằm trong safe area (trước đây thiếu maxWidth → câu dài
+        // tràn sát lề trái/phải); trừ thêm 12px mỗi bên cho thoáng
+        maxWidth={WIDTH - SAFE_X * 2 - 24}
+        // trên nền ẢNH (bgImage) chữ cần quầng tách nền cùng màu preset
+        haloColor={theme.bgBase}
       />
       {scene.author ? (
         <div

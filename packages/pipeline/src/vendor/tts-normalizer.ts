@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const TTS_NORMALIZER_VERSION = '1.1.0'
+export const TTS_NORMALIZER_VERSION = '1.2.0'
 
 export type TtsWarning = { code: string; message: string; start: number; end: number }
 export type TtsTrace = {
@@ -30,6 +30,17 @@ const digitWords = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'b�
 const scaleWords = ['', 'nghìn', 'triệu', 'tỷ']
 
 function spokenDigit(value: string): string { return value.split('').map((digit) => digitWords[Number(digit)]).join(' ') }
+
+// Đọc năm 4 chữ số theo chuỗi chữ số, RIÊNG chữ số cuối dùng biến thể: 4→"tư",
+// 5→"lăm" (VOICE_OFF_TTS_RULES §9): 2025→"hai không hai lăm", 1994→"một chín chín tư".
+const YEAR_FINAL: Record<string, string> = { '4': 'tư', '5': 'lăm' }
+function speakYear(value: string): string {
+  if (!/^\d{4}$/.test(value)) return spokenDigit(value)
+  return value
+    .split('')
+    .map((digit, index) => (index === 3 && YEAR_FINAL[digit]) || digitWords[Number(digit)])
+    .join(' ')
+}
 
 function readBelowThousand(value: number, forceHundreds = false): string {
   const hundreds = Math.floor(value / 100)
@@ -69,11 +80,17 @@ export function readVietnameseInteger(raw: string): string | null {
   return parts.join(' ')
 }
 
+// Số thập phân: CẢ phần nguyên và phần lẻ đọc theo chuỗi chữ số (VOICE_OFF_TTS_RULES
+// §11.1): "23,7"→"hai ba phẩy bảy", "12,05"→"một hai phẩy không năm".
 function readVietnameseDecimal(raw: string): string | null {
   const [integer, fraction] = raw.split(',')
-  const spokenInteger = readVietnameseInteger(integer)
-  if (!spokenInteger || !fraction || !/^\d{1,8}$/.test(fraction)) return null
-  return `${spokenInteger} phẩy ${spokenDigit(fraction)}`
+  if (!integer || !/^\d{1,10}$/.test(integer) || !fraction || !/^\d{1,8}$/.test(fraction)) return null
+  return `${spokenDigit(integer)} phẩy ${spokenDigit(fraction)}`
+}
+
+// Tháng đọc theo số đếm, RIÊNG tháng 4 = "tư" (VOICE_OFF_TTS_RULES §12.4).
+function speakMonth(month: number): string {
+  return month === 4 ? 'tư' : (readVietnameseInteger(String(month)) ?? String(month))
 }
 
 function isValidDate(day: number, month: number, year: number): boolean {
@@ -83,7 +100,7 @@ function isValidDate(day: number, month: number, year: number): boolean {
 
 function readDate(day: number, month: number, year: string): string {
   const dayText = day < 10 ? `mùng ${readVietnameseInteger(String(day))}` : readVietnameseInteger(String(day))
-  return `${dayText} tháng ${readVietnameseInteger(String(month))} năm ${spokenDigit(year)}`
+  return `${dayText} tháng ${speakMonth(month)} năm ${speakYear(year)}`
 }
 
 function overlap(left: Candidate, right: Candidate): boolean { return left.start < right.end && right.start < left.end }
@@ -147,14 +164,23 @@ export function normalizeVietnameseVoiceOver(sourceText: string, dictionaryRules
   }
   for (const match of source.matchAll(/\btháng\s+(\d{1,2})\/(\d{4})\b/gi)) {
     const month = Number(match[1])
-    if (month >= 1 && month <= 12) add(candidate(match.index!, match[0], `tháng ${readVietnameseInteger(String(month))} năm ${spokenDigit(match[2])}`, 'DATE', 'MONTH_YEAR_001'))
+    if (month >= 1 && month <= 12) add(candidate(match.index!, match[0], `tháng ${speakMonth(month)} năm ${speakYear(match[2])}`, 'DATE', 'MONTH_YEAR_001'))
   }
   for (const match of source.matchAll(/\b(\d{1,3})\/(\d{4})\/(NĐ-CP)\b/g)) {
     const spoken = readVietnameseInteger(match[1])
-    if (spoken) add(candidate(match.index!, match[0], `${spoken} ${spokenDigit(match[2])} nờ đê xê pê`, 'DOCUMENT_ID', 'DOCUMENT_ID_VI_001'))
+    if (spoken) add(candidate(match.index!, match[0], `${spoken} ${speakYear(match[2])} nờ đê xê pê`, 'DOCUMENT_ID', 'DOCUMENT_ID_VI_001'))
   }
-  for (const match of source.matchAll(/\bnăm\s+(\d{4})\b/gi)) add(candidate(match.index!, match[0], `năm ${spokenDigit(match[1])}`, 'YEAR', 'YEAR_CONTEXT_001'))
-  for (const match of source.matchAll(/\b(\d{3,4})\/(\d{4})\b/g)) add(candidate(match.index!, match[0], `${spokenDigit(match[1])} ${spokenDigit(match[2])}`, 'DOCUMENT_ID', 'DOCUMENT_ID_SHORT_001'))
+  for (const match of source.matchAll(/\bnăm\s+(\d{4})\b/gi)) add(candidate(match.index!, match[0], `năm ${speakYear(match[1])}`, 'YEAR', 'YEAR_CONTEXT_001'))
+  // Khoảng năm "2024-2026" / "giai đoạn 1994–2026": mỗi vế đọc theo quy tắc NĂM,
+  // dấu gạch = "đến". Ưu tiên trước quy tắc khoảng số chung (để khỏi đọc thành số lượng).
+  for (const match of source.matchAll(/\b(\d{4})\s*[-–—]\s*(\d{4})\b/g)) {
+    add(candidate(match.index!, match[0], `${speakYear(match[1])} đến ${speakYear(match[2])}`, 'RANGE', 'YEAR_RANGE_001'))
+  }
+  // Năm độc lập có ngữ cảnh mốc thời gian (ngoài "năm" đã xử lý ở trên)
+  for (const match of source.matchAll(/\b(giai đoạn|niên độ)\s+(\d{4})\b/gi)) {
+    add(candidate(match.index! + match[0].length - match[2].length, match[2], speakYear(match[2]), 'YEAR', 'YEAR_CONTEXT_002'))
+  }
+  for (const match of source.matchAll(/\b(\d{3,4})\/(\d{4})\b/g)) add(candidate(match.index!, match[0], `${spokenDigit(match[1])} ${speakYear(match[2])}`, 'DOCUMENT_ID', 'DOCUMENT_ID_SHORT_001'))
   for (const match of source.matchAll(/\bNĐ-CP\b/g)) add(candidate(match.index!, match[0], 'nờ đê xê pê', 'LEGAL_ACRONYM', 'LEGAL_ACRONYM_NDCP_001'))
   for (const match of source.matchAll(/([+\-−])(\d+(?:,\d+)?)%/g)) {
     const number = match[2].includes(',') ? readVietnameseDecimal(match[2]) : readVietnameseInteger(match[2])
@@ -167,6 +193,8 @@ export function normalizeVietnameseVoiceOver(sourceText: string, dictionaryRules
     if (number) add(candidate(match.index!, match[0], `${number} phần trăm`, 'PERCENT', 'PERCENT_001'))
   }
   for (const match of source.matchAll(/\b(\d+)\s*[-–]\s*(\d+)\b/g)) {
+    // Cặp 4-4 chữ số là khoảng NĂM → để YEAR_RANGE_001 xử lý (đọc theo chữ số năm)
+    if (match[1].length === 4 && match[2].length === 4) continue
     const from = readVietnameseInteger(match[1]); const to = readVietnameseInteger(match[2])
     if (from && to) add(candidate(match.index!, match[0], `${from} đến ${to}`, 'RANGE', 'NUMBER_RANGE_001'))
   }

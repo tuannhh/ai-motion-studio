@@ -341,6 +341,14 @@ const hasTemplates = computed(() => templates.value.length > 0);
           <ul class="m-0 mt-1 list-inside list-disc text-[var(--mds-text-secondary)]">
             <li v-for="s in editing.profile.visualSignatures" :key="s">{{ s }}</li>
           </ul>
+          <p v-if="editing.profile.motion" class="m-0 mt-1 text-[var(--mds-text-secondary)]">
+            Chuyển động ({{ editing.profile.motion.intensity }}):
+            {{ editing.profile.motion.signatures.join("; ") || "theo mức tổng thể" }}
+          </p>
+          <p v-if="editing.profile.imageStyle" class="m-0 mt-1 text-[var(--mds-text-secondary)]">
+            Hình ảnh: {{ editing.profile.imageStyle.kind }} · nguồn
+            {{ editing.profile.imageStyle.sourcing }}
+          </p>
         </div>
 
         <div>

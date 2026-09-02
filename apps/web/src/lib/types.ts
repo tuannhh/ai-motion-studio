@@ -95,6 +95,15 @@ export type StyleProfile = {
   narrationTone: string;
   hookStyle: string;
   visualSignatures: string[];
+  motion?: {
+    intensity: "subtle" | "medium" | "dynamic";
+    signatures: string[];
+  };
+  imageStyle?: {
+    kind: "photographic" | "illustration" | "3d" | "mixed" | "minimal";
+    sourcing: "ai-generated" | "real-footage" | "mixed" | "minimal";
+    notes: string;
+  };
   scriptPipeline?: string[];
   captionStyle?: string;
   doNots: string[];

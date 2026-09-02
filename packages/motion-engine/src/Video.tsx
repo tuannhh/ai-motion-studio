@@ -90,6 +90,76 @@ const AUTO_WHOOSH = ["sfx/whoosh-a.wav", "sfx/whoosh-b.wav"];
 const THUMP_TYPES = new Set(["stat", "bigword", "chart"]);
 /** scene lấy CHỮ làm trung tâm → cần scrim đậm hơn khi có ảnh nền để chữ nổi rõ */
 const TEXT_HEAVY_TYPES = new Set(["hook", "bigword", "quote", "outro"]);
+/**
+ * Scene mà nội dung CHÍNH đã là chữ lớn được đọc → tắt karaoke caption đáy màn:
+ * để cả chữ lớn + caption cùng hiện gây cảm giác "đọc/hiện đôi". (outro có
+ * headline/CTA riêng, quote là câu trích, bigword là cụm chữ theo beat.)
+ */
+const NO_CAPTION_TYPES = new Set(["outro", "quote", "bigword"]);
+
+/**
+ * SFX nhấn theo NHỊP REVEAL của từng loại scene — đa dạng hoá âm thanh thay vì
+ * chỉ 1 tiếng whoosh mỗi lần chuyển cảnh. tick = từng mục danh sách hiện; pop =
+ * cụm chữ/khối; ding ("ting") = khoảnh khắc chốt (số liệu, dòng highlight, accent).
+ * Trả cue theo frame TƯƠNG ĐỐI trong scene; volume đã nhân sfxVolume. Nhịp bám
+ * theo stagger reveal của scene (xem delay trong từng scene component).
+ */
+const ENTRY = TRANSITION_FRAMES + 6;
+const autoRevealCues = (
+  scene: Scene,
+  sfxVol: number
+): { file: string; from: number; volume: number }[] => {
+  const cues: { file: string; from: number; volume: number }[] = [];
+  const tick = (from: number, v = 0.5) => cues.push({ file: "sfx/tick.wav", from, volume: sfxVol * v });
+  const pop = (from: number, v = 0.7) => cues.push({ file: "sfx/pop.wav", from, volume: sfxVol * v });
+  const ding = (from: number, v = 0.85) => cues.push({ file: "sfx/ding.wav", from, volume: sfxVol * v });
+  switch (scene.type) {
+    case "points":
+      scene.items.forEach((_, i) => tick(ENTRY + i * 10));
+      break;
+    case "timeline":
+      scene.steps.forEach((_, i) => tick(ENTRY + i * 11));
+      break;
+    case "rank":
+      scene.items.forEach((it, i) => (it.highlight ? ding(ENTRY + i * 10) : tick(ENTRY + i * 10)));
+      break;
+    case "flow":
+      scene.nodes.forEach((n, i) => (n.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12)));
+      break;
+    case "compare":
+      tick(ENTRY, 0.55);
+      tick(ENTRY + 12, 0.55);
+      break;
+    case "terminal": {
+      let f = ENTRY;
+      for (const ln of scene.lines) {
+        if (ln.kind === "cmd") {
+          tick(f);
+          f += 16;
+        } else f += 8;
+      }
+      break;
+    }
+    case "stat":
+      ding(ENTRY + 8);
+      break;
+    case "chart":
+      ding(ENTRY + 10);
+      break;
+    case "bigword":
+      scene.phrases.forEach((p, i) => (p.accent ? ding(ENTRY + i * 18) : pop(ENTRY + i * 18, 0.55)));
+      break;
+    case "quote":
+      pop(ENTRY, 0.5);
+      break;
+    case "annotate":
+      pop(ENTRY + 16, 0.5);
+      break;
+    default:
+      break;
+  }
+  return cues;
+};
 
 /** Frame bắt đầu của từng scene trong TransitionSeries (mỗi transition chồng lấn TRANSITION_FRAMES) */
 const sceneStartFrames = (spec: VideoSpec): number[] => {
@@ -195,11 +265,19 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                   />
                 </Sequence>
               ) : null}
+              {spec.audio.autoSfx
+                ? autoRevealCues(scene, spec.audio.sfxVolume).map((c, ci) => (
+                    <Sequence key={`rev-${ci}`} from={c.from}>
+                      <Audio src={staticFile(c.file)} volume={c.volume} />
+                    </Sequence>
+                  ))
+                : null}
               {scene.bgImage && scene.type !== "annotate" ? (
                 <PhotoBackdrop
                   src={scene.bgImage}
                   theme={theme}
                   seed={seedOf(`${spec.meta.slug}-kb-${scene.id}`)}
+                  motion={scene.motion}
                   // scene nhiều CHỮ LỚN → scrim đậm hơn để headline luôn đọc được
                   midScrim={TEXT_HEAVY_TYPES.has(scene.type) ? 0.6 : 0.42}
                 />
@@ -221,9 +299,10 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                   series={spec.meta.series}
                 />
               ) : null}
-              {/* Outro có headline/CTA riêng — caption karaoke ở đáy chỉ gây rối
-                  (frame cuối trước đây lòi ra text "theo dõi kênh" thừa) */}
-              {spec.style.captions && scene.type !== "outro" ? (
+              {/* Tắt caption karaoke ở scene mà chữ lớn CHÍNH đã là lời được đọc
+                  (quote/bigword/outro) — nếu không, chữ lớn + caption đáy cùng hiện
+                  gây cảm giác "hiện/đọc đôi". */}
+              {spec.style.captions && !NO_CAPTION_TYPES.has(scene.type) ? (
                 <KaraokeCaption scene={scene} theme={theme} />
               ) : null}
             </TransitionSeries.Sequence>,

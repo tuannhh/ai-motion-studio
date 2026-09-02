@@ -43,7 +43,14 @@ export const AnnotateScene: React.FC<{
   return (
     <AbsoluteFill>
       {scene.image ? (
-        <PhotoBackdrop src={scene.image} theme={theme} midScrim={0.28} />
+        // annotate cần điểm focus đứng yên cho mũi tên chỉ đúng → mặc định zoom-in
+        // (giữ hành vi cũ), chỉ đổi khi AI chỉ định motion khác
+        <PhotoBackdrop
+          src={scene.image}
+          theme={theme}
+          midScrim={0.28}
+          motion={scene.motion === "auto" ? "zoom-in" : scene.motion}
+        />
       ) : null}
 
       {/* header trên vùng safe */}

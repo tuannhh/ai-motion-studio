@@ -57,6 +57,14 @@ const sceneBase = {
    * scrim tối để chữ luôn đọc được — pattern "photo evidence" của AI News.
    */
   bgImage: z.string().optional(),
+  /**
+   * Chuyển động camera cho ảnh nền/ảnh của scene (Ken Burns). "auto" = engine tự
+   * chọn theo seed (luân phiên). AI đặt giá trị cụ thể để tái tạo hiệu ứng đã học
+   * từ video mẫu (zoom-in nhấn chủ thể, pan quét không gian, still cho ảnh cần đọc kỹ).
+   */
+  motion: z
+    .enum(["auto", "zoom-in", "zoom-out", "pan-left", "pan-right", "still"])
+    .default("auto"),
 };
 
 /** subtitle biên tập serif nghiêng dưới tiêu đề */

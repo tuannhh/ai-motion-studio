@@ -76,7 +76,9 @@ HÌNH ẢNH (điểm ăn tiền của video — bắt buộc dùng có chiến l
 - "bgImagePrompt" (thêm được vào scene hook, quote, stat, bigword): mô tả ảnh NỀN nhiếp ảnh — engine tự phủ tối để chữ nổi.
 - Cách viết imagePrompt/bgImagePrompt: mô tả CẢNH THẬT cụ thể bằng tiếng Việt — chủ thể rõ (người/vật/không gian), bối cảnh, ánh sáng, không khí. Ví dụ: "Bàn làm việc văn phòng ban đêm, màn hình laptop hắt sáng xanh lên khuôn mặt người phụ nữ đang tập trung, xung quanh tối, giấy tờ chất đống". KHÔNG yêu cầu chữ, số, logo, biểu đồ, UI trong ảnh.
 
-"narration": lời thoại người dẫn đọc trong scene đó — tiếng Việt nói tự nhiên, 1-2 câu (10-35 từ), KHÔNG lặp nguyên văn chữ trên hình mà bổ sung/diễn giải.
+CHUYỂN ĐỘNG CAMERA (trường "motion", thêm được vào BẤT KỲ scene có ảnh — bgImage/annotate/screenshot/media): "auto" (mặc định — engine tự chọn), "zoom-in" (từ từ phóng vào nhấn chủ thể — hợp cảnh có 1 chủ thể/khoảnh khắc), "zoom-out" (lùi ra mở bối cảnh), "pan-left"/"pan-right" (quét ngang không gian rộng/toàn cảnh), "still" (đứng yên — cho ảnh cần đọc kỹ chi tiết). Chọn motion khớp NỘI DUNG ảnh để video có nhịp điện ảnh; scene annotate nên "zoom-in" hoặc "still" để mũi tên chỉ đúng.
+
+"narration": lời thoại người dẫn đọc trong scene đó — tiếng Việt nói tự nhiên, 1-2 câu (10-35 từ), KHÔNG lặp nguyên văn chữ trên hình mà bổ sung/diễn giải. RIÊNG scene "quote" và "bigword": chữ lớn trên hình CHÍNH là câu được đọc — narration hãy là lời DẪN/BÌNH ngắn KHÁC (giới thiệu ai nói, vì sao đáng chú ý), TUYỆT ĐỐI không đọc lại y hệt câu trích/cụm chữ đó (tránh cảm giác đọc đôi).
 "captionEmphasis": mảng 1-3 TỪ ĐƠN đắt nhất trích từ narration của scene (đúng chính tả từng từ) — sẽ được tô màu accent trong phụ đề karaoke.
 Icon hợp lệ (PascalCase): ${ICON_HINTS}.
 `;

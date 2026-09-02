@@ -58,6 +58,35 @@ export const styleProfileSchema = z.object({
   /** 2-6 chữ ký hình ảnh đặc trưng (kiểu chữ động, sơ đồ, số liệu...) */
   visualSignatures: z.array(z.string().min(1).max(120)).min(2).max(6),
   /**
+   * Chuyển động camera/hiệu ứng học từ video mẫu: zoom in/out, pan, focus, nhịp
+   * chuyển cảnh. optional (default cho profile cũ) — feed vào trường "motion" từng
+   * scene để engine tái tạo cảm giác động của mẫu.
+   */
+  motion: z
+    .object({
+      intensity: z.enum(["subtle", "medium", "dynamic"]).default("medium"),
+      /** 0-6 chữ ký chuyển động, ví dụ "zoom-in chậm vào chủ thể", "pan ngang" */
+      signatures: z.array(z.string().min(1).max(120)).max(6).default([]),
+    })
+    .optional(),
+  /**
+   * Phong cách & NGUỒN hình ảnh của video mẫu: ảnh thật/tư liệu quay vs AI dựng vs
+   * tối giản. optional. Định hướng cách AI mô tả ảnh + chọn loại scene ảnh.
+   */
+  imageStyle: z
+    .object({
+      /** chất ảnh: nhiếp ảnh thật, minh hoạ phẳng, 3D, hỗn hợp, tối giản/không ảnh */
+      kind: z
+        .enum(["photographic", "illustration", "3d", "mixed", "minimal"])
+        .default("photographic"),
+      /** nguồn: dựng bằng AI, quay/ảnh thật, hỗn hợp, hầu như không dùng ảnh */
+      sourcing: z
+        .enum(["ai-generated", "real-footage", "mixed", "minimal"])
+        .default("ai-generated"),
+      notes: z.string().max(240).default(""),
+    })
+    .optional(),
+  /**
    * Pipeline/workflow kịch bản: các "nhịp" kể chuyện theo thứ tự mà video mẫu
    * dùng (mở đầu → ... → chốt). Là GỢI Ý ban đầu — creator sửa được trong template.
    */
@@ -89,6 +118,21 @@ Xem kỹ video đính kèm và trả về DUY NHẤT một object JSON theo đú
   "narrationTone": "≤240 ký tự: xưng hô, nhịp câu, thái độ người dẫn",
   "hookStyle": "≤240 ký tự: video mở đầu 2-3s đầu bằng gì",
   "visualSignatures": ["2-6 chữ ký hình ảnh đặc trưng, mỗi cái ≤120 ký tự"],
+  "motion": {
+    "intensity": "subtle" | "medium" | "dynamic",   // mức độ chuyển động camera tổng thể
+    "signatures": ["0-6 kiểu chuyển động QUAN SÁT được, mỗi cái ≤120 ký tự"]
+      // ví dụ: "zoom-in chậm vào chủ thể ảnh", "pan ngang quét không gian",
+      // "ảnh đứng yên, chỉ chữ động", "whip-pan mạnh khi chuyển cảnh", "focus pull"
+  },
+  "imageStyle": {
+    "kind": "photographic" | "illustration" | "3d" | "mixed" | "minimal",
+      // photographic = ảnh/nhiếp ảnh như thật; illustration = minh hoạ/vector phẳng;
+      // 3d = render 3D; mixed = trộn; minimal = hầu như không dùng ảnh, chỉ chữ/đồ hoạ
+    "sourcing": "ai-generated" | "real-footage" | "mixed" | "minimal",
+      // real-footage = ẢNH/CLIP THẬT quay được (không phải AI dựng); ai-generated = ảnh AI;
+      // mixed = cả hai; minimal = gần như không dùng ảnh
+    "notes": "≤240 ký tự mô tả chất ảnh (độ thật, ánh sáng, có phải tư liệu thật không)"
+  },
   "scriptPipeline": ["3-8 nhịp kể chuyện THEO THỨ TỰ mà video mẫu dùng, mỗi nhịp ≤160 ký tự"],
     // pipeline/workflow kịch bản: mô tả CẤU TRÚC kể chuyện, KHÔNG chép nội dung cụ thể.
     // ví dụ: "Mở bằng câu hỏi gây sốc + số liệu", "Nêu vấn đề đang gặp", "Đưa 3 giải pháp",
@@ -227,6 +271,22 @@ export const styleProfileToPromptBlock = (profile: StyleProfile): string => {
     `- Giọng kể: ${profile.narrationTone}`,
     `- Cách mở đầu: ${profile.hookStyle}`,
     `- Chữ ký hình ảnh: ${profile.visualSignatures.join("; ")}`,
+    ...(profile.motion
+      ? [
+          `- Chuyển động (mức ${profile.motion.intensity}): ${
+            profile.motion.signatures.length
+              ? profile.motion.signatures.join("; ")
+              : "theo mức tổng thể"
+          }. ĐẶT trường "motion" cho từng scene có ảnh (bgImage/annotate/screenshot) để tái tạo: "zoom-in" nhấn chủ thể, "pan-left"/"pan-right" quét không gian, "still" cho ảnh cần đọc kỹ, "zoom-out" mở bối cảnh. Nếu mẫu ít động → dùng "still"/"zoom-in" nhẹ.`,
+        ]
+      : []),
+    ...(profile.imageStyle
+      ? [
+          `- Hình ảnh: chất "${profile.imageStyle.kind}", nguồn "${profile.imageStyle.sourcing}"${
+            profile.imageStyle.notes ? ` — ${profile.imageStyle.notes}` : ""
+          }. Mô tả imagePrompt/bgImagePrompt ĐÚNG chất đó (photographic → tả như ảnh chụp thật/tư liệu; illustration → minh hoạ phẳng; minimal → hạn chế ảnh, ưu tiên scene chữ/đồ hoạ). Khi tư liệu người dùng có SẴN đường dẫn ảnh thật → ưu tiên scene "media" thay vì bịa ảnh AI.`,
+        ]
+      : []),
     ...(profile.captionStyle ? [`- Phụ đề: ${profile.captionStyle}`] : []),
     ...(profile.doNots.length
       ? [`- TRÁNH: ${profile.doNots.join("; ")}`]

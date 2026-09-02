@@ -103,8 +103,32 @@ const tick = (): Float64Array => {
   return out;
 };
 
+/**
+ * Ding ("ting"): chuông sáng — 3 partial phi điều hòa (bell-like) đánh cùng lúc,
+ * attack tức thì, decay mượt ~0.6s. Dùng cho khoảnh khắc nhấn/chốt (số liệu,
+ * cụm accent) — âm sắc khác hẳn whoosh/thump/pop để bộ SFX đa dạng.
+ */
+const ding = (): Float64Array => {
+  const n = Math.round(SR * 0.6);
+  const out = new Float64Array(n);
+  const partials = [
+    { f: 1244, a: 1.0, d: 5.5 }, // fundamental (~D#6)
+    { f: 2489, a: 0.5, d: 7.5 }, // octave
+    { f: 3733, a: 0.28, d: 9.5 }, // inharmonic overtone → chất chuông
+  ];
+  for (let i = 0; i < n; i++) {
+    const t = i / SR;
+    let s = 0;
+    for (const p of partials) s += p.a * Math.sin(2 * Math.PI * p.f * t) * Math.exp(-t * p.d);
+    // attack ngắn 4ms để không click
+    out[i] = s * Math.min(1, t / 0.004);
+  }
+  return out;
+};
+
 writeWav("whoosh-a.wav", whoosh(42));
 writeWav("whoosh-b.wav", whoosh(777, 0.42));
 writeWav("thump.wav", thump());
 writeWav("pop.wav", pop());
 writeWav("tick.wav", tick());
+writeWav("ding.wav", ding());
