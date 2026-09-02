@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import dns from "node:dns/promises";
 import { isIP } from "node:net";
@@ -171,6 +172,80 @@ export const ingestFile = async (filePath: string): Promise<IngestedSource> => {
     throw new Error(`${name}: chưa hỗ trợ định dạng ${ext} (hỗ trợ: txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm).`);
   }
   return { name, text: await geminiExtract(abs, mime), method: `gemini:${mime}` };
+};
+
+// ===== Trích ẢNH NHÚNG trong tài liệu (docx/pdf) =====
+
+const EMBEDDED_IMG_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+/** Bỏ icon/logo/mặt nạ nhỏ (thường < 12KB) để không làm nhiễu danh mục ảnh */
+const MIN_EMBEDDED_BYTES = 12 * 1024;
+/** Trần số ảnh trích 1 tài liệu (tránh ngập danh mục với tài liệu nhiều ảnh) */
+const MAX_EMBEDDED_IMAGES = 8;
+
+/**
+ * Trích ẢNH NHÚNG có sẵn trong tài liệu người dùng tải lên (bản quyền do người
+ * dùng đảm bảo) để dùng làm tư liệu hình ảnh:
+ * - docx: giải nén word/media/* (thuần `unzip`, không cần lib).
+ * - pdf: `pdfimages -png` (poppler-utils) — nếu máy KHÔNG có tool thì bỏ qua êm.
+ * Lọc bỏ ảnh quá nhỏ (icon/mask), chỉ nhận jpg/png/webp, giới hạn số lượng, và
+ * COPY sang destDir với tên do server đặt. Trả danh sách file thật + mime; caller
+ * sẽ tạo source ảnh cho từng file (đi tiếp qua caption + cổng an toàn như ảnh upload).
+ */
+export const extractEmbeddedImages = async (
+  filePath: string,
+  destDir: string,
+  baseName: string
+): Promise<{ file: string; mime: string }[]> => {
+  const abs = path.resolve(filePath);
+  const ext = path.extname(abs).toLowerCase();
+  if (ext !== ".docx" && ext !== ".pdf") return [];
+  if (!fs.existsSync(abs)) return [];
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ams-imgx-"));
+  try {
+    if (ext === ".docx") {
+      // -j junk paths, -qq im lặng, -o ghi đè; glob khớp trong zip (unzip tự expand)
+      spawnSync("unzip", ["-o", "-j", "-qq", abs, "word/media/*", "-d", tmp], {
+        maxBuffer: 128 * 1024 * 1024,
+      });
+    } else {
+      // pdf cần poppler-utils; vắng tool (probe lỗi) → trả rỗng, không chặn
+      const probe = spawnSync("pdfimages", ["-v"]);
+      if (probe.error) return [];
+      spawnSync("pdfimages", ["-png", abs, path.join(tmp, "img")], {
+        maxBuffer: 8 * 1024 * 1024,
+      });
+    }
+
+    const picked = fs
+      .readdirSync(tmp)
+      .map((f) => path.join(tmp, f))
+      .filter((f) => EMBEDDED_IMG_EXT.has(path.extname(f).toLowerCase()))
+      .filter((f) => {
+        try {
+          return fs.statSync(f).size >= MIN_EMBEDDED_BYTES;
+        } catch {
+          return false;
+        }
+      })
+      .sort()
+      .slice(0, MAX_EMBEDDED_IMAGES);
+
+    fs.mkdirSync(destDir, { recursive: true });
+    const out: { file: string; mime: string }[] = [];
+    picked.forEach((src, i) => {
+      const e = path.extname(src).toLowerCase();
+      const mime = e === ".png" ? "image/png" : e === ".webp" ? "image/webp" : "image/jpeg";
+      const dest = path.join(destDir, `${baseName}-img${i + 1}${e === ".jpeg" ? ".jpg" : e}`);
+      fs.copyFileSync(src, dest);
+      out.push({ file: dest, mime });
+    });
+    return out;
+  } catch {
+    return [];
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 };
 
 // ===== Nạp tư liệu từ LINK (có chặn SSRF) =====

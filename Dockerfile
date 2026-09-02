@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 \
       libpango-1.0-0 libcairo2 libcups2 \
       fonts-liberation fonts-noto-core ca-certificates default-mysql-client \
+      unzip poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Ghim pnpm 9.15.0 (khớp bản sinh lockfile trên host; tránh policy minimumReleaseAge của pnpm 10)

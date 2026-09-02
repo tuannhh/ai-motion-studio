@@ -4,7 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
-import { ingestFile, ingestUrl } from "@ams/pipeline/src/ingest";
+import { extractEmbeddedImages, ingestFile, ingestUrl } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
 import { getReadyProfile } from "./template.service";
@@ -266,7 +266,43 @@ export const addSource = async (
   const sourceId = result.insertId;
 
   // Trích xuất ở nền — client poll trạng thái qua GET project detail
-  void ingestFile(storedPath)
+  ingestSourceRow(sourceId, storedPath);
+
+  // Ảnh NHÚNG trong tài liệu (docx/pdf) → tạo thêm source ảnh riêng, đi tiếp qua
+  // caption + cổng an toàn như ảnh upload (bản quyền do người dùng đảm bảo).
+  void extractEmbeddedImages(storedPath, dir, `emb-${sourceId}`)
+    .then(async (imgs) => {
+      for (let n = 0; n < imgs.length; n++) {
+        const img = imgs[n];
+        let size = 0;
+        try {
+          size = fs.statSync(img.file).size;
+        } catch {
+          continue;
+        }
+        const [ins] = await pool.query<ResultSetHeader>(
+          `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
+           VALUES (?, ?, ?, ?, ?, 'extracting')`,
+          [
+            projectId,
+            `${file.originalname} — hình ${n + 1}`.slice(0, 255),
+            img.file,
+            img.mime,
+            size,
+          ]
+        );
+        ingestSourceRow(ins.insertId, img.file);
+      }
+    })
+    .catch(() => {
+      // Trích ảnh nhúng lỗi không được chặn luồng tư liệu chính — bỏ qua êm
+    });
+  return sourceId;
+};
+
+/** Trích xuất 1 source ở nền rồi cập nhật ready/failed (dùng cho file & ảnh nhúng) */
+const ingestSourceRow = (sourceId: number, filePath: string): void => {
+  void ingestFile(filePath)
     .then(async (r) => {
       await pool.query(
         `UPDATE project_sources SET status = 'ready', extracted_text = ?, extract_method = ? WHERE id = ?`,
@@ -279,7 +315,6 @@ export const addSource = async (
         [String((err as Error).message).slice(0, 1000), sourceId]
       );
     });
-  return sourceId;
 };
 
 /**
