@@ -1,5 +1,27 @@
 # Progress
 
+## 2026-09-03 — Gộp "Watermark mặc định hệ thống" vào trang Watermark (bớt rối UI)
+
+Phản hồi: mục nav riêng "Watermark mặc định" (admin) bị coi là thừa — người dùng nghĩ nó
+đã nằm trong trang "Watermark" (thư viện preset của creator) rồi. Thực ra 2 cái khác nhau
+ở backend (`/v1/watermark-presets` — danh sách preset đặt tên, chọn khi tạo video; vs
+`/v1/admin/watermark` — 1 cấu hình toàn hệ thống, áp khi creator KHÔNG chọn preset nào) nên
+không xoá hẳn (mất khả năng admin cấu hình fallback thương hiệu chung) — mà GỘP GIAO DIỆN:
+đưa editor "mặc định hệ thống" vào làm mục con thu/mở (đóng mặc định) cuối trang
+`WatermarkLibraryView`, chỉ hiện khi `isAdmin` (prop mới, Shell.vue truyền
+`user.role==='admin'`). Bỏ hẳn key nav `watermark-default` + `WatermarkView` import ở
+Shell.vue.
+
+`WatermarkView.vue` thêm prop `embedded` (mặc định false): khi nhúng, bỏ tiêu đề riêng +
+đổi thanh "Lưu watermark" từ `fixed bottom-0` dính viewport (chỉ đúng khi là trang riêng)
+thành nút inline cuối form (đúng khi nhúng trong section của trang khác).
+
+Verify: rebuild Docker (`docker compose up -d --build app`), đăng nhập thật bằng 2 tài khoản
+dev (`bmtuan@misa.com.vn` admin, `creator1@misa.com.vn` creator) qua Browser pane — xác nhận
+admin thấy mục thu/mở "Watermark mặc định hệ thống" mở ra đúng form (kéo vị trí, đổi loại/
+opacity/scale, nút Lưu nằm đúng chỗ không dính đáy màn hình); creator KHÔNG thấy mục đó và
+sidebar cũng gọn hơn (đúng như trước, không đổi).
+
 ## 2026-09-02 (tiếp 8) — Sửa thẩm mỹ engine theo phản hồi trực tiếp (VOX + core)
 
 Giám đốc thiết kế xem video "Agentic Enterprise" (render ở tiếp 7) trên điện thoại, chỉ ra

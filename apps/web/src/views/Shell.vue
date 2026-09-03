@@ -7,7 +7,6 @@ import MDialog from "../components/mds/MDialog.vue";
 import MInput from "../components/mds/MInput.vue";
 import CreateView from "./CreateView.vue";
 import ProjectsView from "./ProjectsView.vue";
-import WatermarkView from "./WatermarkView.vue";
 import WatermarkLibraryView from "./WatermarkLibraryView.vue";
 import TemplatesView from "./TemplatesView.vue";
 import SeriesView from "./SeriesView.vue";
@@ -38,7 +37,6 @@ const items = computed(() => {
   if (props.user.role === "admin") {
     base.push(
       { key: "music", label: "Nhạc nền", icon: "speakerphone" },
-      { key: "watermark-default", label: "Watermark mặc định", icon: "settings" },
       { key: "users", label: "Người dùng", icon: "users" }
     );
   }
@@ -202,11 +200,9 @@ async function changePassword(): Promise<void> {
         />
         <SeriesView v-else-if="active === 'series'" />
         <TemplatesView v-else-if="active === 'templates'" />
-        <WatermarkLibraryView v-else-if="active === 'watermark'" />
-        <WatermarkView
-          v-else-if="active === 'watermark-default'"
-          key="global"
-          scope="global"
+        <WatermarkLibraryView
+          v-else-if="active === 'watermark'"
+          :is-admin="user.role === 'admin'"
         />
         <AdminMusicView v-else-if="active === 'music'" />
         <AdminUsersView v-else-if="active === 'users'" />

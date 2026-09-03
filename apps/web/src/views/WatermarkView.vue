@@ -16,6 +16,9 @@ import type { WatermarkConfig } from "../lib/types";
 const props = defineProps<{
   /** 'mine' = watermark riêng của người đăng nhập; 'global' = mặc định hệ thống (admin) */
   scope: "mine" | "global";
+  /** true khi nhúng trong trang khác (WatermarkLibraryView) — bỏ tiêu đề riêng + thanh
+   * Lưu ghim đáy màn hình (dính viewport, không hợp khi không phải trang toàn màn) */
+  embedded?: boolean;
 }>();
 const BASE = () => (props.scope === "mine" ? "/v1/watermark" : "/v1/admin/watermark");
 
@@ -129,17 +132,19 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <div class="p-6 pb-24">
-    <h1 class="m-0 text-xl font-semibold">
-      {{ scope === "mine" ? "Watermark của tôi" : "Watermark mặc định hệ thống" }}
-    </h1>
-    <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
-      {{
-        scope === "mine"
-          ? "Áp cho mọi video bạn render. Chưa thiết lập thì hệ thống dùng watermark mặc định của quản trị."
-          : "Dùng cho creator chưa tự thiết lập watermark riêng. Kéo watermark trên khung preview để đổi vị trí."
-      }}
-    </p>
+  <div :class="embedded ? '' : 'p-6 pb-24'">
+    <template v-if="!embedded">
+      <h1 class="m-0 text-xl font-semibold">
+        {{ scope === "mine" ? "Watermark của tôi" : "Watermark mặc định hệ thống" }}
+      </h1>
+      <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
+        {{
+          scope === "mine"
+            ? "Áp cho mọi video bạn render. Chưa thiết lập thì hệ thống dùng watermark mặc định của quản trị."
+            : "Dùng cho creator chưa tự thiết lập watermark riêng. Kéo watermark trên khung preview để đổi vị trí."
+        }}
+      </p>
+    </template>
 
     <div v-if="loaded" class="mt-4 flex flex-wrap gap-6">
       <!-- Preview 9:16 -->
@@ -244,8 +249,13 @@ async function save(): Promise<void> {
       </section>
     </div>
 
-    <!-- Thanh lưu ghim cuối trang -->
+    <!-- Nhúng trong trang khác: nút Lưu nằm ngay dưới form, không dính đáy viewport -->
+    <div v-if="embedded" class="mt-5 flex justify-end">
+      <MButton variant="primary" :loading="saving" @click="save">Lưu watermark</MButton>
+    </div>
+    <!-- Trang riêng: thanh lưu ghim cuối trang -->
     <div
+      v-else
       class="fixed bottom-0 right-0 z-10 flex justify-end gap-2 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
       style="left: var(--mds-layout-sidebar-w, 200px)"
     >

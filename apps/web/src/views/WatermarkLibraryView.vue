@@ -7,6 +7,7 @@ import MIcon from "../components/mds/MIcon.vue";
 import MInput from "../components/mds/MInput.vue";
 import MRadioGroup from "../components/mds/MRadioGroup.vue";
 import RangeField from "../components/RangeField.vue";
+import WatermarkView from "./WatermarkView.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, apiForm, ApiError } from "../lib/api";
 import type { WatermarkPreset } from "../lib/types";
@@ -14,7 +15,13 @@ import type { WatermarkPreset } from "../lib/types";
 /**
  * Thư viện watermark (GĐ4): tạo nhiều watermark có tên, chọn khi tạo video.
  * Vị trí đặt bằng KÉO trực tiếp trên khung preview 9:16 (không slider ngang/dọc).
+ *
+ * Cấu hình "watermark mặc định hệ thống" (admin) nhúng ngay TRONG trang này (mục thu/mở
+ * cuối trang) thay vì một mục menu riêng — trước đây tách 2 trang khiến người dùng nhầm
+ * là trùng nhau (phản hồi 2026-09-03: "thực chất nó nằm trong mục Watermark đã có rồi").
  */
+const props = defineProps<{ isAdmin?: boolean }>();
+const defaultOpen = ref(false);
 const toast = useToast();
 const presets = ref<WatermarkPreset[]>([]);
 const loading = ref(true);
@@ -345,5 +352,24 @@ async function confirmDelete(): Promise<void> {
         </div>
       </div>
     </div>
+
+    <!-- Admin: cấu hình watermark mặc định hệ thống (thu gọn — ít dùng hơn thư viện trên) -->
+    <section v-if="isAdmin" class="mt-8 border-t border-[var(--mds-neutral-300,#E9EAEB)] pt-5">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-3 text-left"
+        :aria-expanded="defaultOpen"
+        @click="defaultOpen = !defaultOpen"
+      >
+        <span>
+          <h2 class="m-0 text-[15px] font-semibold">Watermark mặc định hệ thống</h2>
+          <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
+            Áp cho video của creator chưa chọn watermark riêng ở trên.
+          </p>
+        </span>
+        <MIcon :name="defaultOpen ? 'chevron-up' : 'chevron-down'" :size="16" class="shrink-0" />
+      </button>
+      <WatermarkView v-if="defaultOpen" scope="global" embedded class="mt-4" />
+    </section>
   </div>
 </template>
