@@ -371,7 +371,7 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                   seed={seedOf(`${spec.meta.slug}-kb-${scene.id}`)}
                   motion={scene.motion}
                   // scene nhiều CHỮ LỚN → scrim đậm hơn để headline luôn đọc được
-                  midScrim={TEXT_HEAVY_TYPES.has(scene.type) ? 0.6 : 0.42}
+                  midScrim={TEXT_HEAVY_TYPES.has(scene.type) ? 0.7 : 0.52}
                 />
               ) : null}
               <SceneRenderer

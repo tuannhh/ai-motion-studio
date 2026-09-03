@@ -65,6 +65,13 @@ export const OutroScene: React.FC<{
               fontSize: 34,
               color: theme.textDim,
               marginTop: 56,
+              ...(scene.bgImage
+                ? {
+                    WebkitTextStrokeWidth: "3px",
+                    WebkitTextStrokeColor: theme.bgBase,
+                    paintOrder: "stroke fill" as const,
+                  }
+                : {}),
               ...riseIn({ frame, fps, delay: 34 }),
             }}
           >

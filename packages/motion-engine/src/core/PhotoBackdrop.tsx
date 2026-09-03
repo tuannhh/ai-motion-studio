@@ -37,7 +37,7 @@ export const PhotoBackdrop: React.FC<{
   seed?: number;
   /** hướng chuyển động camera do AI chỉ định; "auto" → dùng seed */
   motion?: KenBurnsMotion;
-}> = ({ src, theme, midScrim = 0.42, seed = 0, motion = "auto" }) => {
+}> = ({ src, theme, midScrim = 0.52, seed = 0, motion = "auto" }) => {
   const frame = useCurrentFrame();
   // motion="auto": luân phiên theo seed. Còn lại: honor đúng hướng AI học được.
   const dir: Exclude<KenBurnsMotion, "auto"> =
@@ -74,18 +74,20 @@ export const PhotoBackdrop: React.FC<{
           opacity: theme.isDark ? 0.16 : 0.1,
         }}
       />
-      {/* scrim: đậm 2 đầu (vùng chữ), nhẹ ở giữa để ảnh vẫn "thật" */}
+      {/* scrim: đậm 2 đầu (vùng chữ), giảm bớt ở giữa để ảnh vẫn "thật" nhưng đủ
+          tối/sáng để giảm độ phức tạp của ảnh nền — chữ luôn đọc được (feedback
+          2026-09-03: tương phản chữ/ảnh chưa ổn) */}
       <AbsoluteFill
         style={{
           background: `linear-gradient(180deg,
-            ${theme.bgBase}E8 0%,
+            ${theme.bgBase}F0 0%,
             ${theme.bgBase}${Math.round(midScrim * 255)
               .toString(16)
               .padStart(2, "0")} 34%,
             ${theme.bgBase}${Math.round(midScrim * 255)
               .toString(16)
               .padStart(2, "0")} 62%,
-            ${theme.bgBase}F0 100%)`,
+            ${theme.bgBase}F5 100%)`,
         }}
       />
       {/* viền tối 4 cạnh giữ chữ ký vignette của engine */}

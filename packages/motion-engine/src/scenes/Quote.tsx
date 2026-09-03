@@ -45,7 +45,20 @@ export const QuoteScene: React.FC<{
           }}
         >
           <div style={{ width: 64, height: 4, background: theme.accent, borderRadius: 2 }} />
-          <span style={{ ...type.body, fontSize: 40, color: theme.textDim }}>
+          <span
+            style={{
+              ...type.body,
+              fontSize: 40,
+              color: theme.textDim,
+              ...(scene.bgImage
+                ? {
+                    WebkitTextStrokeWidth: "3px",
+                    WebkitTextStrokeColor: theme.bgBase,
+                    paintOrder: "stroke fill" as const,
+                  }
+                : {}),
+            }}
+          >
             {scene.author}
           </span>
         </div>

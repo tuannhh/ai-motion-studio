@@ -61,6 +61,13 @@ export const HookScene: React.FC<{
             margin: 0,
             marginTop: 44,
             maxWidth: 820,
+            ...(scene.bgImage
+              ? {
+                  WebkitTextStrokeWidth: "3px",
+                  WebkitTextStrokeColor: theme.bgBase,
+                  paintOrder: "stroke fill" as const,
+                }
+              : {}),
             ...riseIn({ frame, fps, delay: 30 }),
           }}
         >
