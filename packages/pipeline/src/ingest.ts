@@ -248,6 +248,61 @@ export const extractEmbeddedImages = async (
   }
 };
 
+// ===== Render TỪNG TRANG pdf thành ảnh (để AI cắt vùng minh hoạ — khác ảnh nhúng) =====
+
+/** Trần số trang render (tài liệu dài không ngập danh mục + tránh render vô hạn) */
+const MAX_PDF_PAGES_TO_RENDER = 12;
+/** DPI đủ nét để cắt (crop) chi tiết 1 vùng nhỏ của trang mà không vỡ hình */
+const PDF_PAGE_RENDER_DPI = 144;
+
+/**
+ * Render mỗi trang pdf thành 1 ảnh PNG TOÀN TRANG (khác `extractEmbeddedImages`
+ * chỉ lấy ảnh/hình đã NHÚNG sẵn) — dùng khi AI cần "chụp" 1 vùng bất kỳ của trang
+ * (đoạn văn, bảng, biểu đồ vẽ bằng vector không phải ảnh nhúng...) làm minh hoạ,
+ * qua cú pháp cắt vùng ở generateSpecImages (userimg:N:crop:x0,y0,x1,y1).
+ * Cần `pdftoppm` (poppler-utils) — vắng tool thì bỏ qua êm như extractEmbeddedImages.
+ */
+export const renderPdfPages = async (
+  filePath: string,
+  destDir: string,
+  baseName: string
+): Promise<{ file: string; page: number }[]> => {
+  const abs = path.resolve(filePath);
+  if (path.extname(abs).toLowerCase() !== ".pdf") return [];
+  if (!fs.existsSync(abs)) return [];
+
+  const probe = spawnSync("pdftoppm", ["-v"]);
+  if (probe.error) return [];
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ams-pdfpage-"));
+  try {
+    spawnSync(
+      "pdftoppm",
+      ["-png", "-r", String(PDF_PAGE_RENDER_DPI), "-l", String(MAX_PDF_PAGES_TO_RENDER), abs, path.join(tmp, "page")],
+      { maxBuffer: 32 * 1024 * 1024 }
+    );
+    // pdftoppm tự đặt tên "page-<N>.png" (đệm số theo tổng số trang thật của file) —
+    // đọc lại thư mục thay vì đoán tên để không phụ thuộc độ đệm.
+    const picked = fs
+      .readdirSync(tmp)
+      .filter((f) => f.endsWith(".png"))
+      .sort();
+
+    fs.mkdirSync(destDir, { recursive: true });
+    const out: { file: string; page: number }[] = [];
+    picked.forEach((f, i) => {
+      const dest = path.join(destDir, `${baseName}-page${i + 1}.png`);
+      fs.copyFileSync(path.join(tmp, f), dest);
+      out.push({ file: dest, page: i + 1 });
+    });
+    return out;
+  } catch {
+    return [];
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+};
+
 // ===== Nạp tư liệu từ LINK (có chặn SSRF) =====
 
 /** IP nội bộ/riêng tư/loopback — cấm fetch để chống SSRF ra hạ tầng nội bộ */

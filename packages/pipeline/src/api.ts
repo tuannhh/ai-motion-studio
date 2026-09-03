@@ -2,7 +2,7 @@
  * API module dùng chung cho CLI (run.ts) và apps/server:
  * sinh kịch bản → spec → TTS → render. Không đọc argv, không process.exit.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,8 +44,9 @@ export type GeneratePlansOptions = {
   /** serie manager: tên + số tập bắt đầu + ngữ cảnh tập trước */
   series?: { name: string; startEpisode: number; context?: string };
   /** ảnh thật người dùng tải lên (index + caption) để AI chèn 'userimg:N'; fromDocument =
-   * ảnh tự trích từ chính file tư liệu (bằng chứng thật, khác ảnh tải lên rời rạc) */
-  userImages?: { index: number; caption: string; fromDocument?: boolean }[];
+   * ảnh tự trích từ chính file tư liệu (bằng chứng thật, khác ảnh tải lên rời rạc);
+   * isFullPage = ảnh TOÀN TRANG (render từ pdf) — AI nên cắt vùng, không dùng nguyên trang */
+  userImages?: { index: number; caption: string; fromDocument?: boolean; isFullPage?: boolean }[];
 };
 
 /** Tách plan → spec engine (bỏ narration) + map sceneId → narration */
@@ -242,6 +243,51 @@ const aiPoolSize = (): number => {
 export type ImageProgress = (done: number, total: number, sceneId: string) => void;
 
 /**
+ * Cắt một vùng (fraction 0-1, gốc trên-trái) từ ảnh chụp toàn trang tài liệu bằng
+ * ffmpeg — giữ nguyên nội dung ảnh chụp thật (không AI vẽ lại). ffprobe lấy kích
+ * thước gốc để quy đổi fraction → pixel; toạ độ được kẹp trong biên ảnh.
+ */
+const cropImageToFile = (
+  srcPath: string,
+  destPath: string,
+  box: { x0: number; y0: number; x1: number; y1: number }
+): void => {
+  const probe = spawnSync("ffprobe", [
+    "-v",
+    "error",
+    "-select_streams",
+    "v:0",
+    "-show_entries",
+    "stream=width,height",
+    "-of",
+    "csv=s=x:p=0",
+    srcPath,
+  ]);
+  const [wStr, hStr] = (probe.stdout?.toString().trim() || "").split("x");
+  const w = Number(wStr);
+  const h = Number(hStr);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < 2 || h < 2) {
+    throw new Error("Không đọc được kích thước ảnh gốc để cắt.");
+  }
+  const cw = Math.min(w, Math.max(2, Math.round((box.x1 - box.x0) * w)));
+  const ch = Math.min(h, Math.max(2, Math.round((box.y1 - box.y0) * h)));
+  const cx = Math.min(w - cw, Math.max(0, Math.round(box.x0 * w)));
+  const cy = Math.min(h - ch, Math.max(0, Math.round(box.y0 * h)));
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  const run = spawnSync("ffmpeg", [
+    "-y",
+    "-i",
+    srcPath,
+    "-vf",
+    `crop=${cw}:${ch}:${cx}:${cy}`,
+    destPath,
+  ]);
+  if (run.status !== 0) {
+    throw new Error(`Cắt ảnh lỗi: ${run.stderr?.toString().slice(0, 300) || run.error?.message || "ffmpeg thất bại"}`);
+  }
+};
+
+/**
  * Sinh ảnh cho spec theo imagePrompt/bgImagePrompt trong plan (Gemini image
  * + cổng chất lượng), lưu vào jobDir/images/, gán đường dẫn tương đối vào
  * scene.image / scene.bgImage. Ảnh annotate hỏng → ném lỗi (fail-closed,
@@ -261,8 +307,12 @@ export const generateSpecImages = async (
     sceneIndex: number;
     kind: "image" | "uiImage" | "bgImage" | "webImage" | "webBg" | "userImage" | "userBg";
     prompt: string;
-    /** với userImage/userBg: file gốc + có vẽ lại (redraw) hay dùng nguyên ảnh */
-    ref?: { storedPath: string; redraw: boolean };
+    /** với userImage/userBg: file gốc + có vẽ lại (redraw) hay dùng nguyên ảnh, hoặc cắt 1 vùng */
+    ref?: {
+      storedPath: string;
+      redraw: boolean;
+      crop?: { x0: number; y0: number; x1: number; y1: number };
+    };
   }> = [];
   // Tiền tố "web:" trong imagePrompt/bgImagePrompt (hoặc media.image) = dùng ẢNH THẬT
   // từ internet (Openverse CC) thay vì ảnh AI — phần sau "web:" là truy vấn (tiếng Anh).
@@ -270,13 +320,31 @@ export const generateSpecImages = async (
     typeof v === "string" && v.trim().toLowerCase().startsWith("web:")
       ? v.trim().slice(4).trim()
       : null;
-  // Tiền tố "userimg:N" hoặc "userimg:N:redraw" = ảnh THẬT người dùng đã tải lên.
-  const userRef = (v: unknown): { storedPath: string; redraw: boolean } | null => {
+  // Tiền tố "userimg:N", "userimg:N:redraw" hoặc "userimg:N:crop:x0,y0,x1,y1" = ảnh
+  // THẬT người dùng đã tải lên. crop cắt 1 vùng (fraction 0-1) khỏi ảnh chụp toàn
+  // trang tài liệu — cú pháp crop không hợp lệ (thiếu số/quá nhỏ) coi như KHÔNG khớp
+  // để rơi về sinh ảnh AI bình thường, thay vì lỡ dùng nguyên cả trang xấu.
+  const userRef = (
+    v: unknown
+  ): { storedPath: string; redraw: boolean; crop?: { x0: number; y0: number; x1: number; y1: number } } | null => {
     if (typeof v !== "string") return null;
-    const m = v.trim().toLowerCase().match(/^userimg:(\d+)(:redraw)?$/);
+    const raw = v.trim().toLowerCase();
+    const m = raw.match(/^userimg:(\d+)(?::redraw|:crop:([\d.]+),([\d.]+),([\d.]+),([\d.]+))?$/);
     if (!m) return null;
     const src = userImages?.find((u) => u.index === Number(m[1]));
-    return src ? { storedPath: src.storedPath, redraw: Boolean(m[2]) } : null;
+    if (!src) return null;
+    if (raw.includes(":crop:")) {
+      const [x0, y0, x1, y1] = [Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])];
+      const valid =
+        [x0, y0, x1, y1].every((n) => Number.isFinite(n) && n >= 0 && n <= 1) &&
+        x1 - x0 >= 0.03 &&
+        y1 - y0 >= 0.03 &&
+        x1 > x0 &&
+        y1 > y0;
+      if (!valid) return null;
+      return { storedPath: src.storedPath, redraw: false, crop: { x0, y0, x1, y1 } };
+    }
+    return { storedPath: src.storedPath, redraw: raw.includes(":redraw") };
   };
   plan.scenes.forEach((s: any, i) => {
     const type = spec.scenes[i].type;
@@ -324,9 +392,10 @@ export const generateSpecImages = async (
     try {
       if (task.kind === "userImage" || task.kind === "userBg") {
         // Ảnh THẬT người dùng tải lên: qua cổng an toàn nội dung (guardrail áp cho
-        // cả ảnh của chính user). redraw = AI vẽ lại theo mô tả; ngược lại dùng
-        // nguyên ảnh (copy vào jobDir).
-        const { storedPath, redraw } = task.ref!;
+        // cả ảnh của chính user). redraw = AI vẽ lại theo mô tả; crop = cắt 1 vùng
+        // bằng ffmpeg (giữ nguyên nội dung ảnh chụp thật, không AI can thiệp);
+        // ngược lại dùng nguyên ảnh (copy vào jobDir).
+        const { storedPath, redraw, crop } = task.ref!;
         const buf = fs.readFileSync(storedPath);
         const ext = (path.extname(storedPath) || ".jpg").toLowerCase();
         const mime =
@@ -334,7 +403,15 @@ export const generateSpecImages = async (
         if (!(await reviewImageSafety(buf, mime))) {
           throw new Error("ảnh của bạn không qua cổng an toàn nội dung (bản đồ/cờ/lãnh đạo/chính trị...)");
         }
-        if (redraw) {
+        if (crop) {
+          const dest = path.join(jobDir, `${rel}.png`);
+          cropImageToFile(storedPath, dest, crop);
+          if (isBg) scene.bgImage = path.relative(jobDir, dest);
+          else {
+            scene.image = path.relative(jobDir, dest);
+            if (scene.type === "media" && !scene.credit) scene.credit = "Ảnh: tư liệu của bạn";
+          }
+        } else if (redraw) {
           const desc = await describeImageForRedraw(buf, mime);
           const generated = await generateSceneImage(desc, path.join(jobDir, rel));
           // Ảnh nền KHÔNG bắt buộc — nếu cổng chất lượng từ chối cả 3 lần (thường vì

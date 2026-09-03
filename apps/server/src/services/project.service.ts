@@ -4,7 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
-import { extractEmbeddedImages, ingestFile, ingestUrl } from "@ams/pipeline/src/ingest";
+import { extractEmbeddedImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
 import { getReadyProfile } from "./template.service";
@@ -369,6 +369,36 @@ export const addSource = async (
     .catch(() => {
       // Trích ảnh nhúng lỗi không được chặn luồng tư liệu chính — bỏ qua êm
     });
+
+  // Ảnh TOÀN TRANG (pdf) — khác ảnh nhúng: cho AI "chụp"/cắt bất kỳ vùng nào của
+  // trang (đoạn văn, bảng, biểu đồ vector) làm minh hoạ, không chỉ ảnh đã nhúng sẵn
+  // (phản hồi 2026-09-03: "AI chủ động screen capture 1 phần tài liệu... cắt cho khéo").
+  void renderPdfPages(storedPath, dir, `page-${sourceId}`)
+    .then(async (pages) => {
+      for (const p of pages) {
+        let size = 0;
+        try {
+          size = fs.statSync(p.file).size;
+        } catch {
+          continue;
+        }
+        const [ins] = await pool.query<ResultSetHeader>(
+          `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
+           VALUES (?, ?, ?, ?, ?, 'extracting')`,
+          [
+            projectId,
+            `${file.originalname} — trang ${p.page}`.slice(0, 255),
+            p.file,
+            "image/png",
+            size,
+          ]
+        );
+        ingestSourceRow(ins.insertId, p.file);
+      }
+    })
+    .catch(() => {
+      // Render trang lỗi không được chặn luồng tư liệu chính — bỏ qua êm
+    });
   return sourceId;
 };
 
@@ -479,6 +509,9 @@ export type UserImageSource = {
   storedPath: string;
   caption: string;
   fromDocument: boolean;
+  /** ảnh TOÀN TRANG tài liệu (render từ pdf, khác ảnh nhúng) — AI nên CẮT VÙNG
+   * (userimg:N:crop:x0,y0,x1,y1) thay vì dùng nguyên cả trang làm minh hoạ */
+  isFullPage: boolean;
 };
 
 export const getProjectImageSources = async (
@@ -497,7 +530,8 @@ export const getProjectImageSources = async (
       .split("\n")[0]
       .trim()
       .slice(0, 160) || "ảnh không có mô tả",
-    fromDocument: / — hình \d+$/.test(String(r.file_name ?? "")),
+    fromDocument: / — (hình|trang) \d+$/.test(String(r.file_name ?? "")),
+    isFullPage: / — trang \d+$/.test(String(r.file_name ?? "")),
   }));
 };
 
@@ -585,6 +619,7 @@ export const generateScripts = async (
           index: u.index,
           caption: u.caption,
           fromDocument: u.fromDocument,
+          isFullPage: u.isFullPage,
         })),
       });
 

@@ -123,8 +123,9 @@ export const buildPlansPrompt = (params: {
   series?: { name: string; startEpisode: number; context?: string };
   /** ảnh THẬT người dùng đã tải lên (index 1..N + mô tả) để chèn 'userimg:N'; fromDocument
    * = ảnh tự trích từ chính file tư liệu (docx/pdf) — bằng chứng thật gắn với số liệu
-   * đang trích dẫn, đáng ưu tiên hơn ảnh người dùng tải lên rời rạc không liên quan */
-  userImages?: { index: number; caption: string; fromDocument?: boolean }[];
+   * đang trích dẫn, đáng ưu tiên hơn ảnh người dùng tải lên rời rạc không liên quan;
+   * isFullPage = ảnh TOÀN TRANG tài liệu (render từ pdf) — phải CẮT VÙNG mới dùng được */
+  userImages?: { index: number; caption: string; fromDocument?: boolean; isFullPage?: boolean }[];
 }): string => {
   const { idea, mode, count, sources, presetHint, durationSec, styleBlock, scriptPipeline, series, userImages } =
     params;
@@ -158,9 +159,11 @@ export const buildPlansPrompt = (params: {
     ? `\n<USER_IMAGES>\nNgười dùng đã tải lên ${userImages.length} ẢNH THẬT (ưu tiên dùng khi phù hợp — ảnh thật đáng tin hơn ảnh AI dựng):\n${userImages
         .map(
           (u) =>
-            `- userimg:${u.index}${u.fromDocument ? " [TRÍCH TỪ TÀI LIỆU NGUỒN — dùng làm bằng chứng khi scene nhắc số liệu/luận điểm lấy từ tài liệu này]" : ""} — ${u.caption}`
+            `- userimg:${u.index}${u.fromDocument ? " [TRÍCH TỪ TÀI LIỆU NGUỒN — dùng làm bằng chứng khi scene nhắc số liệu/luận điểm lấy từ tài liệu này]" : ""}${u.isFullPage ? " [ẢNH TOÀN TRANG — BẮT BUỘC cắt vùng bằng userimg:N:crop, không dùng nguyên cả trang]" : ""} — ${u.caption}`
         )
-        .join("\n")}\nCÁCH DÙNG (chỉ khi ảnh khớp nội dung scene):\n• Dùng NGUYÊN ảnh thật: đặt giá trị "userimg:N" vào "image" của scene "media", hoặc vào "imagePrompt" của scene "annotate", hoặc "bgImagePrompt" (ảnh nền).\n• Nhờ AI VẼ LẠI theo phong cách minh hoạ (giữ bố cục/chủ thể của ảnh thật nhưng thành tranh vector/illustration hợp tông video): đặt "userimg:N:redraw".\nẢnh đánh dấu [TRÍCH TỪ TÀI LIỆU NGUỒN]: ưu tiên dùng NGUYÊN (không redraw) ở đúng scene đang nói tới số liệu/luận điểm đó, để tăng tính thuyết phục — coi như ảnh chụp bằng chứng, không phải minh hoạ.\nKhông bịa ảnh không có trong danh sách trên (chỉ index 1..${userImages.length}). Nếu không ảnh nào khớp, cứ mô tả để AI vẽ mới như bình thường.\n</USER_IMAGES>\n`
+        .join(
+          "\n"
+        )}\nCÁCH DÙNG (chỉ khi ảnh khớp nội dung scene):\n• Dùng NGUYÊN ảnh thật: đặt giá trị "userimg:N" vào "image" của scene "media", hoặc vào "imagePrompt" của scene "annotate", hoặc "bgImagePrompt" (ảnh nền).\n• Nhờ AI VẼ LẠI theo phong cách minh hoạ (giữ bố cục/chủ thể của ảnh thật nhưng thành tranh vector/illustration hợp tông video): đặt "userimg:N:redraw".\n• CẮT VÙNG (chụp 1 phần ảnh) — dùng cho ẢNH TOÀN TRANG [ẢNH TOÀN TRANG]: đặt "userimg:N:crop:x0,y0,x1,y1" — 4 số thập phân 0-1 là TỈ LỆ toạ độ (0,0)=góc trên-trái, (1,1)=góc dưới-phải trang; cắt SÁT vào ĐÚNG đoạn văn/bảng/biểu đồ/hình đang được scene đó nhắc tới trong narration (không cắt cả trang, không cắt bừa/random) — coi như đang chụp màn hình đúng phần tài liệu minh hoạ cho câu đang nói. Vùng cắt nên đủ lớn để đọc được (khuyến nghị rộng ≥0.25 và cao ≥0.15 tỉ lệ trang).\nẢnh TOÀN TRANG (isFullPage) TUYỆT ĐỐI không dùng "userimg:N" trần (nguyên cả trang trông như ảnh chụp màn hình nhỏ, không phải minh hoạ) — luôn phải kèm ":crop:...".\nẢnh đánh dấu [TRÍCH TỪ TÀI LIỆU NGUỒN]: ưu tiên dùng (nguyên hoặc cắt vùng, KHÔNG redraw) ở đúng scene đang nói tới số liệu/luận điểm đó, để tăng tính thuyết phục — coi như ảnh chụp bằng chứng, không phải minh hoạ.\nKhông bịa ảnh không có trong danh sách trên (chỉ index 1..${userImages.length}). Nếu không ảnh nào khớp, cứ mô tả để AI vẽ mới như bình thường.\n</USER_IMAGES>\n`
     : "";
 
   return `Bạn là đạo diễn kiêm biên kịch video ngắn motion-graphics dọc 9:16 (kiểu kênh giải thích công nghệ trên TikTok/Reels: chữ động, sơ đồ, số liệu — KHÔNG có người quay).
