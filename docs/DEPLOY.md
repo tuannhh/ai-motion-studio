@@ -64,7 +64,16 @@ Ghi lại đúng cấu hình thật để lần sau redeploy/tái tạo hạ t�
 | Cloud SQL | instance `ams-mysql` (MySQL 8.0, `db-g1-small`, zonal), DB `ams`, user `ams`; connect qua **Unix socket** `--add-cloudsql-instances` (không TCP) |
 | Storage | bucket `gs://ams-storage-prapplication` mount **GCS FUSE volume** thẳng vào `/app/apps/server/storage` (`--add-volume type=cloud-storage` + `--add-volume-mount`) — **không cần sửa code storage layer**, mọi `fs.*` hiện có tự động ghi/đọc GCS xuyên suốt redeploy |
 | Secrets (Secret Manager) | `ams-gemini-api-key`, `ams-encryption-key`, `ams-gdrive-client-secret`, `ams-db-password` — service account `784559735000-compute@developer.gserviceaccount.com` cần role `roles/secretmanager.secretAccessor` (từng secret) VÀ `roles/cloudsql.client` (project-level, cho Cloud SQL Auth Proxy sidecar) |
-| Env vars | `NODE_ENV=production`, `DB_SOCKET_PATH=/cloudsql/prapplication-479309:asia-southeast1:ams-mysql`, `DB_USER=ams`, `DB_NAME=ams`, `COOKIE_SECURE=1`, `GOOGLE_CLIENT_ID=...`, `WEB_BASE_URL`/`GOOGLE_OAUTH_REDIRECT` trỏ đúng domain `ams-app-ksesady2lq-as.a.run.app` |
+| Env vars | `NODE_ENV=production`, `DB_SOCKET_PATH=/cloudsql/prapplication-479309:asia-southeast1:ams-mysql`, `DB_USER=ams`, `DB_NAME=ams`, `COOKIE_SECURE=1`, `GOOGLE_CLIENT_ID=...`, `WEB_BASE_URL`/`GOOGLE_OAUTH_REDIRECT` trỏ đúng domain `ams-app-ksesady2lq-as.a.run.app`, **`GEMINI_CONTENT_MODEL`/`GEMINI_TTS_MODEL`/`GEMINI_IMAGE_MODEL`** (xem `.env.example` cho giá trị hiện hành) |
+
+> **Bẫy đã gặp lần 2 (sau khi đã deploy "xong")**: quên truyền 3 biến chọn model Gemini ở
+> trên lúc `--set-env-vars` đầu tiên → code fallback về default hard-code CŨ trong
+> `packages/pipeline/src/env.ts` (`gemini-2.5-flash` thay vì `gemini-3.7-flash` đang dùng ở
+> local) — sinh kịch bản kém tin cậy hơn hẳn (vd lỗi schema `caption` quá 110 ký tự ngay cả
+> sau vòng tự sửa). Bài học: khi `--set-env-vars` lúc deploy, đối chiếu ĐỦ danh sách biến
+> trong `.env.example` chứ không chỉ nhóm liên quan DB/OAuth — thiếu biến không gây lỗi
+> khởi động (có default) nên KHÔNG lộ ra ở bước healthcheck, chỉ lộ khi người dùng thật sự
+> dùng tính năng. Sửa nhanh không cần rebuild: `gcloud run services update ams-app --update-env-vars=...`.
 
 Lệnh deploy đầy đủ (image build sẵn qua `gcloud run deploy --source .` rồi
 deploy lại bằng `--image=<digest>` cho nhanh khi chỉnh flag, khỏi build lại):
