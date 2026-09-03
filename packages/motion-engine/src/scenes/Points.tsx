@@ -76,7 +76,7 @@ export const PointsScene: React.FC<{
                     fontSize: 112,
                     lineHeight: 0.9,
                     fontWeight: 800,
-                    color: theme.accent,
+                    color: theme.accentText,
                     minWidth: 150,
                   }}
                 >
@@ -203,7 +203,7 @@ export const PointsScene: React.FC<{
                       width: 22,
                       height: 22,
                       borderRadius: "50%",
-                      background: theme.accent,
+                      background: theme.accentText,
                       boxShadow: theme.flat ? undefined : `0 0 20px ${theme.accent}99`,
                       transform: `translate(-50%, -50%) scale(${Math.min(1, dot * 1.3)})`,
                       opacity: Math.min(1, dot * 2),
@@ -263,7 +263,7 @@ export const PointsScene: React.FC<{
                       borderRadius: "50%",
                       flexShrink: 0,
                       background: theme.bgBase,
-                      border: `4px solid ${theme.accent}`,
+                      border: `4px solid ${theme.accentText}`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

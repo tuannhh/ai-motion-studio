@@ -25,9 +25,9 @@ export const HookScene: React.FC<{
               ...type.label,
               display: "inline-block",
               fontSize: 30,
-              color: theme.accent,
+              color: theme.accentText,
               background: theme.accentSoft,
-              border: `2px solid ${theme.accent}`,
+              border: `2px solid ${theme.accentText}`,
               borderRadius: 999,
               padding: "16px 36px",
               ...popIn({ frame, fps, delay: 2 }),
@@ -41,7 +41,7 @@ export const HookScene: React.FC<{
       <KineticText
         text={scene.headline}
         color={theme.text}
-        accent={theme.accent}
+        accent={theme.accentText}
         fontSize={104}
         delay={8}
         glow={!theme.flat}
@@ -50,7 +50,7 @@ export const HookScene: React.FC<{
         maxLines={4}
         haloColor={theme.bgBase}
       />
-      <AccentUnderline color={theme.accent} width={300} delay={26} glow={!theme.flat} />
+      <AccentUnderline color={theme.accentText} width={300} delay={26} glow={!theme.flat} />
 
       {scene.sub ? (
         <p
@@ -71,7 +71,7 @@ export const HookScene: React.FC<{
             ...riseIn({ frame, fps, delay: 30 }),
           }}
         >
-          <RichText text={scene.sub} accent={theme.accent} />
+          <RichText text={scene.sub} accent={theme.accentText} />
         </p>
       ) : null}
     </SafeArea>

@@ -76,7 +76,7 @@ export const FlowScene: React.FC<{
                   ...entrance(style, p),
                   ...(node.emphasis
                     ? {
-                        border: `2.5px solid ${theme.accent}`,
+                        border: `2.5px solid ${theme.accentText}`,
                         boxShadow: `0 0 60px ${theme.accentSoft}, 0 24px 60px rgba(0,0,0,0.3)`,
                         background: theme.accentSoft,
                       }
@@ -100,7 +100,7 @@ export const FlowScene: React.FC<{
                   style={{
                     ...type.label,
                     fontSize: 26,
-                    color: node.emphasis ? theme.accent : theme.textDim,
+                    color: node.emphasis ? theme.accentText : theme.textDim,
                   }}
                 >
                   {String(i + 1).padStart(2, "0")}
@@ -136,7 +136,7 @@ export const FlowScene: React.FC<{
                         width: 14,
                         height: 14,
                         borderRadius: "50%",
-                        background: theme.accent,
+                        background: theme.accentText,
                         boxShadow: `0 0 18px ${theme.accent}`,
                         opacity: 0.9,
                       }}

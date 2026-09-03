@@ -135,7 +135,7 @@ export const AnnotateScene: React.FC<{
                     textShadow: theme.flat ? undefined : "0 4px 30px rgba(0,0,0,0.6)",
                   }}
                 >
-                  <RichText text={displayHeadline} accent={theme.accent} />
+                  <RichText text={displayHeadline} accent={theme.accentText} />
                 </h2>
               );
             })()
@@ -151,7 +151,7 @@ export const AnnotateScene: React.FC<{
         <path
           d={path}
           fill="none"
-          stroke={theme.accent}
+          stroke={theme.accentText}
           strokeWidth={7}
           strokeLinecap="round"
           strokeDasharray={dash}
@@ -162,7 +162,7 @@ export const AnnotateScene: React.FC<{
           <path
             d={roughEllipse(fx, fy, 172, 122, hashStr(scene.id))}
             fill="none"
-            stroke={theme.accent}
+            stroke={theme.accentText}
             strokeWidth={9}
             strokeLinecap="round"
             strokeDasharray={dashE}
@@ -174,7 +174,7 @@ export const AnnotateScene: React.FC<{
             cy={fy}
             r={30 * ringIn * pulse}
             fill="none"
-            stroke={theme.accent}
+            stroke={theme.accentText}
             strokeWidth={6}
           />
         ) : null}

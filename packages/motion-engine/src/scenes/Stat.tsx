@@ -72,7 +72,7 @@ export const StatScene: React.FC<{
               cy={R + 30}
               r={R}
               fill="none"
-              stroke={theme.accent}
+              stroke={theme.accentText}
               strokeWidth={12}
               strokeLinecap="round"
               strokeDasharray={C}
@@ -110,7 +110,7 @@ export const StatScene: React.FC<{
             >
               {value}
               {scene.unit ? (
-                <span style={{ fontSize: 96, color: theme.accent }}>
+                <span style={{ fontSize: 96, color: theme.accentText }}>
                   {scene.unit}
                 </span>
               ) : null}

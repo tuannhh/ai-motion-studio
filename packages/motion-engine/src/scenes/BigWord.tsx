@@ -99,7 +99,7 @@ export const BigWordScene: React.FC<{
                 width: 40,
                 height: 6,
                 borderRadius: 3,
-                background: i <= idx ? theme.accent : theme.textDim + "44",
+                background: i <= idx ? theme.accentText : theme.textDim + "44",
               }}
             />
           ))}

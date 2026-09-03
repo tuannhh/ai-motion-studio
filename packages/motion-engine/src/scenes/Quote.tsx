@@ -18,7 +18,7 @@ export const QuoteScene: React.FC<{
   return (
     <SafeArea>
       <div style={{ marginBottom: 36, ...popIn({ frame, fps, delay: 2 }) }}>
-        <Icon name="Quote" size={110} color={theme.accent} strokeWidth={2} />
+        <Icon name="Quote" size={110} color={theme.accentText} strokeWidth={2} />
       </div>
       <KineticText
         text={scene.text}
@@ -44,7 +44,7 @@ export const QuoteScene: React.FC<{
             ...riseIn({ frame, fps, delay: 30 }),
           }}
         >
-          <div style={{ width: 64, height: 4, background: theme.accent, borderRadius: 2 }} />
+          <div style={{ width: 64, height: 4, background: theme.accentText, borderRadius: 2 }} />
           <span
             style={{
               ...type.body,

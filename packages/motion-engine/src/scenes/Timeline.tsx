@@ -59,7 +59,7 @@ export const TimelineScene: React.FC<{
                     height: 32,
                     borderRadius: "50%",
                     background: theme.bgBase,
-                    border: `5px solid ${theme.accent}`,
+                    border: `5px solid ${theme.accentText}`,
                     boxShadow: `0 0 26px ${theme.accent}88`,
                     transform: `scale(${Math.min(1, dot)})`,
                   }}
@@ -75,7 +75,7 @@ export const TimelineScene: React.FC<{
                       style={{
                         ...type.label,
                         fontSize: 28,
-                        color: theme.accent,
+                        color: theme.accentText,
                         marginBottom: 8,
                       }}
                     >

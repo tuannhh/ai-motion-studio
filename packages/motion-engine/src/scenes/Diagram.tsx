@@ -162,7 +162,7 @@ export const DiagramScene: React.FC<{
                 <polyline
                   points={toPolyPoints(pts)}
                   fill="none"
-                  stroke={theme.accent}
+                  stroke={theme.accentText}
                   strokeOpacity={0.85}
                   strokeWidth={3}
                   strokeLinecap="round"
@@ -172,14 +172,14 @@ export const DiagramScene: React.FC<{
                   style={theme.flat ? undefined : { filter: `drop-shadow(0 0 4px ${theme.accent}66)` }}
                 />
                 {drawn ? (
-                  <polygon points={arrowHead(pts, 16)} fill={theme.accent} />
+                  <polygon points={arrowHead(pts, 16)} fill={theme.accentText} />
                 ) : null}
                 {dot ? (
                   <>
                     {!theme.flat ? (
                       <circle cx={dot.x} cy={dot.y} r={11} fill={theme.accent} fillOpacity={0.22} />
                     ) : null}
-                    <circle cx={dot.x} cy={dot.y} r={5} fill={theme.flat ? theme.accent : "#FFFFFF"} />
+                    <circle cx={dot.x} cy={dot.y} r={5} fill={theme.flat ? theme.accentText : "#FFFFFF"} />
                   </>
                 ) : null}
               </g>
@@ -258,7 +258,7 @@ export const DiagramScene: React.FC<{
                   padding: isHub ? "0 12px" : "0 22px",
                   borderRadius: radius,
                   background: n.emphasis ? theme.accentSoft : theme.surface,
-                  border: `2px solid ${n.emphasis ? theme.accent : theme.surfaceBorder}`,
+                  border: `2px solid ${n.emphasis ? theme.accentText : theme.surfaceBorder}`,
                   boxShadow: theme.flat
                     ? "0 2px 0 rgba(35,32,28,0.25)"
                     : n.emphasis
@@ -270,7 +270,7 @@ export const DiagramScene: React.FC<{
               >
                 {n.icon ? (
                   <div style={popIn({ frame, fps, delay: delay + 4 })}>
-                    <Icon name={n.icon} size={isHub ? 38 : 42} color={theme.accent} />
+                    <Icon name={n.icon} size={isHub ? 38 : 42} color={theme.accentText} />
                   </div>
                 ) : null}
                 <span

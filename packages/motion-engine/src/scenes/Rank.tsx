@@ -36,7 +36,7 @@ export const RankScene: React.FC<{
           const delay = delays[i];
           const p = enterSpring({ frame, fps, delay });
           const bar = drawProgress({ frame, fps, delay: delay + 6 });
-          const color = item.highlight ? theme.accent : theme.textDim;
+          const color = item.highlight ? theme.accentText : theme.textDim;
           return (
             <div
               key={i}
@@ -89,7 +89,7 @@ export const RankScene: React.FC<{
                     width: `${(item.value / max) * 100}%`,
                     borderRadius: theme.flat ? 6 : 13,
                     background: item.highlight
-                      ? theme.accent
+                      ? theme.accentText
                       : theme.flat
                         ? "rgba(35,32,28,0.35)"
                         : "rgba(255,255,255,0.30)",

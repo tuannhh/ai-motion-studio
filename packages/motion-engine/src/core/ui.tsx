@@ -80,7 +80,7 @@ export const IconChip: React.FC<{
       height: size,
       borderRadius: size * (theme.flat ? 0.22 : 0.32),
       background: theme.accentSoft,
-      border: `2px solid ${theme.accent}`,
+      border: `2px solid ${theme.accentText}`,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -89,7 +89,7 @@ export const IconChip: React.FC<{
       ...style,
     }}
   >
-    <Icon name={name} size={size * 0.48} color={theme.accent} />
+    <Icon name={name} size={size * 0.48} color={theme.accentText} />
   </div>
 );
 
@@ -158,9 +158,9 @@ export const Kicker: React.FC<{
           fontSize: 28,
           fontWeight: 800,
           letterSpacing: "0.06em",
-          color: theme.accent,
+          color: theme.accentText,
           background: theme.accentSoft,
-          border: `2px solid ${theme.accent}`,
+          border: `2px solid ${theme.accentText}`,
           padding: "10px 20px",
           borderRadius: 6,
           marginBottom: 32,
@@ -177,7 +177,7 @@ export const Kicker: React.FC<{
       style={{
         ...type.label,
         fontSize: 28,
-        color: theme.accent,
+        color: theme.accentText,
         marginBottom: 26,
         display: "flex",
         alignItems: "center",
@@ -185,7 +185,7 @@ export const Kicker: React.FC<{
         ...riseIn({ frame, fps, delay }),
       }}
     >
-      <div style={{ width: 56, height: 4, background: theme.accent, borderRadius: 2 }} />
+      <div style={{ width: 56, height: 4, background: theme.accentText, borderRadius: 2 }} />
       {children}
     </div>
   );
@@ -226,10 +226,10 @@ export const SceneHeader: React.FC<{
         >
           {vox ? (
             <span style={{ display: "inline-block", transform: "scaleX(0.9)", transformOrigin: "left top" }}>
-              <RichText text={displayTitle} accent={theme.accent} />
+              <RichText text={displayTitle} accent={theme.accentText} />
             </span>
           ) : (
-            <RichText text={title} accent={theme.accent} />
+            <RichText text={title} accent={theme.accentText} />
           )}
         </h2>
       ) : null}
@@ -246,7 +246,7 @@ export const SceneHeader: React.FC<{
             ...riseIn({ frame, fps, delay: 10 }),
           }}
         >
-          <RichText text={sub} accent={theme.accent} />
+          <RichText text={sub} accent={theme.accentText} />
         </p>
       ) : null}
     </div>
@@ -300,9 +300,9 @@ export const ProgressChip: React.FC<{
                     height: 16,
                     borderRadius: 4,
                     background:
-                      i < series.episode ? theme.accent : "transparent",
+                      i < series.episode ? theme.accentText : "transparent",
                     border: `2px solid ${
-                      i < series.episode ? theme.accent : theme.textDim
+                      i < series.episode ? theme.accentText : theme.textDim
                     }`,
                   }}
                 />

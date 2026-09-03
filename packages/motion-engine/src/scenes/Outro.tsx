@@ -25,7 +25,7 @@ export const OutroScene: React.FC<{
         <KineticText
           text={scene.headline}
           color={theme.text}
-          accent={theme.accent}
+          accent={theme.accentText}
           fontSize={88}
           delay={4}
           align="center"
@@ -35,7 +35,7 @@ export const OutroScene: React.FC<{
           maxLines={3}
           haloColor={theme.bgBase}
         />
-        <AccentUnderline color={theme.accent} width={240} delay={18} glow={!theme.flat} />
+        <AccentUnderline color={theme.accentText} width={240} delay={18} glow={!theme.flat} />
 
         {scene.cta ? (
           <div style={{ marginTop: 64, ...popIn({ frame, fps, delay: 24 }) }}>

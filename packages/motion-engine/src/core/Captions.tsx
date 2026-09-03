@@ -89,7 +89,7 @@ export const KaraokeCaption: React.FC<{
               fontWeight: 700,
               fontSize: 52,
               lineHeight: 1.4,
-              color: isAccent ? theme.accent : theme.text,
+              color: isAccent ? theme.accentText : theme.text,
               opacity: started ? 0.55 + age * 0.45 : 0.28,
               transform: started ? `scale(${0.96 + age * 0.04})` : "scale(0.96)",
               display: "inline-block",

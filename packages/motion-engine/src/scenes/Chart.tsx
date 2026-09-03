@@ -147,7 +147,7 @@ const DonutPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
             cy={cy}
             r={R}
             fill="none"
-            stroke={theme.accent}
+            stroke={theme.accentText}
             strokeWidth={sw}
             strokeLinecap="round"
             strokeDasharray={C}
@@ -211,7 +211,7 @@ const GaugePlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
         <path
           d={arc}
           fill="none"
-          stroke={theme.accent}
+          stroke={theme.accentText}
           strokeWidth={sw}
           strokeLinecap="round"
           strokeDasharray={len}
@@ -269,7 +269,7 @@ const ThermometerPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
             width: bulb,
             height: bulb,
             borderRadius: "50%",
-            background: theme.accent,
+            background: theme.accentText,
             boxShadow: theme.flat ? undefined : `0 0 26px ${theme.accent}66`,
           }}
         />
@@ -281,7 +281,7 @@ const ThermometerPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
             width: tubeW,
             height: fillH,
             borderRadius: tubeW,
-            background: theme.accent,
+            background: theme.accentText,
           }}
         />
       </div>
@@ -312,7 +312,7 @@ const WafflePlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
             width: cell,
             height: cell,
             borderRadius: 8,
-            background: on ? theme.accent : c.muted,
+            background: on ? theme.accentText : c.muted,
             opacity: on ? a : 0.5 * a,
             transform: `scale(${0.6 + 0.4 * a})`,
           }}
@@ -376,7 +376,7 @@ const SparkPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
           <path
             d={path}
             fill="none"
-            stroke={theme.accent}
+            stroke={theme.accentText}
             strokeWidth={6}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -384,7 +384,7 @@ const SparkPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
             strokeDashoffset={len * (1 - draw)}
           />
           {draw > 0.9 ? (
-            <circle cx={xs[n - 1]} cy={ys[n - 1]} r={12} fill={theme.accent} />
+            <circle cx={xs[n - 1]} cy={ys[n - 1]} r={12} fill={theme.accentText} />
           ) : null}
         </svg>
       ) : null}
@@ -439,7 +439,7 @@ const DuoPlot: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
                   width: 220,
                   height: barH,
                   borderRadius: "14px 14px 0 0",
-                  background: accent ? theme.accent : c.muted,
+                  background: accent ? theme.accentText : c.muted,
                   boxShadow: accent && !theme.flat ? `0 0 30px ${theme.accent}66` : undefined,
                 }}
               />
@@ -560,7 +560,7 @@ const AxisChart: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
                       ...type.mono,
                       fontWeight: 700,
                       fontSize: 34,
-                      color: p.highlight ? theme.accent : theme.text,
+                      color: p.highlight ? theme.accentText : theme.text,
                       marginBottom: 12,
                       opacity: grow,
                       fontVariantNumeric: "tabular-nums",
@@ -575,7 +575,7 @@ const AxisChart: React.FC<PlotProps> = ({ scene, theme, frame, fps }) => {
                     maxWidth: 96,
                     height: h,
                     borderRadius: "6px 6px 0 0",
-                    background: p.highlight ? theme.accent : c.muted,
+                    background: p.highlight ? theme.accentText : c.muted,
                     boxShadow: p.highlight && !theme.flat ? `0 0 26px ${theme.accent}88` : undefined,
                   }}
                 />
@@ -647,7 +647,7 @@ const LinePlot: React.FC<PlotProps & { max: number }> = ({ scene, theme, frame, 
       <path
         d={path}
         fill="none"
-        stroke={theme.accent}
+        stroke={theme.accentText}
         strokeWidth={5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -665,8 +665,8 @@ const LinePlot: React.FC<PlotProps & { max: number }> = ({ scene, theme, frame, 
               cx={xs[i]}
               cy={ys[i]}
               r={r}
-              fill={p.highlight ? theme.accent : theme.flat ? theme.bgBase : "#fff"}
-              stroke={theme.accent}
+              fill={p.highlight ? theme.accentText : theme.flat ? theme.bgBase : "#fff"}
+              stroke={theme.accentText}
               strokeWidth={4}
             />
             {showLabel ? (
@@ -675,7 +675,7 @@ const LinePlot: React.FC<PlotProps & { max: number }> = ({ scene, theme, frame, 
                 y={ys[i] - 26}
                 textAnchor="middle"
                 style={{ ...(type.mono as object), fontSize: 34, fontWeight: 700 }}
-                fill={p.highlight ? theme.accent : theme.text}
+                fill={p.highlight ? theme.accentText : theme.text}
                 opacity={Math.min(1, pop)}
               >
                 {formatValue(p.value)}

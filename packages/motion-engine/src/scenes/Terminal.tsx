@@ -2,7 +2,7 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { terminalSceneSchema } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { accentOn, Theme } from "../style/presets";
 import { FONT_MONO } from "../style/fonts";
 import { riseIn } from "../core/motion";
 import { SafeArea } from "../core/ui";
@@ -31,6 +31,10 @@ export const TerminalScene: React.FC<{
   const chromeBg = theme.isDark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.08)";
   const bodyText = "#E8ECF4";
   const dimText = "rgba(232,236,244,0.5)";
+  // Cửa sổ terminal LUÔN nền tối (chuẩn terminal thật, không đổi theo preset) — accent
+  // dùng làm chữ ở đây phải tương phản với nền TỐI đó, không phải theme.bgBase (khác
+  // hẳn ở preset "paper" nền sáng, nếu dùng theme.accentText sẽ bị tối màu SAI hướng).
+  const terminalAccent = accentOn(theme.isDark ? "#0A0E18" : "#1C1A17", theme.accent);
 
   // con trỏ nhấp nháy đặt ở dòng cmd đang gõ (hoặc dòng cmd cuối đã xong)
   let activeIdx = -1;
@@ -90,7 +94,7 @@ export const TerminalScene: React.FC<{
               line.kind === "cmd" &&
               (isTyping || (i === activeIdx && Math.floor(frame / 16) % 2 === 0));
             const color = line.highlight
-              ? theme.accent
+              ? terminalAccent
               : line.kind === "cmd"
                 ? bodyText
                 : line.kind === "comment"
@@ -110,7 +114,7 @@ export const TerminalScene: React.FC<{
                 }}
               >
                 {line.kind === "cmd" ? (
-                  <span style={{ color: theme.accent, fontWeight: 700 }}>$</span>
+                  <span style={{ color: terminalAccent, fontWeight: 700 }}>$</span>
                 ) : null}
                 <span style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "normal" }}>
                   {line.kind === "comment" ? `# ${typed}` : typed}
@@ -122,7 +126,7 @@ export const TerminalScene: React.FC<{
                         height: 34,
                         marginLeft: 4,
                         verticalAlign: "-4px",
-                        background: theme.accent,
+                        background: terminalAccent,
                       }}
                     />
                   ) : null}

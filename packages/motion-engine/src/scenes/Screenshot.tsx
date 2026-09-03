@@ -2,7 +2,7 @@ import React from "react";
 import { AbsoluteFill, Img, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { z } from "zod";
 import { HEIGHT, SAFE_TOP, SAFE_X, WIDTH, screenshotSceneSchema } from "../schema/spec";
-import { Theme } from "../style/presets";
+import { bestTextOn, Theme } from "../style/presets";
 import { type } from "../style/fonts";
 import { FONT_MONO } from "../style/fonts";
 import { enterSpring, popSpring } from "../core/motion";
@@ -31,12 +31,18 @@ export const ScreenshotScene: React.FC<{
 
   // Khung thiết bị = thẻ bo góc sạch (ảnh UI từ nano banana thường ĐÃ có chrome
   // trình duyệt riêng nên KHÔNG vẽ thêm chrome giả → tránh nhân đôi). Phone thêm notch.
-  const frameW = isPhone ? 600 : WIDTH - SAFE_X * 2;
-  const screenAspect = isPhone ? 600 / 1180 : 4 / 3; // w/h nội dung ảnh
+  // Phone thu nhỏ hơn browser (500 thay vì 600) + LUÔN canh giữa dọc (không đẩy xuống
+  // 0.56 khi có header) — ở cỡ 600+centerY 0.56 khung điện thoại cao gần 1190px, đáy
+  // khung chạm tới ~1670-1670px, ĐÈ LÊN vùng phụ đề (bottom:260 → mép trên phụ đề
+  // ~1490px, còn phải chừa dưới 260px cho caption/tên kênh của TikTok/Reels/Shorts).
+  // 500 + canh giữa 0.5 giữ đáy khung ~1457px, luôn dưới ngưỡng 1490px an toàn (phản
+  // hồi thiết kế 2026-09-03: phụ đề dính vào ảnh điện thoại to).
+  const frameW = isPhone ? 500 : WIDTH - SAFE_X * 2;
+  const screenAspect = isPhone ? 600 / 1180 : 4 / 3; // w/h nội dung ảnh (tỉ lệ cố định, không đổi theo frameW)
   const pad = isPhone ? 16 : 14;
   const screenW = frameW - pad * 2;
   const screenH = screenW / screenAspect;
-  const centerY = hasHeader ? HEIGHT * 0.56 : HEIGHT * 0.5;
+  const centerY = isPhone ? HEIGHT * 0.5 : hasHeader ? HEIGHT * 0.56 : HEIGHT * 0.5;
 
   const shell = theme.isDark ? "#0E1220" : "#FFFFFF";
   const chromeBorder = theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
@@ -145,7 +151,7 @@ export const ScreenshotScene: React.FC<{
                     height: 44,
                     borderRadius: 22,
                     background: theme.accent,
-                    color: "#FFFFFF",
+                    color: bestTextOn(theme.accent),
                     display: "grid",
                     placeItems: "center",
                     fontFamily: FONT_MONO,
@@ -166,7 +172,7 @@ export const ScreenshotScene: React.FC<{
                     transform: `translateY(-50%) scale(${pop})`,
                     transformOrigin: labelLeft ? "right center" : "left center",
                     background: theme.accent,
-                    color: "#FFFFFF",
+                    color: bestTextOn(theme.accent),
                     padding: "8px 16px",
                     borderRadius: 10,
                     fontFamily: type.body.fontFamily,
