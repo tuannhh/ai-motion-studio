@@ -5,6 +5,7 @@ import MSidebar from "../components/mds/MSidebar.vue";
 import MButton from "../components/mds/MButton.vue";
 import MDialog from "../components/mds/MDialog.vue";
 import MInput from "../components/mds/MInput.vue";
+import misaLogo from "../assets/brand/misa-logo.png";
 import CreateView from "./CreateView.vue";
 import ProjectsView from "./ProjectsView.vue";
 import WatermarkLibraryView from "./WatermarkLibraryView.vue";
@@ -171,10 +172,15 @@ async function changePassword(): Promise<void> {
   <div class="flex h-screen flex-col bg-[var(--mds-bg-page)]">
     <MHeaderBar
       app-name="AI Motion Studio"
-      company-name="MISA"
       :user="{ name: user.displayName }"
       @user-click="userMenuOpen = !userMenuOpen"
-    />
+    >
+      <template #logo>
+        <span class="flex h-9 items-center rounded bg-white px-1.5">
+          <img :src="misaLogo" alt="MISA - Tin cậy - Tiện ích - Tận tình" class="h-full w-auto object-contain" />
+        </span>
+      </template>
+    </MHeaderBar>
     <div
       v-if="userMenuOpen"
       class="absolute right-4 top-[52px] z-50 w-56 rounded-lg bg-[var(--mds-bg)] p-3 shadow-[var(--mds-shadow-lg,0_8px_24px_rgba(0,0,0,0.16))]"
