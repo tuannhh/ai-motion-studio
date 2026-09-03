@@ -8,7 +8,9 @@ import { seedOf } from "./motion";
  * (gen-sfx.ts — vẫn giữ trong assets/sfx/*.wav gốc làm tư liệu, không xoá).
  * Mỗi nhóm nhiều biến thể → pick() chọn theo seed (KHÔNG Math.random, video
  * render lại luôn y hệt) nên cùng một loại cue không lặp 1 âm thanh duy nhất
- * xuyên suốt video như engine cũ.
+ * xuyên suốt video như engine cũ. Bổ sung 2026-09-03: 10 file .mp3 người dùng
+ * cung cấp (assets/sfx/Sound effect/ gốc, nguồn/license CHƯA xác nhận — không
+ * ghi vào SOURCES.csv Mixkit), phân vào đúng nhóm theo tên+thời lượng (ffprobe).
  */
 export const SFX = {
   /** whoosh/sweep chuyển cảnh — 8 từ Mixkit + 3 transition-*.wav trong bộ
@@ -22,6 +24,8 @@ export const SFX = {
     "sfx/01-transition/whoosh-deep.wav",
     "sfx/01-transition/whoosh-fast.wav",
     "sfx/01-transition/whoosh-quick.wav",
+    "sfx/01-transition/whoosh-short.mp3",
+    "sfx/01-transition/teleport-warp.mp3",
     "sfx/10-technology/transition-cinematic.wav",
     "sfx/10-technology/transition-slide.wav",
     "sfx/10-technology/transition-sweep.wav",
@@ -34,6 +38,8 @@ export const SFX = {
     "sfx/02-list-reveal/pop-subtle.wav",
     "sfx/02-list-reveal/tap-light.wav",
     "sfx/02-list-reveal/tick-ui.wav",
+    "sfx/02-list-reveal/pop-quick.mp3",
+    "sfx/02-list-reveal/ting-quick.mp3",
   ],
   /** đấm/thịch cho số liệu lớn (stat/bigword/chart) */
   statImpact: [
@@ -52,6 +58,8 @@ export const SFX = {
     "sfx/04-positive/ding-success.wav",
     "sfx/04-positive/magic-ring.wav",
     "sfx/04-positive/sparkle-light.wav",
+    "sfx/04-positive/ding-long.mp3",
+    "sfx/04-positive/fairy-dust.mp3",
   ],
   /** riser tạo kỳ vọng — đặt cuối scene TRƯỚC 1 scene số liệu/chữ lớn để dẫn vào cú đấm */
   buildUp: [
@@ -59,6 +67,7 @@ export const SFX = {
     "sfx/05-build-up/riser-fast.wav",
     "sfx/05-build-up/riser-tech.wav",
     "sfx/05-build-up/swell-magic.wav",
+    "sfx/05-build-up/bright-idea.mp3",
   ],
   /** UI/màn hình mặc định (screenshot/terminal) — preset paper/noir không kèm tech */
   uiScreen: [
@@ -69,6 +78,8 @@ export const SFX = {
     "sfx/06-ui-screen/notification-pop.wav",
     "sfx/06-ui-screen/shutter-vintage.wav",
     "sfx/06-ui-screen/typing-smartphone.wav",
+    "sfx/06-ui-screen/camera-flash.mp3",
+    "sfx/06-ui-screen/typing-long.mp3",
   ],
   /** UI/màn hình phong cách công nghệ — preset midnight/aurora (đúng chất bộ 10-technology) */
   uiScreenTech: [
@@ -97,6 +108,7 @@ export const SFX = {
     "sfx/08-compare/error-buzz.wav",
     "sfx/08-compare/reject-sci-fi.wav",
     "sfx/08-compare/wrong-fail.wav",
+    "sfx/08-compare/answer-correct.mp3",
   ],
   /** thay THẲNG cho tick/pop/ding ở preset "paper" (editorial giấy — đồng bộ chất liệu) */
   paper: [

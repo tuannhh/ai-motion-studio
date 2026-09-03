@@ -38,3 +38,16 @@ library. See `LICENSE-MIXKIT.txt` and `SOURCES.csv` for the source record.
 
 Downloaded and processed: 2026-09-03.
 
+## Bổ sung 2026-09-03 (ngoài Mixkit — nguồn/license CHƯA xác nhận)
+
+10 file .mp3 người dùng cung cấp trực tiếp (không qua quy trình tải Mixkit ở
+trên) — KHÔNG có trong `SOURCES.csv`. Trước khi phát hành công khai/thương mại
+cần xác nhận lại nguồn gốc + giấy phép của các file này:
+
+- `01-transition/teleport-warp.mp3`, `01-transition/whoosh-short.mp3`
+- `02-list-reveal/pop-quick.mp3`, `02-list-reveal/ting-quick.mp3`
+- `04-positive/ding-long.mp3`, `04-positive/fairy-dust.mp3`
+- `05-build-up/bright-idea.mp3`
+- `06-ui-screen/camera-flash.mp3`, `06-ui-screen/typing-long.mp3`
+- `08-compare/answer-correct.mp3`
+
