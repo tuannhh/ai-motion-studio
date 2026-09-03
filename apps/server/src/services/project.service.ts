@@ -377,6 +377,30 @@ export const deleteSource = async (
 };
 
 /**
+ * File ẢNH của 1 tư liệu (upload trực tiếp HOẶC ảnh nhúng tự trích từ docx/pdf —
+ * cùng bảng project_sources, phân biệt bằng mime) — cho phép người dùng xem lại
+ * đã trích đúng ảnh nào trước khi duyệt kịch bản. Chỉ phục vụ mime ảnh, không
+ * phải cổng tải file gốc (pdf/docx/audio).
+ */
+export const getSourceFile = async (
+  userId: number,
+  projectId: number,
+  sourceId: number
+): Promise<{ path: string; mime: string }> => {
+  await getProjectOwned(userId, projectId);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT stored_path, mime FROM project_sources WHERE id = ? AND project_id = ? LIMIT 1`,
+    [sourceId, projectId]
+  );
+  if (!rows[0]) throw notFound("Không tìm thấy tư liệu.");
+  const mime = String(rows[0].mime);
+  const storedPath = String(rows[0].stored_path);
+  if (!mime.startsWith("image/")) throw notFound("Tư liệu này không phải ảnh.");
+  if (!fs.existsSync(storedPath)) throw notFound("File ảnh không còn tồn tại.");
+  return { path: storedPath, mime };
+};
+
+/**
  * Danh mục ẢNH THẬT người dùng đã tải lên cho project (extract_method 'image:*'),
  * theo thứ tự id ổn định → index 1..N. Dùng CHUNG cho lúc sinh kịch bản (cho AI
  * biết có ảnh nào để tham chiếu 'userimg:N') và lúc render (map index → file thật).

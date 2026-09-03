@@ -11,6 +11,7 @@ import {
   deleteSource,
   generateScripts,
   getProjectDetail,
+  getSourceFile,
   listProjects,
 } from "../services/project.service";
 
@@ -124,6 +125,19 @@ projectRoutes.delete(
       idParam(req.params.sourceId)
     );
     res.json({ data: { ok: true } });
+  })
+);
+
+/** Xem lại ảnh của 1 tư liệu (upload trực tiếp hoặc ảnh tự trích từ docx/pdf) */
+projectRoutes.get(
+  "/:id/sources/:sourceId/file",
+  asyncHandler(async (req, res) => {
+    const file = await getSourceFile(
+      req.user!.id,
+      idParam(req.params.id),
+      idParam(req.params.sourceId)
+    );
+    res.sendFile(file.path);
   })
 );
 

@@ -4,6 +4,7 @@ import MButton from "../components/mds/MButton.vue";
 import MDataTable from "../components/mds/MDataTable.vue";
 import MEmptyState from "../components/mds/MEmptyState.vue";
 import MIcon from "../components/mds/MIcon.vue";
+import MImageViewer from "../components/mds/MImageViewer.vue";
 import MProgress from "../components/mds/MProgress.vue";
 import MSpinner from "../components/mds/MSpinner.vue";
 import MTag from "../components/mds/MTag.vue";
@@ -26,6 +27,27 @@ const detail = ref<ProjectDetail | null>(null);
 const detailLoading = ref(false);
 const approvingId = ref<number | null>(null);
 const playingJobId = ref<number | null>(null);
+// Xem lại ảnh tư liệu (upload trực tiếp hoặc ảnh tự trích từ docx/pdf) — để người
+// dùng xác nhận hệ thống đã trích đúng ảnh nào trước khi duyệt kịch bản.
+const sourceImageViewerOpen = ref(false);
+const sourceImageIndex = ref(0);
+const sourceImages = computed(() =>
+  (detail.value?.sources ?? [])
+    .filter((s) => s.mime.startsWith("image/") && s.status === "ready")
+    .map((s) => ({
+      src: `/v1/projects/${detail.value!.project.id}/sources/${s.id}/file`,
+      name: s.file_name,
+      alt: s.file_name,
+    }))
+);
+function openSourceImage(sourceId: number): void {
+  const idx = (detail.value?.sources ?? [])
+    .filter((s) => s.mime.startsWith("image/") && s.status === "ready")
+    .findIndex((s) => s.id === sourceId);
+  if (idx < 0) return;
+  sourceImageIndex.value = idx;
+  sourceImageViewerOpen.value = true;
+}
 // Kịch bản đã render đang được mở lại để SỬA lời thoại (rồi render lại)
 const editingIds = ref<Set<number>>(new Set());
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -295,7 +317,20 @@ onMounted(async () => {
           :key="s.id"
           class="flex items-center gap-2 border-b border-[var(--mds-neutral-300,#E9EAEB)] py-1.5 text-[13px] last:border-0"
         >
-          <MIcon name="file-text" :size="16" class="text-[var(--mds-text-secondary)]" />
+          <button
+            v-if="s.mime.startsWith('image/') && s.status === 'ready'"
+            type="button"
+            class="h-8 w-8 shrink-0 overflow-hidden rounded border border-[var(--mds-neutral-300,#E9EAEB)]"
+            title="Xem ảnh đã trích xuất"
+            @click="openSourceImage(s.id)"
+          >
+            <img
+              :src="`/v1/projects/${detail.project.id}/sources/${s.id}/file`"
+              :alt="s.file_name"
+              class="h-full w-full object-cover"
+            />
+          </button>
+          <MIcon v-else name="file-text" :size="16" class="shrink-0 text-[var(--mds-text-secondary)]" />
           <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
           <MTag
             :color="s.status === 'ready' ? 'success' : s.status === 'failed' ? 'danger' : 'info'"
@@ -306,6 +341,12 @@ onMounted(async () => {
         </li>
       </ul>
     </section>
+
+    <MImageViewer
+      v-model="sourceImageViewerOpen"
+      :images="sourceImages"
+      :initial-index="sourceImageIndex"
+    />
 
     <!-- Kịch bản chờ duyệt -->
     <div v-if="detail.project.status === 'generating'" class="rounded-lg bg-[var(--mds-bg)] p-8 text-center shadow-[var(--mds-shadow-card)]">
