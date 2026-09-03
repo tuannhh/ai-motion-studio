@@ -100,11 +100,17 @@ Icon hợp lệ (PascalCase): ${ICON_HINTS}.
 const CRAFT_RULES = `
 Nguyên tắc đạo diễn (bắt buộc):
 - Scene đầu tiên LUÔN là "hook". Scene cuối LUÔN là "outro".
-- Không dùng 2 scene cùng type liền kề. Mỗi video dùng ít nhất 4 loại scene khác nhau.
+- Không dùng 2 scene cùng type liền kề. Mỗi video dùng ít nhất 5 loại scene khác nhau (nếu video chỉ có 5 scene thì cả 5 phải khác loại nhau).
 - Video 30-60 giây (6-9 scene). Chữ trên hình NGẮN — hình để nhìn, narration để nghe.
 - Nội dung phải đúng sự thật theo tư liệu được cấp; KHÔNG bịa số liệu. Nếu không có số liệu từ tư liệu, scene "stat" chỉ dùng khi ý tưởng của người dùng đã nêu con số.
 - Mọi scene số liệu (stat/rank/chart) NÊN có "source" khi tư liệu/ý tưởng nêu nguồn (tên tổ chức + năm, ví dụ "IDC 2026") — hiện thành dòng chú thích nhỏ tăng độ tin cậy; không có nguồn thật thì BỎ TRỐNG, không bịa.
 - headline của hook phải gây tò mò hoặc nêu lợi ích cụ thể, không sáo rỗng.
+
+ĐA DẠNG HOÁ (bắt buộc suy nghĩ trước khi chọn scene, KHÔNG dập khuôn):
+- Hệ thống có 17 loại scene (hook, points, flow, diagram, timeline, compare, versus, stat, quote, rank, bigword, chart, media, annotate, terminal, screenshot, outro) — phạm vi sáng tạo RẤT RỘNG, không phải chỉ vài loại quen tay (hook/points/stat/quote/outro). Với MỖI ý trong kịch bản, tự hỏi: hình dạng thông tin này hợp loại scene nào nhất trong toàn bộ 17 loại — chứ không phải loại nào mình hay dùng nhất. Ví dụ: quy trình rẽ nhánh → "diagram" thay vì gượng ép vào "flow"; đối đầu 2 lựa chọn → "versus"; xếp hạng/benchmark → "rank"; có lệnh/log kỹ thuật → "terminal"; demo thao tác UI → "screenshot"; cụm từ đắt giá cần đập mạnh vào mắt → "bigword".
+- "chart": xoay đủ variant theo ĐÚNG hình dạng số liệu (bar/line/donut/gauge/thermometer/waffle/spark/duo — xem hướng dẫn variant ở trên) — đừng mặc định luôn chọn "bar".
+- "motion" (zoom-in/zoom-out/pan-left/pan-right/still): đổi motion giữa các scene có ảnh trong cùng video theo đúng nội dung ảnh đó, đừng để tất cả scene ảnh dùng chung 1 motion hoặc luôn bỏ trống để engine tự chọn.
+- Giữa nhiều plan/tập của cùng 1 batch: mỗi plan nên có bộ scene và trình tự KHÁC NHAU (không copy y nguyên cấu trúc scene giữa các góc nhìn/tập) — trừ khi <SCRIPT_PIPELINE> ép cấu trúc cố định.
 `;
 
 export const buildPlansPrompt = (params: {
