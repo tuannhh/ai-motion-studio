@@ -25,6 +25,9 @@ const projects = ref<ProjectRow[]>([]);
 const loading = ref(false);
 const loadingMore = ref(false);
 const nextCursor = ref<number | null>(null);
+// Số dòng/trang chọn ở footer MDataTable — cũng là kích cỡ mỗi lần fetch/"Tải thêm"
+// (danh sách dùng cursor pagination nối dài, không nhảy số trang).
+const pageSize = ref(20);
 
 type ProjectPage = { items: ProjectRow[]; nextCursor: number | null };
 const detail = ref<ProjectDetail | null>(null);
@@ -146,7 +149,7 @@ const columns = [
 async function loadList(): Promise<void> {
   loading.value = true;
   try {
-    const page = await api<ProjectPage>("/v1/projects?limit=20");
+    const page = await api<ProjectPage>(`/v1/projects?limit=${pageSize.value}`);
     projects.value = page.items;
     nextCursor.value = page.nextCursor;
   } catch (cause) {
@@ -160,7 +163,7 @@ async function loadMore(): Promise<void> {
   if (nextCursor.value == null || loadingMore.value) return;
   loadingMore.value = true;
   try {
-    const page = await api<ProjectPage>(`/v1/projects?limit=20&cursor=${nextCursor.value}`);
+    const page = await api<ProjectPage>(`/v1/projects?limit=${pageSize.value}&cursor=${nextCursor.value}`);
     projects.value = [...projects.value, ...page.items];
     nextCursor.value = page.nextCursor;
   } catch (cause) {
@@ -168,6 +171,13 @@ async function loadMore(): Promise<void> {
   } finally {
     loadingMore.value = false;
   }
+}
+
+// Đổi "Số dòng/trang" ở footer MDataTable → tải lại từ đầu với kích cỡ mới
+// (khớp cảm nhận người dùng: chọn 50 thì phải thấy tới 50 dòng, không phải vẫn 20).
+function onPageSizeChange(size: number): void {
+  pageSize.value = size;
+  void loadList();
 }
 
 function applyDetail(next: ProjectDetail): void {
@@ -600,6 +610,8 @@ watch(
         :columns="columns"
         :rows="projects"
         :loading="loading || detailLoading"
+        :page-size="pageSize"
+        @update:page-size="onPageSizeChange"
         @row-click="(row: ProjectRow) => goToProject(row)"
       >
         <template #cell-mode="{ value }">
