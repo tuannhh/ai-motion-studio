@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
@@ -185,7 +186,15 @@ const processJob = async (jobId: number): Promise<void> => {
     [jobId]
   );
   const outMp4 = path.join(jobDir, "video.mp4");
-  await renderSpecFile(specPath, outMp4);
+  // Render ra ĐĨA CỤC BỘ trước rồi copy nguyên file vào jobDir (có thể là GCS FUSE
+  // trên Cloud Run): mux mp4 (ffmpeg) cần seek-back để ghi lại header/moov sau khi
+  // ghi xong mdat — FUSE streaming-write chỉ chấp nhận ghi tuần tự, seek-back giữa
+  // chừng làm gcsfuse lỗi "BufferedWriteHandler.OutOfOrderError" và rơi về đường
+  // chậm. Ghi cục bộ (luôn hỗ trợ seek) rồi copy 1 lần tránh hẳn vấn đề này.
+  const localTmpMp4 = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ams-render-")), "video.mp4");
+  await renderSpecFile(specPath, localTmpMp4);
+  fs.copyFileSync(localTmpMp4, outMp4);
+  fs.rmSync(path.dirname(localTmpMp4), { recursive: true, force: true });
 
   await pool.query(
     `UPDATE render_jobs SET status = 'done', progress = 100, output_path = ?, finished_at = NOW() WHERE id = ?`,
