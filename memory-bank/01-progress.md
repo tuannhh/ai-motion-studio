@@ -1,5 +1,38 @@
 # Progress
 
+## 2026-09-03 (tiếp 2) — Xem ảnh trích xuất, ưu tiên ảnh tài liệu làm bằng chứng, gợi ý nhạc
+
+3 việc nhỏ cùng đợt phản hồi với fix "chữ chồng chữ" ở trên:
+
+**(2) Cho xem ảnh đã trích xuất từ tư liệu**: trước đây `project_sources` đã lưu đủ ảnh
+nhúng từ docx/pdf (mỗi ảnh 1 row, `stored_path` trỏ file thật) nhưng KHÔNG có cách nào xem
+lại — mục "Tư liệu" chỉ hiện tên file. Thêm `GET /v1/projects/:id/sources/:sourceId/file`
+(`project.service.ts` `getSourceFile`, chỉ phục vụ mime ảnh + kiểm ownership qua
+`getProjectOwned`) + thumbnail trong `ProjectsView.vue` (bấm mở `MImageViewer` — component
+MDS fullscreen có sẵn, không cần dựng mới). Verify THẬT: tạo docx có ảnh nhúng bằng
+python-docx, upload qua API thật (curl + CSRF + cookie session creator1), xác nhận ảnh trích
+đúng nội dung, xem lại trong UI qua Browser pane — khớp.
+
+**(3) Dùng ảnh tài liệu làm bằng chứng trong video**: hoá ra cơ chế này ĐÃ TỒN TẠI SẴN —
+`getProjectImageSources()` gom mọi `project_sources` có `extract_method LIKE 'image:%'`
+(gồm CẢ ảnh nhúng, vì `ingestFile()` gắn `extract_method:'image:<mime>'` bất kể ảnh đến từ
+upload trực tiếp hay tự trích) → truyền vào `<USER_IMAGES>` trong prompt sinh kịch bản → AI
+có thể chèn `userimg:N` thẳng vào scene `media`/`annotate`/`bgImage`. Chỉ tinh chỉnh thêm:
+đánh dấu ảnh nào là `fromDocument` (dò pattern tên file `"... — hình N"`) và gắn nhãn
+`[TRÍCH TỪ TÀI LIỆU NGUỒN]` trong prompt + chỉ dẫn AI ưu tiên dùng NGUYÊN (không redraw) ở
+đúng scene đang trích dẫn số liệu đó — trước đây prompt coi mọi ảnh thật như nhau, giờ ảnh
+từ tài liệu được ưu tiên rõ ràng hơn để tăng tính thuyết phục.
+
+**(4) Từ khoá tìm nhạc nền**: không tìm thấy danh sách cũ nào trong docs/memory-bank (có
+thể user nhớ nhầm từ dự án khác) — dựng MỚI, bám 4 preset màu thật trong `style/presets.ts`
+(midnight/aurora/paper/noir) + flavor vox, đặt ngay trong `AdminMusicView.vue` (mục thu/mở
+"Gợi ý từ khoá tìm nhạc theo tông màu video") để không bị thất lạc lần nữa thay vì chỉ trả
+lời trong chat.
+
+Cả 3 đã rebuild Docker (`docker compose up -d --build app`) + verify trực tiếp qua Browser
+pane (đăng nhập thật creator1 và bmtuan). `tsc --noEmit` / `vue-tsc --noEmit` sạch ở cả
+`@ams/server`, `@ams/pipeline`, `@ams/web`.
+
 ## 2026-09-03 (tiếp) — Fix gốc "chữ chồng chữ" trên scene hook: ảnh nền AI có chữ nhúng lọt lưới
 
 Phản hồi mới kèm ảnh chụp video thật: scene "hook" có chữ nền mờ chồng lên chữ chính, đọc
