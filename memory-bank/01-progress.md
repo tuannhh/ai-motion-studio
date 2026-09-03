@@ -1,5 +1,48 @@
 # Progress
 
+## 2026-09-03 (tiếp 5) — Deploy production lên Google Cloud Run
+
+Yêu cầu: "deploy lên cloud run cho tôi". Trước khi làm đã hỏi 3 quyết định (project GCP,
+xử lý lưu trữ, xác nhận chi phí) qua AskUserQuestion — user chọn: project
+`prapplication-479309` (chung chỗ amis-event-*), code GCS trước khi deploy (an toàn hơn ổ
+tạm), đồng ý chi phí Cloud SQL + Cloud Run always-on.
+
+**Quyết định kiến trúc quan trọng**: KHÔNG viết lại storage layer bằng GCS SDK (rủi ro cao,
+tốn thời gian) — dùng **Cloud Run GCS FUSE volume mount** (`--add-volume type=cloud-storage`)
+gắn thẳng vào `/app/apps/server/storage`. Toàn bộ code hiện có (`fs.writeFileSync`,
+`fs.createReadStream`...) chạy y nguyên, không sửa 1 dòng nào ở service layer — bucket
+`gs://ams-storage-prapplication` trở thành nguồn thật, bền qua mọi lần redeploy.
+
+Code đổi: `config.ts`/`db.ts` thêm `DB_SOCKET_PATH` (Cloud SQL trên Cloud Run chỉ lộ Unix
+socket `/cloudsql/<connection-name>`, không TCP host:port như Docker); `entrypoint.sh` theo
+đó dùng `--socket` khi có biến này, và SỬA lỗi nuốt stderr khi mysql client lỗi (trước chỉ in
+"MySQL không phản hồi" không rõ lý do — mất nhiều vòng debug vì thế). Tiện thể fix luôn
+`Dockerfile` thiếu `ffmpeg` (bug phát hiện từ báo lỗi render trước đó, xem entry "tiếp"
+trước) + `tts.ts` hiện `r.error.message` thay vì "undefined" khi spawn lỗi.
+
+Hạ tầng tạo mới trong `prapplication-479309`/`asia-southeast1`: Cloud SQL `ams-mysql`
+(MySQL 8, db-g1-small) + DB/user `ams`; bucket `ams-storage-prapplication`; 4 secret
+Secret Manager (gemini key, encryption key, gdrive secret, db password). Cloud Run service
+`ams-app`: 2vCPU/4Gi, `--min-instances=1 --no-cpu-throttling` (worker không bị treo khi
+scale-to-zero), Cloud SQL Auth Proxy sidecar built-in.
+
+3 bug thật gặp khi dựng lần đầu (đã ghi chi tiết cách chẩn đoán vào `docs/DEPLOY.md`):
+thiếu role `roles/cloudsql.client` cho service account (container treo 120s không rõ lý do
+vì entrypoint cũ nuốt lỗi); secret DB password dính `\n` thừa do tạo bằng `echo >file` thay
+vì `printf '%s'` (login MySQL "Access denied" dù đúng mật khẩu); `gcloud run deploy --source`
+hay bị Bash tool timeout 2 phút giết CLI cục bộ giữa chừng nhưng build/deploy vẫn chạy tiếp
+server-side — phải tra `gcloud builds list`/`gcloud run services describe` thay vì tưởng hỏng.
+
+Verify E2E thật: curl trang chủ (200, HTML đúng), toàn bộ schema.sql + 8 changelog tự áp
+lúc container khởi động (log xác nhận từng file), seed admin qua Cloud SQL Auth Proxy chạy
+local (không exec được vào Cloud Run như Docker), login qua API thật (200, trả user + session
+cookie), gọi `/v1/projects` có session xác nhận session hoạt động. GCS FUSE mount xác nhận
+active qua log khởi động nhưng CHƯA test ghi file thật (chưa tạo project nào).
+
+**Còn thiếu (chưa làm)**: thêm redirect URI `https://ams-app-ksesady2lq-as.a.run.app/v1/
+integrations/gdrive/callback` vào Google Cloud Console OAuth client (thao tác thủ công,
+không có lệnh gcloud) — Google Drive export sẽ lỗi cho tới khi làm việc này.
+
 ## 2026-09-03 (tiếp 4) — Thư viện SFX thật (Mixkit) thay 6 file DSP tự sinh
 
 Yêu cầu: người dùng tải + phân nhóm sẵn thư viện SFX thật vào `assets/sfx/` (10 thư mục,

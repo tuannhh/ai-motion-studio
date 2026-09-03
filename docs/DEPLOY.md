@@ -52,27 +52,53 @@ video render, nhạc, watermark).
 - **RENDER_CONCURRENCY**: số job render song song trong 1 container (mặc định 2).
   Máy càng nhiều vCPU/RAM thì tăng được; mỗi luồng render mở Chrome tốn RAM.
 
-## B. Google Cloud Run (làm được, cần 3 điều chỉnh)
+## B. Google Cloud Run — ĐÃ DEPLOY THẬT (2026-09-03)
 
-Cùng image trên chạy được trên Cloud Run, nhưng lưu ý bản chất Cloud Run:
+Đang chạy tại **https://ams-app-ksesady2lq-as.a.run.app** (project GCP
+`prapplication-479309`, region `asia-southeast1`, cùng chỗ với `amis-event-*`).
+Ghi lại đúng cấu hình thật để lần sau redeploy/tái tạo hạ tầng không phải đoán:
 
-| Vấn đề | Cách xử lý |
+| Thành phần | Giá trị |
 |---|---|
-| **Ổ đĩa tạm, không chia sẻ giữa instance** (chỉ `/tmp` ghi được) | Chuyển `apps/server/storage` sang **GCS** (mount qua Cloud Storage FUSE volume, hoặc viết lớp storage dùng GCS SDK). Trước mắt: đặt `min-instances=1` + 1 instance để dùng ổ tạm, và dựa vào **export Drive** cho video đầu ra. |
-| **Render worker chạy nền bị throttle khi scale-to-zero** | `--min-instances=1 --no-cpu-throttling` (CPU always allocated) để worker luôn sống; hoặc tách worker thành Cloud Run **Job** kích bằng Pub/Sub. |
-| **Migration DB** | Dùng **Cloud SQL (MySQL)**; đặt `APPLY_MIGRATIONS=0` và chạy migration 1 lần riêng, hoặc để entrypoint tự áp (idempotent). Kết nối qua Cloud SQL connector. |
+| Cloud Run service | `ams-app` — 2 vCPU / 4Gi, `--min-instances=1 --max-instances=3 --no-cpu-throttling`, timeout 3600s |
+| Cloud SQL | instance `ams-mysql` (MySQL 8.0, `db-g1-small`, zonal), DB `ams`, user `ams`; connect qua **Unix socket** `--add-cloudsql-instances` (không TCP) |
+| Storage | bucket `gs://ams-storage-prapplication` mount **GCS FUSE volume** thẳng vào `/app/apps/server/storage` (`--add-volume type=cloud-storage` + `--add-volume-mount`) — **không cần sửa code storage layer**, mọi `fs.*` hiện có tự động ghi/đọc GCS xuyên suốt redeploy |
+| Secrets (Secret Manager) | `ams-gemini-api-key`, `ams-encryption-key`, `ams-gdrive-client-secret`, `ams-db-password` — service account `784559735000-compute@developer.gserviceaccount.com` cần role `roles/secretmanager.secretAccessor` (từng secret) VÀ `roles/cloudsql.client` (project-level, cho Cloud SQL Auth Proxy sidecar) |
+| Env vars | `NODE_ENV=production`, `DB_SOCKET_PATH=/cloudsql/prapplication-479309:asia-southeast1:ams-mysql`, `DB_USER=ams`, `DB_NAME=ams`, `COOKIE_SECURE=1`, `GOOGLE_CLIENT_ID=...`, `WEB_BASE_URL`/`GOOGLE_OAUTH_REDIRECT` trỏ đúng domain `ams-app-ksesady2lq-as.a.run.app` |
 
-Ví dụ deploy (sau khi đã có Cloud SQL + secrets trong Secret Manager):
+Lệnh deploy đầy đủ (image build sẵn qua `gcloud run deploy --source .` rồi
+deploy lại bằng `--image=<digest>` cho nhanh khi chỉnh flag, khỏi build lại):
 ```bash
 gcloud run deploy ams-app \
   --source . \
-  --region asia-southeast1 \
-  --cpu 2 --memory 4Gi \
-  --min-instances 1 --no-cpu-throttling \
-  --timeout 3600 \
-  --set-secrets GEMINI_API_KEY=gemini-key:latest,APP_ENCRYPTION_KEY=enc-key:latest,GOOGLE_CLIENT_SECRET=gdrive-secret:latest \
-  --set-env-vars NODE_ENV=production,DB_HOST=...,WEB_BASE_URL=https://<domain>,GOOGLE_OAUTH_REDIRECT=https://<domain>/v1/integrations/gdrive/callback
+  --project=prapplication-479309 --region=asia-southeast1 --port=8080 \
+  --cpu=2 --memory=4Gi --min-instances=1 --max-instances=3 --no-cpu-throttling \
+  --timeout=3600 --allow-unauthenticated \
+  --add-cloudsql-instances=prapplication-479309:asia-southeast1:ams-mysql \
+  --add-volume=name=ams-storage-vol,type=cloud-storage,bucket=ams-storage-prapplication \
+  --add-volume-mount=volume=ams-storage-vol,mount-path=/app/apps/server/storage \
+  --set-secrets="GEMINI_API_KEY=ams-gemini-api-key:latest,APP_ENCRYPTION_KEY=ams-encryption-key:latest,GOOGLE_CLIENT_SECRET=ams-gdrive-client-secret:latest,DB_PASSWORD=ams-db-password:latest" \
+  --set-env-vars="NODE_ENV=production,DB_SOCKET_PATH=/cloudsql/prapplication-479309:asia-southeast1:ams-mysql,DB_USER=ams,DB_NAME=ams,COOKIE_SECURE=1,GOOGLE_CLIENT_ID=<client-id>,WEB_BASE_URL=https://ams-app-ksesady2lq-as.a.run.app,GOOGLE_OAUTH_REDIRECT=https://ams-app-ksesady2lq-as.a.run.app/v1/integrations/gdrive/callback"
 ```
+
+**Bẫy đã gặp lúc dựng lần đầu** (đỡ mất công debug lại):
+- `gcloud run deploy --source .` hay bị Bash tool timeout 2 phút giết tiến trình CLI cục bộ
+  giữa chừng — build/deploy vẫn chạy tiếp trên server, chỉ cần `gcloud builds list` /
+  `gcloud run services describe` để bắt lại tiến độ thay vì nghĩ là đã hỏng.
+- Thiếu `roles/cloudsql.client` → container treo 120s ở bước "Đợi MySQL" rồi exit(1) mà
+  KHÔNG rõ lý do (entrypoint.sh cũ nuốt stderr — đã sửa để in lỗi thật).
+  Xem log: `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="ams-app" AND resource.labels.revision_name=<rev>' --format="table(timestamp,severity,textPayload)" --order=asc`
+- Secret tạo từ file qua `echo "$X" > file.txt` dính thêm `\n` cuối (khác giá trị gốc dùng
+  trong lệnh `gcloud sql users create --password=`) → login MySQL báo "Access denied" dù
+  đúng mật khẩu. Dùng `printf '%s'` (không xuống dòng) khi ghi secret ra file.
+- Seed admin đầu tiên: không exec được vào container Cloud Run như Docker — chạy
+  `pnpm --filter @ams/server seed` LOCAL, trỏ qua Cloud SQL Auth Proxy cục bộ
+  (`gcloud components install cloud-sql-proxy` → `cloud-sql-proxy --port=3307 --gcloud-auth <connection-name>` →
+  `DB_HOST=127.0.0.1 DB_PORT=3307 DB_PASSWORD=... ADMIN_EMAIL=... ADMIN_PASSWORD=... pnpm --filter @ams/server seed`).
+- OAuth Google Drive: đổi domain thật rồi vẫn phải vào Google Cloud Console → OAuth
+  client → thêm `https://ams-app-ksesady2lq-as.a.run.app/v1/integrations/gdrive/callback`
+  vào Authorized redirect URIs thủ công (gcloud CLI không có lệnh cho việc này).
+
 Render 1080×1920 khá nặng: nên ≥2 vCPU/4GB. Nếu gặp lỗi GL/khung đen, thêm
 `chromiumOptions: { gl: "angle" }` (hoặc `swiftshader`) trong `renderMedia`
 tại `packages/motion-engine/scripts/render.ts` — hiện đang dùng mặc định.
