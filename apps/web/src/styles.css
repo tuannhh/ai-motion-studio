@@ -11,7 +11,10 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #app { min-height: 100%; margin: 0; }
+/* Shell tự quản lý scroll trong từng view. Không để document cuộn theo nội dung
+   tràn của một flex child, nếu không footer có thể bị kéo lên và lộ nền trang. */
+html, body, #app { height: 100%; min-height: 100%; margin: 0; }
+html, body, #app { overflow: hidden; }
 button, input, textarea { font: inherit; }
 
 .mds-mobile-app {
