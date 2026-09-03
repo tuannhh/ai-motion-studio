@@ -2,6 +2,7 @@
 
 export type ProjectRow = {
   id: number;
+  public_id: string;
   idea: string;
   mode: "angles" | "series";
   variant_count: number;
@@ -132,6 +133,7 @@ export type TemplateWorkflow = {
 
 export type TemplateRow = {
   id: number;
+  publicId: string;
   name: string;
   sourceVideoName: string | null;
   status: "analyzing" | "ready" | "failed";

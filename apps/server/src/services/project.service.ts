@@ -4,6 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
+import { generatePublicId } from "../lib/public-id";
 import { extractEmbeddedImages, extractUrlImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
@@ -86,14 +87,16 @@ const resolveProjectRefs = async (
 export const createProject = async (
   userId: number,
   input: CreateProjectInput
-): Promise<number> => {
+): Promise<{ id: number; publicId: string }> => {
   const { presetHint, seriesId } = await resolveProjectRefs(userId, input);
+  const publicId = generatePublicId();
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO projects
-       (user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, source_mode, mode, variant_count, preset_hint, duration_sec,
+       (public_id, user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, source_mode, mode, variant_count, preset_hint, duration_sec,
         voice_gender, voice_region, voice_style, voice_mood, voice_age, voice_speed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
+      publicId,
       userId,
       input.templateId ?? null,
       seriesId,
@@ -113,7 +116,7 @@ export const createProject = async (
       input.voiceSpeed,
     ]
   );
-  return result.insertId;
+  return { id: result.insertId, publicId };
 };
 
 /**
@@ -173,7 +176,7 @@ export const listProjects = async (
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
   const hasCursor = typeof opts.cursor === "number" && opts.cursor > 0;
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT p.id, p.idea, p.mode, p.variant_count, p.preset_hint, p.duration_sec,
+    `SELECT p.id, p.public_id, p.idea, p.mode, p.variant_count, p.preset_hint, p.duration_sec,
             p.status, p.error_message, p.created_at,
             (SELECT COUNT(*) FROM scripts s WHERE s.project_id = p.id) AS script_count,
             (SELECT COUNT(*) FROM project_sources ps WHERE ps.project_id = p.id) AS source_count
@@ -196,6 +199,19 @@ export const getProjectOwned = async (userId: number, projectId: number) => {
   );
   if (!rows[0]) throw notFound("Không tìm thấy project.");
   return rows[0];
+};
+
+/** Tra id số từ public_id (URL sub-path) — chống IDOR bằng điều kiện user_id. */
+export const resolveProjectIdByPublicId = async (
+  userId: number,
+  publicId: string
+): Promise<number> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM projects WHERE public_id = ? AND user_id = ? LIMIT 1`,
+    [publicId, userId]
+  );
+  if (!rows[0]) throw notFound("Không tìm thấy project.");
+  return Number(rows[0].id);
 };
 
 /**

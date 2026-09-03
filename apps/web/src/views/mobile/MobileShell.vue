@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import MButton from "../../components/mds/MButton.vue";
 import MIcon from "../../components/mds/MIcon.vue";
 import MMobileBottomNav from "../../components/mobile/MMobileBottomNav.vue";
 import MMobileTopBar from "../../components/mobile/MMobileTopBar.vue";
 import { requestHostBack } from "../../lib/mobile-surface";
-import type { SessionUser } from "../../lib/api";
+import { api, type SessionUser } from "../../lib/api";
+import { FEATURE_ROUTES, MOBILE_MORE_ROUTE } from "../../router";
+import { entityPath } from "../../lib/slug";
 import MobileCreateView from "./MobileCreateView.vue";
 import MobileProjectsView from "./MobileProjectsView.vue";
 import MobileResourceView from "./MobileResourceView.vue";
@@ -13,20 +16,57 @@ import MobileResourceView from "./MobileResourceView.vue";
 type MobileRoute = "create" | "projects" | "series" | "templates" | "watermark" | "music" | "users" | "more";
 
 const props = defineProps<{ user: SessionUser }>();
-const route = ref<MobileRoute>("create");
-
+const route = useRoute();
+const router = useRouter();
 const isAdmin = computed(() => props.user.role === "admin");
-const availableRoutes = computed<MobileRoute[]>(() => [
-  "create", "projects", "series", "templates", "watermark", "more",
-  ...(isAdmin.value ? (["music", "users"] as MobileRoute[]) : []),
-]);
+
+const ROUTE_PATHS: Record<MobileRoute, string> = {
+  create: FEATURE_ROUTES.create,
+  projects: FEATURE_ROUTES.projects,
+  series: FEATURE_ROUTES.series,
+  templates: FEATURE_ROUTES.templates,
+  watermark: FEATURE_ROUTES.watermark,
+  music: FEATURE_ROUTES.music,
+  users: FEATURE_ROUTES.users,
+  more: MOBILE_MORE_ROUTE,
+};
+
+/** URL hiện tại → tab/menu đang mở. Mọi route con của 1 tính năng (vd chi tiết
+ * video) vẫn khớp đúng tab cha nhờ startsWith. */
+function keyForPath(path: string): MobileRoute {
+  if (path.startsWith(FEATURE_ROUTES.projects)) return "projects";
+  if (path.startsWith(FEATURE_ROUTES.series)) return "series";
+  if (path.startsWith(FEATURE_ROUTES.templates)) return "templates";
+  if (path.startsWith(FEATURE_ROUTES.watermark)) return "watermark";
+  if (path.startsWith(FEATURE_ROUTES.music)) return "music";
+  if (path.startsWith(FEATURE_ROUTES.users)) return "users";
+  if (path === MOBILE_MORE_ROUTE) return "more";
+  return "create";
+}
+
+const activeKey = computed<MobileRoute>(() => {
+  const key = keyForPath(route.path);
+  return (key === "music" || key === "users") && !isAdmin.value ? "create" : key;
+});
+
+/** Creator (không phải admin) gõ thẳng /nhac-nen hay /nguoi-dung → đưa về Tạo
+ * video thay vì âm thầm hiện "create" trong khi URL vẫn trỏ trang admin. */
+watch(
+  () => route.path,
+  (path) => {
+    const key = keyForPath(path);
+    if ((key === "music" || key === "users") && !isAdmin.value) router.replace(FEATURE_ROUTES.create);
+  },
+  { immediate: true }
+);
+
 const bottomItems = [
   { key: "create", label: "Tạo video", icon: "plus", kind: "fab" as const },
   { key: "projects", label: "Video", icon: "list" },
   { key: "series", label: "Serie", icon: "copy" },
   { key: "more", label: "Thêm", icon: "layout-grid" },
 ];
-const bottomActive = computed(() => ["templates", "watermark", "music", "users"].includes(route.value) ? "more" : route.value);
+const bottomActive = computed(() => ["templates", "watermark", "music", "users"].includes(activeKey.value) ? "more" : activeKey.value);
 const moreItems = computed(() => [
   { key: "templates" as const, label: "Video Template", description: "Quản lý video mẫu", icon: "layout-grid" },
   { key: "watermark" as const, label: "Watermark", description: "Ảnh và chữ nhận diện", icon: "photo" },
@@ -36,42 +76,41 @@ const moreItems = computed(() => [
   ] : []),
 ]);
 
-function readHash(): void {
-  const candidate = window.location.hash.replace(/^#m-/, "") as MobileRoute;
-  route.value = availableRoutes.value.includes(candidate) ? candidate : "create";
-}
-
 function navigate(next: string): void {
-  const candidate = next as MobileRoute;
-  route.value = availableRoutes.value.includes(candidate) ? candidate : "create";
-  const hash = `#m-${route.value}`;
-  if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
+  router.push(ROUTE_PATHS[next as MobileRoute] ?? FEATURE_ROUTES.create);
 }
 
 function goBack(): void {
-  if (["templates", "watermark", "music", "users"].includes(route.value)) {
+  if (["templates", "watermark", "music", "users"].includes(activeKey.value)) {
     navigate("more");
     return;
   }
   requestHostBack();
 }
 
-onMounted(() => {
-  readHash();
-  window.addEventListener("hashchange", readHash);
-});
-onBeforeUnmount(() => window.removeEventListener("hashchange", readHash));
+/** Tạo video xong: tra public_id + idea để nhảy thẳng vào link đẹp của video
+ * vừa tạo (khớp hành vi Shell.vue desktop). */
+async function onProjectCreated(projectId: number): Promise<void> {
+  try {
+    const { project } = await api<{ project: { public_id: string; idea: string } }>(
+      `/v1/projects/${projectId}`
+    );
+    router.push(entityPath("video-da-tao", project.idea, project.public_id));
+  } catch {
+    router.push(FEATURE_ROUTES.projects);
+  }
+}
 </script>
 
 <template>
   <div class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--mds-bg-page)]">
-    <MobileCreateView v-if="route === 'create'" @created="navigate('projects')" @close="goBack" />
-    <MobileProjectsView v-else-if="route === 'projects'" />
-    <MobileResourceView v-else-if="route === 'series'" kind="series" :is-admin="isAdmin" @back="goBack" />
-    <MobileResourceView v-else-if="route === 'templates'" kind="templates" :is-admin="isAdmin" @back="goBack" />
-    <MobileResourceView v-else-if="route === 'watermark'" kind="watermark" :is-admin="isAdmin" @back="goBack" />
-    <MobileResourceView v-else-if="route === 'music'" kind="music" :is-admin="isAdmin" @back="goBack" />
-    <MobileResourceView v-else-if="route === 'users'" kind="users" :is-admin="isAdmin" @back="goBack" />
+    <MobileCreateView v-if="activeKey === 'create'" @created="onProjectCreated" @close="goBack" />
+    <MobileProjectsView v-else-if="activeKey === 'projects'" />
+    <MobileResourceView v-else-if="activeKey === 'series'" kind="series" :is-admin="isAdmin" @back="goBack" />
+    <MobileResourceView v-else-if="activeKey === 'templates'" kind="templates" :is-admin="isAdmin" @back="goBack" />
+    <MobileResourceView v-else-if="activeKey === 'watermark'" kind="watermark" :is-admin="isAdmin" @back="goBack" />
+    <MobileResourceView v-else-if="activeKey === 'music'" kind="music" :is-admin="isAdmin" @back="goBack" />
+    <MobileResourceView v-else-if="activeKey === 'users'" kind="users" :is-admin="isAdmin" @back="goBack" />
     <section v-else class="mds-mobile-app flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--mds-bg)] text-[var(--mds-text)]">
       <MMobileTopBar title="Thêm" :show-back="false" />
       <main class="min-h-0 flex-1 overflow-y-auto">

@@ -13,7 +13,7 @@ import { useToast } from "../../components/mds/toast.js";
 import { api, apiForm, ApiError } from "../../lib/api";
 import type { MusicTrack, SeriesRow, TemplateRow, WatermarkPreset } from "../../lib/types";
 
-const emit = defineEmits<{ created: []; close: [] }>();
+const emit = defineEmits<{ created: [projectId: number]; close: [] }>();
 const toast = useToast();
 
 const idea = ref("");
@@ -150,7 +150,7 @@ async function submit(): Promise<void> {
     }
     await api(`/v1/projects/${id}/generate`, { method: "POST" });
     toast.success("Đã bắt đầu sinh kịch bản.");
-    emit("created");
+    emit("created", id);
   } catch (cause) {
     toast.error(cause instanceof ApiError ? cause.message : "Không thể tạo dự án.");
   } finally {

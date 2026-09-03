@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { FEATURE_ROUTES } from "../../router";
+import { entityPath } from "../../lib/slug";
 import MButton from "../../components/mds/MButton.vue";
 import MEmptyState from "../../components/mds/MEmptyState.vue";
 import MIcon from "../../components/mds/MIcon.vue";
@@ -13,6 +16,8 @@ import { api, ApiError } from "../../lib/api";
 import type { ProjectDetail, ProjectRow, ScriptRow } from "../../lib/types";
 
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
 const projects = ref<ProjectRow[]>([]);
 const detail = ref<ProjectDetail | null>(null);
 const loading = ref(false);
@@ -63,7 +68,16 @@ async function openDetail(id: number, silent = false): Promise<void> {
   catch (cause) { if (!silent) toast.error(cause instanceof ApiError ? cause.message : "Không tải được video."); }
   finally { detailLoading.value = false; }
 }
-function closeDetail(): void { detail.value = null; playingJobId.value = null; void loadList(); }
+async function openDetailByPublicId(publicId: string): Promise<void> {
+  detailLoading.value = true;
+  try { detail.value = await api<ProjectDetail>(`/v1/projects/public/${publicId}`); }
+  catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không tải được video.");
+    router.replace(FEATURE_ROUTES.projects);
+  } finally { detailLoading.value = false; }
+}
+function goToProject(project: ProjectRow): void { router.push(entityPath("video-da-tao", project.idea, project.public_id)); }
+function closeDetail(): void { router.push(FEATURE_ROUTES.projects); }
 async function approve(script: ScriptRow): Promise<void> {
   approvingId.value = script.id;
   try {
@@ -94,7 +108,17 @@ watch(isBusy, (busy) => {
   if (!busy && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 });
 onBeforeUnmount(() => { if (pollTimer) clearInterval(pollTimer); });
-onMounted(() => void loadList());
+onMounted(async () => {
+  await loadList();
+  if (typeof route.params.id === "string") await openDetailByPublicId(route.params.id);
+});
+watch(
+  () => route.params.id,
+  async (id) => {
+    if (typeof id === "string") await openDetailByPublicId(id);
+    else { detail.value = null; playingJobId.value = null; await loadList(); }
+  }
+);
 </script>
 
 <template>
@@ -121,7 +145,7 @@ onMounted(() => void loadList());
     </template>
     <template v-else>
       <MMobileTopBar title="Video đã tạo" :show-back="false"><template #actions><MButton variant="icon" aria-label="Làm mới" @click="loadList"><template #icon><MIcon name="refresh" :size="20" /></template></MButton></template></MMobileTopBar>
-      <main class="min-h-0 flex-1 overflow-y-auto"><div class="mx-auto w-full max-w-[840px]"><div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div><MEmptyState v-else-if="!projects.length" title="Chưa có video" description="Tạo kịch bản đầu tiên để bắt đầu sản xuất video." /><article v-for="project in projects" v-else :key="project.id" class="mds-mobile-gutter-x flex min-h-[76px] min-w-0 items-center gap-3 border-b border-[var(--mds-border-light)] py-3 active:bg-[var(--mds-bg-hover-soft)]" @click="openDetail(project.id)"><div class="min-w-0 flex-1"><h2 class="m-0 truncate text-[14px] font-semibold leading-5">{{ project.idea }}</h2><p class="m-0 mt-1 truncate text-[12px] text-[var(--mds-text-secondary)]">{{ project.mode === 'series' ? 'Serie' : 'Đa chiều' }} · {{ project.script_count }} kịch bản · {{ project.created_at }}</p></div><MTag :color="projectStatus[project.status]?.color" size="sm">{{ projectStatus[project.status]?.label }}</MTag><MIcon name="chevron-right" :size="20" class="shrink-0 text-[var(--mds-icon-neutral)]" /></article><div v-if="nextCursor != null" class="p-4 text-center"><MButton :loading="loadingMore" @click="loadMore">Tải thêm</MButton></div></div></main>
+      <main class="min-h-0 flex-1 overflow-y-auto"><div class="mx-auto w-full max-w-[840px]"><div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div><MEmptyState v-else-if="!projects.length" title="Chưa có video" description="Tạo kịch bản đầu tiên để bắt đầu sản xuất video." /><article v-for="project in projects" v-else :key="project.id" class="mds-mobile-gutter-x flex min-h-[76px] min-w-0 items-center gap-3 border-b border-[var(--mds-border-light)] py-3 active:bg-[var(--mds-bg-hover-soft)]" @click="goToProject(project)"><div class="min-w-0 flex-1"><h2 class="m-0 truncate text-[14px] font-semibold leading-5">{{ project.idea }}</h2><p class="m-0 mt-1 truncate text-[12px] text-[var(--mds-text-secondary)]">{{ project.mode === 'series' ? 'Serie' : 'Đa chiều' }} · {{ project.script_count }} kịch bản · {{ project.created_at }}</p></div><MTag :color="projectStatus[project.status]?.color" size="sm">{{ projectStatus[project.status]?.label }}</MTag><MIcon name="chevron-right" :size="20" class="shrink-0 text-[var(--mds-icon-neutral)]" /></article><div v-if="nextCursor != null" class="p-4 text-center"><MButton :loading="loadingMore" @click="loadMore">Tải thêm</MButton></div></div></main>
     </template>
   </div>
 </template>

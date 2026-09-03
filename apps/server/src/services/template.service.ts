@@ -5,6 +5,7 @@ import { z } from "zod";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
+import { generatePublicId } from "../lib/public-id";
 import {
   analyzeVideoStyle,
   styleProfileSchema,
@@ -44,6 +45,7 @@ export type TemplateWorkflow = z.infer<typeof workflowSchema>;
 
 const rowToDto = (row: RowDataPacket) => ({
   id: row.id,
+  publicId: row.public_id,
   name: row.name,
   sourceVideoName: row.source_video_name,
   status: row.status,
@@ -73,6 +75,19 @@ export const getTemplateOwned = async (userId: number, templateId: number) => {
 
 export const getTemplateDetail = async (userId: number, templateId: number) =>
   rowToDto(await getTemplateOwned(userId, templateId));
+
+/** Tra id số từ public_id (URL sub-path) — chống IDOR bằng điều kiện user_id. */
+export const resolveTemplateIdByPublicId = async (
+  userId: number,
+  publicId: string
+): Promise<number> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM templates WHERE public_id = ? AND user_id = ? LIMIT 1`,
+    [publicId, userId]
+  );
+  if (!rows[0]) throw notFound("Không tìm thấy template.");
+  return Number(rows[0].id);
+};
 
 /** Profile đã ready của template (dùng khi sinh kịch bản) — fail-closed */
 export const getReadyProfile = async (
@@ -115,9 +130,10 @@ export const createTemplate = async (
   fs.renameSync(file.path, storedPath);
 
   const [result] = await pool.query<ResultSetHeader>(
-    `INSERT INTO templates (user_id, name, source_video_name, source_video_path, workflow_json)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO templates (public_id, user_id, name, source_video_name, source_video_path, workflow_json)
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [
+      generatePublicId(),
       userId,
       name,
       file.originalname.slice(0, 255),

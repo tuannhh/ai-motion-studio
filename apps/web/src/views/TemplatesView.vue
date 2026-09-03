@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { FEATURE_ROUTES } from "../router";
+import { entityPath } from "../lib/slug";
 import MButton from "../components/mds/MButton.vue";
 import MDialog from "../components/mds/MDialog.vue";
 import MDrawer from "../components/mds/MDrawer.vue";
@@ -20,6 +23,8 @@ import type { TemplateRow, TemplateWorkflow } from "../lib/types";
  */
 
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
 const templates = ref<TemplateRow[]>([]);
 const loading = ref(true);
 
@@ -117,7 +122,8 @@ const editName = ref("");
 const wf = ref<TemplateWorkflow | null>(null);
 const saving = ref(false);
 
-function openEdit(t: TemplateRow): void {
+/** Set state cho drawer sửa (không đụng URL — dùng khi route đã có :id, xem watcher dưới) */
+function applyEditState(t: TemplateRow): void {
   editing.value = t;
   editName.value = t.name;
   wf.value = { ...t.workflow, scriptPipeline: [...(t.workflow.scriptPipeline ?? [])] };
@@ -131,8 +137,34 @@ function openEdit(t: TemplateRow): void {
   editOpen.value = true;
 }
 
+/** Bấm "Thiết lập": đổi URL sang link đẹp /video-template/:slug/:id — watcher dưới
+ * mở drawer khi thấy route có :id (nguồn sự thật của "đang sửa mẫu nào" là route). */
+function openEdit(t: TemplateRow): void {
+  router.push(entityPath("video-template", t.name, t.publicId));
+}
+
 /** Pipeline sửa dạng văn bản THÔ: mỗi dòng 1 nhịp kể chuyện. Chỉ split/trim khi lưu. */
 const pipelineText = ref("");
+
+/** Route → mở/đóng drawer sửa (đợi danh sách load xong nếu vào thẳng URL chi tiết). */
+watch(
+  [templates, () => route.params.id],
+  ([list, id]) => {
+    if (typeof id !== "string") {
+      if (editOpen.value) editOpen.value = false;
+      return;
+    }
+    if (editing.value?.publicId === id) return;
+    const t = (list as TemplateRow[]).find((row) => row.publicId === id);
+    if (t) applyEditState(t);
+  },
+  { immediate: true }
+);
+
+/** Đóng drawer bằng bất kỳ cách nào (Hủy/X/overlay/lưu xong) → đồng bộ URL về danh sách. */
+watch(editOpen, (open) => {
+  if (!open && typeof route.params.id === "string") router.push(FEATURE_ROUTES.templates);
+});
 
 async function saveEdit(): Promise<void> {
   if (!editing.value || !wf.value) return;

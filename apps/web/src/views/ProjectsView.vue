@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { FEATURE_ROUTES } from "../router";
+import { entityPath } from "../lib/slug";
 import MButton from "../components/mds/MButton.vue";
 import MDataTable from "../components/mds/MDataTable.vue";
 import MEmptyState from "../components/mds/MEmptyState.vue";
@@ -13,9 +16,10 @@ import { useToast } from "../components/mds/toast.js";
 import { api, ApiError } from "../lib/api";
 import type { DriveExport, ProjectDetail, ProjectRow, ScriptRow } from "../lib/types";
 
-const props = defineProps<{ focusProjectId: number | null }>();
-const emit = defineEmits<{ focused: []; "edit-setup": [projectId: number] }>();
+const emit = defineEmits<{ "edit-setup": [projectId: number] }>();
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
 
 const projects = ref<ProjectRow[]>([]);
 const loading = ref(false);
@@ -166,19 +170,41 @@ async function loadMore(): Promise<void> {
   }
 }
 
+function applyDetail(next: ProjectDetail): void {
+  detail.value = next;
+  // Lấy link Drive đã export (nếu có) cho các video đã render xong
+  for (const s of next.scripts) {
+    if (s.job_status === "done" && s.job_id) void loadDriveExport(s.job_id);
+  }
+}
+
 async function openDetail(projectId: number, silent = false): Promise<void> {
   if (!silent) detailLoading.value = true;
   try {
-    detail.value = await api<ProjectDetail>(`/v1/projects/${projectId}`);
-    // Lấy link Drive đã export (nếu có) cho các video đã render xong
-    for (const s of detail.value.scripts) {
-      if (s.job_status === "done" && s.job_id) void loadDriveExport(s.job_id);
-    }
+    applyDetail(await api<ProjectDetail>(`/v1/projects/${projectId}`));
   } catch (cause) {
     if (!silent) toast.error(cause instanceof ApiError ? cause.message : "Không tải được dự án.");
   } finally {
     detailLoading.value = false;
   }
+}
+
+/** Mở chi tiết từ URL /video-da-tao/:slug/:id (id = public_id, không phải id số) */
+async function openDetailByPublicId(publicId: string): Promise<void> {
+  detailLoading.value = true;
+  try {
+    applyDetail(await api<ProjectDetail>(`/v1/projects/public/${publicId}`));
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không tải được dự án.");
+    router.replace(FEATURE_ROUTES.projects);
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+/** Điều hướng sang link đẹp của 1 project (nguồn sự thật của "đang mở chi tiết" là route). */
+function goToProject(row: { idea: string; public_id: string }): void {
+  router.push(entityPath("video-da-tao", row.idea, row.public_id));
 }
 
 /** còn việc đang chạy → poll tiếp */
@@ -285,18 +311,27 @@ async function reject(script: ScriptRow): Promise<void> {
 }
 
 function backToList(): void {
-  detail.value = null;
-  playingJobId.value = null;
-  void loadList();
+  router.push(FEATURE_ROUTES.projects);
 }
 
 onMounted(async () => {
   await loadList();
-  if (props.focusProjectId) {
-    await openDetail(props.focusProjectId);
-    emit("focused");
-  }
+  if (typeof route.params.id === "string") await openDetailByPublicId(route.params.id);
 });
+
+/** URL thay đổi (mở project khác / bấm back về danh sách) → đồng bộ lại view. */
+watch(
+  () => route.params.id,
+  async (id) => {
+    if (typeof id === "string") {
+      await openDetailByPublicId(id);
+    } else {
+      detail.value = null;
+      playingJobId.value = null;
+      await loadList();
+    }
+  }
+);
 </script>
 
 <template>
@@ -565,7 +600,7 @@ onMounted(async () => {
         :columns="columns"
         :rows="projects"
         :loading="loading || detailLoading"
-        @row-click="(row: ProjectRow) => openDetail(row.id)"
+        @row-click="(row: ProjectRow) => goToProject(row)"
       >
         <template #cell-mode="{ value }">
           {{ value === "series" ? "Serie" : "Đa chiều" }}

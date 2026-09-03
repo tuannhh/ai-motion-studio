@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { FEATURE_ROUTES } from "../router";
+import { entityPath } from "../lib/slug";
 import MHeaderBar from "../components/mds/MHeaderBar.vue";
 import MSidebar from "../components/mds/MSidebar.vue";
 import MButton from "../components/mds/MButton.vue";
@@ -21,18 +24,32 @@ const props = defineProps<{ user: SessionUser }>();
 const emit = defineEmits<{ signedOut: [] }>();
 const toast = useToast();
 
-const active = ref("create");
+const route = useRoute();
+const router = useRouter();
 const collapsed = ref(false);
 const userMenuOpen = ref(false);
-/** project đang mở chi tiết (ProjectsView quản lý) — set khi tạo xong để nhảy thẳng vào */
-const focusProjectId = ref<number | null>(null);
 /** project đang SỬA THIẾT LẬP & LÀM LẠI (mở từ nút trong "Video đã tạo") — null = tạo mới bình thường */
 const editProjectId = ref<number | null>(null);
 
+/** "active" tab của sidebar tính từ URL hiện tại (nguồn sự thật là route, không
+ * phải ref riêng) — mọi route con của 1 tính năng (vd chi tiết video) vẫn sáng
+ * đúng mục cha trên sidebar. */
+const active = computed(() => {
+  const p = route.path;
+  if (p.startsWith(FEATURE_ROUTES.projects)) return "projects";
+  if (p.startsWith(FEATURE_ROUTES.templates)) return "templates";
+  if (p.startsWith(FEATURE_ROUTES.series)) return "series";
+  if (p.startsWith(FEATURE_ROUTES.watermark)) return "watermark";
+  if (p.startsWith(FEATURE_ROUTES.music)) return "music";
+  if (p.startsWith(FEATURE_ROUTES.users)) return "users";
+  return "create";
+});
+
 /** Bấm menu bên trái: tự tay chọn "Tạo video" luôn quay về form trống (không kẹt ở chế độ sửa cũ) */
 function onSidebarNav(key: string): void {
-  active.value = key;
   if (key === "create") editProjectId.value = null;
+  const path = FEATURE_ROUTES[key as keyof typeof FEATURE_ROUTES] ?? FEATURE_ROUTES.create;
+  router.push(path);
 }
 
 const items = computed(() => {
@@ -52,15 +69,23 @@ const items = computed(() => {
   return base;
 });
 
-function onProjectCreated(projectId: number): void {
-  focusProjectId.value = projectId;
+/** Tạo/lưu xong: tra public_id + idea của project vừa tạo để nhảy thẳng vào
+ * link đẹp /video-da-tao/:slug/:id (thay vì chỉ id số nội bộ). */
+async function onProjectCreated(projectId: number): Promise<void> {
   editProjectId.value = null;
-  active.value = "projects";
+  try {
+    const { project } = await api<{ project: { public_id: string; idea: string } }>(
+      `/v1/projects/${projectId}`
+    );
+    router.push(entityPath("video-da-tao", project.idea, project.public_id));
+  } catch {
+    router.push(FEATURE_ROUTES.projects);
+  }
 }
 
 function onEditSetup(projectId: number): void {
   editProjectId.value = projectId;
-  active.value = "create";
+  router.push(FEATURE_ROUTES.create);
 }
 
 async function logout(): Promise<void> {
@@ -224,8 +249,6 @@ async function changePassword(): Promise<void> {
         </KeepAlive>
         <ProjectsView
           v-if="active === 'projects'"
-          :focus-project-id="focusProjectId"
-          @focused="focusProjectId = null"
           @edit-setup="onEditSetup"
         />
         <SeriesView v-else-if="active === 'series'" />

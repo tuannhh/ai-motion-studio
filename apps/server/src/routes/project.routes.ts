@@ -13,6 +13,7 @@ import {
   getProjectDetail,
   getSourceFile,
   listProjects,
+  resolveProjectIdByPublicId,
   updateProjectSettings,
 } from "../services/project.service";
 
@@ -72,8 +73,18 @@ projectRoutes.post(
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.");
     }
-    const id = await createProject(req.user!.id, parsed.data);
-    res.status(201).json({ data: { id } });
+    const { id, publicId } = await createProject(req.user!.id, parsed.data);
+    res.status(201).json({ data: { id, publicId } });
+  })
+);
+
+/** Tra project theo public_id (URL sub-path /video-da-tao/:slug/:id) — đặt
+ * TRƯỚC "/:id" trong file nhưng không đụng nhau vì khác số đoạn path. */
+projectRoutes.get(
+  "/public/:publicId",
+  asyncHandler(async (req, res) => {
+    const id = await resolveProjectIdByPublicId(req.user!.id, req.params.publicId);
+    res.json({ data: await getProjectDetail(req.user!.id, id) });
   })
 );
 

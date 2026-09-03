@@ -10,6 +10,7 @@ import {
   getTemplateDetail,
   listTemplates,
   reanalyzeTemplate,
+  resolveTemplateIdByPublicId,
   updateTemplate,
   workflowSchema,
 } from "../services/template.service";
@@ -52,6 +53,15 @@ templateRoutes.post(
     }
     const id = await createTemplate(req.user!.id, name.data, req.file);
     res.status(201).json({ data: { id } });
+  })
+);
+
+/** Tra template theo public_id (URL sub-path /video-template/:slug/:id). */
+templateRoutes.get(
+  "/public/:publicId",
+  asyncHandler(async (req, res) => {
+    const id = await resolveTemplateIdByPublicId(req.user!.id, req.params.publicId);
+    res.json({ data: await getTemplateDetail(req.user!.id, id) });
   })
 );
 
