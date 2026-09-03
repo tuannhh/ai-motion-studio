@@ -183,7 +183,7 @@ async function changePassword(): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-screen flex-col bg-[var(--mds-bg-page)]">
+  <div class="flex h-[100dvh] min-h-0 flex-col bg-[var(--mds-bg-page)]">
     <MHeaderBar
       app-name="AI Motion Studio"
       :user="{ name: user.displayName }"
@@ -212,7 +212,7 @@ async function changePassword(): Promise<void> {
         v-model:collapsed="collapsed"
         :items="items"
       />
-      <main class="flex min-w-0 flex-1 flex-col overflow-auto">
+      <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
         <!-- KeepAlive: giữ nội dung form Tạo video khi chuyển sang menu khác rồi
              quay lại (không mất dữ liệu đang nhập; form tự reset sau khi tạo xong) -->
         <KeepAlive>
