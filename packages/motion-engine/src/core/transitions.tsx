@@ -12,6 +12,7 @@ import type {
  * - whipPan: quăng máy ngang + motion blur, cắt giấu giữa cú quăng
  * - scaleThrough: cảnh cũ phóng to mờ đi, cảnh mới từ nhỏ hiện lên phía sau
  * - maskWipe: dải màu accent quét ngang, cảnh mới lộ ra sau mép quét
+ * - fadeThroughBg: fade cắt qua nền (thay fade() chồng thẳng của @remotion/transitions)
  */
 
 type WhipProps = { direction: 1 | -1 };
@@ -218,4 +219,31 @@ export const pushDiagonal = (
 ): TransitionPresentation<PushProps> => ({
   component: PushPresentation,
   props,
+});
+
+/**
+ * fadeThroughBg: thay cho fade() phẳng của @remotion/transitions — fade() cũ chồng
+ * THẲNG cảnh cũ và cảnh mới (cả hai cùng cỡ, cùng vị trí, không mờ/không lệch), nên
+ * giữa chừng 2 scene chữ dày đặc (vd hook → rank) chữ 2 bên đọc chồng lên nhau, KHÔNG
+ * đọc nổi (lỗi thật — bắt được từ ảnh chụp giữa chuyển cảnh, phản hồi 2026-09-03).
+ * Fix: cắt qua nền chung — cảnh cũ mờ dần hết TRƯỚC KHI cảnh mới bắt đầu hiện, chừa
+ * một khoảng ngắn (~15% thời lượng chuyển cảnh) chỉ thấy nền, không bao giờ có 2 lớp
+ * chữ chồng nhau tại cùng một thời điểm.
+ */
+const FadeThroughBgPresentation: React.FC<
+  TransitionPresentationComponentProps<Record<string, never>>
+> = ({ children, presentationProgress, presentationDirection }) => {
+  const p = presentationProgress;
+  const opacity =
+    presentationDirection === "exiting"
+      ? interpolate(p, [0, 0.42], [1, 0], { extrapolateRight: "clamp" })
+      : interpolate(p, [0.58, 1], [0, 1], { extrapolateLeft: "clamp" });
+  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
+};
+
+export const fadeThroughBg = (): TransitionPresentation<
+  Record<string, never>
+> => ({
+  component: FadeThroughBgPresentation,
+  props: {},
 });

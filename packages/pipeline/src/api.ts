@@ -336,10 +336,20 @@ export const generateSpecImages = async (
         if (redraw) {
           const desc = await describeImageForRedraw(buf, mime);
           const generated = await generateSceneImage(desc, path.join(jobDir, rel));
-          if (isBg) scene.bgImage = path.relative(jobDir, generated.file);
-          else scene.image = path.relative(jobDir, generated.file);
-          if (generated.requiresReview) {
-            warnings.push(`[${scene.id}] Ảnh vẽ lại chưa thật đạt — đã dùng bản tốt nhất, có thể "Render lại".`);
+          // Ảnh nền KHÔNG bắt buộc — nếu cổng chất lượng từ chối cả 3 lần (thường vì
+          // vẫn còn chữ/UI/chart nhúng, đúng thứ sẽ đè lên headline gây "chữ chồng chữ"),
+          // bỏ hẳn thay vì dùng ảnh hỏng làm nền: nền preset sạch còn hơn ảnh có chữ lạ.
+          if (isBg && !generated.requiresReview) {
+            scene.bgImage = path.relative(jobDir, generated.file);
+          } else if (isBg) {
+            warnings.push(
+              `[${scene.id}] Bỏ ảnh nền vẽ lại: vẫn có chữ/UI nhúng sau 3 lần thử — dùng nền preset để đảm bảo tương phản.`
+            );
+          } else {
+            scene.image = path.relative(jobDir, generated.file);
+            if (generated.requiresReview) {
+              warnings.push(`[${scene.id}] Ảnh vẽ lại chưa thật đạt — đã dùng bản tốt nhất, có thể "Render lại".`);
+            }
           }
         } else {
           const dest = path.join(jobDir, rel + ext);
@@ -370,12 +380,23 @@ export const generateSpecImages = async (
                 scene.frame === "phone" ? "9:16" : "4:3"
               )
             : await generateSceneImage(task.prompt, path.join(jobDir, rel));
-        if (isBg) scene.bgImage = path.relative(jobDir, generated.file);
-        else scene.image = path.relative(jobDir, generated.file);
-        if (generated.requiresReview) {
+        // Ảnh nền KHÔNG bắt buộc — nếu cổng chất lượng từ chối cả 3 lần (thường vì vẫn
+        // còn chữ/dashboard/chart nhúng, đúng thứ sẽ đè lên headline gây "chữ chồng chữ",
+        // lỗi thật bắt được từ ảnh chụp video 2026-09-03), bỏ hẳn thay vì dùng ảnh hỏng —
+        // nền preset sạch còn hơn ảnh có chữ lạ cạnh tranh với text chính.
+        if (isBg && !generated.requiresReview) {
+          scene.bgImage = path.relative(jobDir, generated.file);
+        } else if (isBg) {
           warnings.push(
-            `[${scene.id}] Ảnh scene ${scene.type} chưa đạt chuẩn (có thể mờ/chữ méo) — đã dùng ảnh tốt nhất, bấm "Render lại" nếu muốn thử ảnh khác.`
+            `[${scene.id}] Bỏ ảnh nền: vẫn có chữ/UI/chart nhúng sau 3 lần thử — dùng nền preset để đảm bảo tương phản.`
           );
+        } else {
+          scene.image = path.relative(jobDir, generated.file);
+          if (generated.requiresReview) {
+            warnings.push(
+              `[${scene.id}] Ảnh scene ${scene.type} chưa đạt chuẩn (có thể mờ/chữ méo) — đã dùng ảnh tốt nhất, bấm "Render lại" nếu muốn thử ảnh khác.`
+            );
+          }
         }
       }
     } catch (err) {

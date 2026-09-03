@@ -5,7 +5,6 @@ import {
   linearTiming,
   type TransitionPresentation,
 } from "@remotion/transitions";
-import { fade } from "@remotion/transitions/fade";
 import { slide } from "@remotion/transitions/slide";
 import { wipe } from "@remotion/transitions/wipe";
 import {
@@ -38,7 +37,15 @@ import { AnnotateScene } from "./scenes/Annotate";
 import { TerminalScene } from "./scenes/Terminal";
 import { ScreenshotScene } from "./scenes/Screenshot";
 import { PhotoBackdrop } from "./core/PhotoBackdrop";
-import { blurZoom, iris, maskWipe, pushDiagonal, scaleThrough, whipPan } from "./core/transitions";
+import {
+  blurZoom,
+  fadeThroughBg,
+  iris,
+  maskWipe,
+  pushDiagonal,
+  scaleThrough,
+  whipPan,
+} from "./core/transitions";
 import { seedOf } from "./core/motion";
 
 const SceneRenderer: React.FC<{
@@ -220,7 +227,7 @@ export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) =
 const TRANSITIONS: Array<(slug: string, index: number, theme: Theme) => TransitionPresentation<any>> = [
   () => slide({ direction: "from-bottom" }),
   () => slide({ direction: "from-right" }),
-  () => fade(),
+  () => fadeThroughBg(),
   () => wipe({ direction: "from-left" }),
   (slug, index) => whipPan({ direction: seedOf(`${slug}-whip-${index}`) > 0.5 ? 1 : -1 }),
   () => scaleThrough(),

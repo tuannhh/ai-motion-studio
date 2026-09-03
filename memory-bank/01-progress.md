@@ -1,5 +1,37 @@
 # Progress
 
+## 2026-09-03 (tiếp) — Fix gốc "chữ chồng chữ" trên scene hook: ảnh nền AI có chữ nhúng lọt lưới
+
+Phản hồi mới kèm ảnh chụp video thật: scene "hook" có chữ nền mờ chồng lên chữ chính, đọc
+không nổi. **Chẩn đoán SAI lúc đầu**: tưởng do transition `fade()` phẳng giữa 2 scene chữ dày
+đặc (hook→rank) — đã viết `fadeThroughBg()` thay thế (cắt qua nền, không bao giờ 2 lớp chữ
+cùng hiện). Nhưng render lại đúng job thật + tính tay `transitionFor()` (seed FNV-1a theo
+slug) thì transition thật giữa 2 scene này là `slide(from-left)`, không phải `fade` — sửa sai
+chỗ. **Chẩn đoán ĐÚNG** (soi trực tiếp `images/scene-1-hook-bg.png` của job thật): đây là ẢNH
+NỀN do Gemini sinh, nhưng ảnh lại là một tấm infographic đầy đủ ("KHẢO SÁT CEO: 5 ƯU TIÊN LỚN
+NHẤT" + thanh chart có nhãn %) — trùng khớp y hệt nội dung scene "rank" kế tiếp. Prompt sinh
+ảnh (`images.ts`) đã CẤM rõ "không dashboard/chart có nhãn" và có cổng chất lượng
+`reviewImage()` (vision model chấm approve/reject, tối đa 3 lần) — nhưng `generateSceneImage()`
+khi CẢ 3 LẦN đều bị từ chối vẫn "best-effort" trả ảnh lần đầu kèm cờ `requiresReview:true`
+(tránh chặn cả video). Lỗi thật nằm ở `api.ts`: với ẢNH NỀN (`isBg`), code cũ dùng thẳng ảnh
+`requiresReview:true` đó làm `scene.bgImage` — dùng nguyên ảnh đã bị cổng chất lượng từ chối.
+Cảnh báo `imgWarnings` cũng chỉ `console.log` phía server (`render-worker.ts`), không tới
+tay người dùng nên không ai biết ảnh đã bị từ chối.
+
+**Fix**: `packages/pipeline/src/api.ts` — khi `isBg && generated.requiresReview`, KHÔNG gán
+`scene.bgImage` nữa (bỏ hẳn, rơi về nền preset sạch của theme) thay vì dùng ảnh hỏng; áp cho
+cả nhánh sinh ảnh thường và nhánh vẽ lại ảnh user (`redraw`). Ảnh nền là trang trí — nền preset
+trơn còn hơn ảnh có chữ lạ cạnh tranh với headline. Ảnh CHÍNH bắt buộc (annotate/screenshot)
+giữ nguyên hành vi cũ (vẫn dùng best-effort — có ảnh còn hơn không).
+
+Verify: xoá `bgImage` khỏi scene-1-hook trong bản spec.json thật của job-18 (mô phỏng đúng
+nhánh fallback mới), render still lại — headline "CEO không mua AI..." hiện rõ trên nền
+gradient preset, hết sạch chữ ma. `tsc --noEmit` sạch ở `packages/pipeline`.
+
+Giữ lại `fadeThroughBg()` (transitions.tsx/Video.tsx) dù không phải nguyên nhân vụ này — vẫn
+là cải tiến đúng, có thật (transition `fade()` phẳng cũ thực sự có thể gây chồng chữ giữa 2
+scene chữ dày đặc khác, chỉ là không phải vụ được báo lần này).
+
 ## 2026-09-03 — Gộp "Watermark mặc định hệ thống" vào trang Watermark (bớt rối UI)
 
 Phản hồi: mục nav riêng "Watermark mặc định" (admin) bị coi là thừa — người dùng nghĩ nó
