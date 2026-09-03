@@ -24,8 +24,6 @@ button, input, textarea { font: inherit; }
   --mds-mobile-safe-left: env(safe-area-inset-left, 0px);
   --mds-mobile-topbar-height: 56px;
   --mds-mobile-bottom-nav-height: 64px;
-  min-height: 100dvh;
-  min-height: 100%;
   overflow-x: hidden;
 }
 
