@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import MButton from "../components/mds/MButton.vue";
-import MIcon from "../components/mds/MIcon.vue";
 import MInput from "../components/mds/MInput.vue";
 import { api, ApiError, setCsrfToken, type SessionUser } from "../lib/api";
+import misaLogo from "../assets/brand/misa-logo.png";
 
 const emit = defineEmits<{ signedIn: [user: SessionUser] }>();
 const email = ref("");
@@ -33,9 +33,9 @@ async function submit(): Promise<void> {
   <main class="grid min-h-screen place-items-center bg-[var(--mds-bg-page)] p-4">
     <section class="w-full max-w-[420px] rounded-lg bg-[var(--mds-bg)] p-6 shadow-[var(--mds-shadow-card)]">
       <div class="mb-6 flex items-center gap-3">
-        <div class="grid h-10 w-10 place-items-center rounded-lg bg-[var(--mds-bg-brand-brand-light)] text-[var(--mds-brand-600)]">
-          <MIcon name="camera" :size="24" />
-        </div>
+        <span class="grid h-10 w-10 place-items-center rounded-lg bg-white">
+          <img :src="misaLogo" alt="MISA - Tin cậy - Tiện ích - Tận tình" class="h-full w-auto object-contain" />
+        </span>
         <div>
           <h1 class="m-0 text-xl font-semibold leading-7">AI Motion Studio</h1>
           <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">

@@ -279,28 +279,36 @@ export const generateUiImage = async (
   let lastError = "chưa rõ";
   let best: { buffer: Buffer; mime: string } | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res: InteractionsResponse = await postJson(
-      INTERACTIONS_URL,
-      {
-        model: imageModel,
-        input: [{ type: "text", text: buildUiPrompt(description, aspect, attempt) }],
-        response_format: { type: "image", aspect_ratio: aspect, image_size: "1K" },
-      },
-      75_000
-    );
-    const image = getImageOutput(res);
-    if (!image?.data) {
-      lastError = "Gemini không trả ảnh";
+    try {
+      const res: InteractionsResponse = await postJson(
+        INTERACTIONS_URL,
+        {
+          model: imageModel,
+          input: [{ type: "text", text: buildUiPrompt(description, aspect, attempt) }],
+          response_format: { type: "image", aspect_ratio: aspect, image_size: "1K" },
+        },
+        75_000
+      );
+      const image = getImageOutput(res);
+      if (!image?.data) {
+        lastError = "Gemini không trả ảnh";
+        continue;
+      }
+      const mime = image.mime_type ?? "image/png";
+      const buffer = Buffer.from(image.data, "base64");
+      if (!best) best = { buffer, mime }; // giữ ảnh đầu tiên làm best-effort
+      if (!(await reviewUiImage(buffer, mime, description))) {
+        lastError = "ảnh UI không đạt (méo/nhiễu/không giống giao diện)";
+        continue;
+      }
+      return writeImage(outPathNoExt, buffer, mime);
+    } catch (err) {
+      // Lỗi mạng/timeout (Gemini image API đôi khi >75s dưới tải Cloud Run) là
+      // sự cố tạm thời, không phải ảnh hỏng — thử lại như các lần bị cổng chất
+      // lượng từ chối, thay vì để ném thẳng ra ngoài làm hỏng cả scene.
+      lastError = (err as Error).message;
       continue;
     }
-    const mime = image.mime_type ?? "image/png";
-    const buffer = Buffer.from(image.data, "base64");
-    if (!best) best = { buffer, mime }; // giữ ảnh đầu tiên làm best-effort
-    if (!(await reviewUiImage(buffer, mime, description))) {
-      lastError = "ảnh UI không đạt (méo/nhiễu/không giống giao diện)";
-      continue;
-    }
-    return writeImage(outPathNoExt, buffer, mime);
   }
   // 3 lần chưa đạt cổng chất lượng nhưng model CÓ trả ảnh → dùng ảnh tốt nhất, đánh
   // dấu requiresReview để không chặn cả video (fail-closed chỉ khi model không trả ảnh nào).
@@ -329,28 +337,35 @@ export const generateSceneImage = async (
   let lastError = "chưa rõ";
   let best: { buffer: Buffer; mime: string } | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const res: InteractionsResponse = await postJson(
-      INTERACTIONS_URL,
-      {
-        model: imageModel,
-        input: [{ type: "text", text: buildImagePrompt(description, attempt) }],
-        response_format: { type: "image", aspect_ratio: "9:16", image_size: "1K" },
-      },
-      75_000
-    );
-    const image = getImageOutput(res);
-    if (!image?.data) {
-      lastError = "Gemini không trả ảnh";
+    try {
+      const res: InteractionsResponse = await postJson(
+        INTERACTIONS_URL,
+        {
+          model: imageModel,
+          input: [{ type: "text", text: buildImagePrompt(description, attempt) }],
+          response_format: { type: "image", aspect_ratio: "9:16", image_size: "1K" },
+        },
+        75_000
+      );
+      const image = getImageOutput(res);
+      if (!image?.data) {
+        lastError = "Gemini không trả ảnh";
+        continue;
+      }
+      const mime = image.mime_type ?? "image/png";
+      const buffer = Buffer.from(image.data, "base64");
+      if (!best) best = { buffer, mime };
+      if (!(await reviewImage(buffer, mime, description))) {
+        lastError = "ảnh không qua cổng chất lượng (chữ nhúng/chủ thể mờ)";
+        continue;
+      }
+      return writeImage(outPathNoExt, buffer, mime);
+    } catch (err) {
+      // Lỗi mạng/timeout là sự cố tạm thời, không phải ảnh hỏng — thử lại
+      // thay vì để ném thẳng ra ngoài làm hỏng cả scene (xem generateUiImage).
+      lastError = (err as Error).message;
       continue;
     }
-    const mime = image.mime_type ?? "image/png";
-    const buffer = Buffer.from(image.data, "base64");
-    if (!best) best = { buffer, mime };
-    if (!(await reviewImage(buffer, mime, description))) {
-      lastError = "ảnh không qua cổng chất lượng (chữ nhúng/chủ thể mờ)";
-      continue;
-    }
-    return writeImage(outPathNoExt, buffer, mime);
   }
   // best-effort: dùng ảnh tốt nhất thay vì chặn cả video (xem generateUiImage)
   if (best) return { ...writeImage(outPathNoExt, best.buffer, best.mime), requiresReview: true };

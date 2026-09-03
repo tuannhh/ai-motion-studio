@@ -64,7 +64,7 @@ onBeforeUnmount(() => window.removeEventListener("hashchange", readHash));
 </script>
 
 <template>
-  <div class="flex min-h-[100dvh] flex-col overflow-hidden bg-[var(--mds-bg-page)]">
+  <div class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[var(--mds-bg-page)]">
     <MobileCreateView v-if="route === 'create'" @created="navigate('projects')" @close="goBack" />
     <MobileProjectsView v-else-if="route === 'projects'" />
     <MobileResourceView v-else-if="route === 'series'" kind="series" :is-admin="isAdmin" @back="goBack" />
