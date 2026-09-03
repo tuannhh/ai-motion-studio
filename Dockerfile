@@ -5,13 +5,14 @@ FROM node:24-bookworm-slim
 
 # Thư viện hệ thống cho Chrome Headless Shell (Remotion) + mysql client (áp
 # migration lúc khởi động) + font (Liberation + Noto phủ dấu tiếng Việt cho
-# ảnh/nhãn hệ thống; Be Vietnam Pro nhúng sẵn qua @remotion/google-fonts).
+# ảnh/nhãn hệ thống; Be Vietnam Pro nhúng sẵn qua @remotion/google-fonts) +
+# ffmpeg (pipeline/src/tts.ts dùng atempo để tăng tốc giọng đọc 1.2x).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 libxrandr2 \
       libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 \
       libpango-1.0-0 libcairo2 libcups2 \
       fonts-liberation fonts-noto-core ca-certificates default-mysql-client \
-      unzip poppler-utils \
+      unzip poppler-utils ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Ghim pnpm 9.15.0 (khớp bản sinh lockfile trên host; tránh policy minimumReleaseAge của pnpm 10)

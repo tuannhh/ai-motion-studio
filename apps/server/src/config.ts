@@ -17,6 +17,9 @@ const envSchema = z.object({
   SERVER_PORT: z.coerce.number().int().min(1).max(65535).default(4600),
   DB_HOST: z.string().default("127.0.0.1"),
   DB_PORT: z.coerce.number().int().default(3310),
+  /** Cloud SQL trên Cloud Run chỉ lộ Unix socket (không TCP) — đặt path
+   * /cloudsql/<INSTANCE_CONNECTION_NAME> để dùng socket thay vì DB_HOST/DB_PORT. */
+  DB_SOCKET_PATH: z.string().optional(),
   DB_USER: z.string().default("ams"),
   DB_PASSWORD: z.string().default("ams_dev_password"),
   DB_NAME: z.string().default("ams"),

@@ -11,17 +11,31 @@ DB_PASSWORD="${DB_PASSWORD:-ams_dev_password}"
 DB_NAME="${DB_NAME:-ams}"
 SQLDIR="apps/server/startup/database"
 
-mysql_do() {
-  mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" \
-        --password="$DB_PASSWORD" "$@"
-}
+# Cloud SQL trên Cloud Run chỉ lộ Unix socket tại /cloudsql/<connection-name> —
+# đặt DB_SOCKET_PATH thay vì DB_HOST/DB_PORT (khớp apps/server/src/db.ts).
+if [ -n "${DB_SOCKET_PATH:-}" ]; then
+  mysql_do() {
+    mysql --socket="$DB_SOCKET_PATH" --user="$DB_USER" --password="$DB_PASSWORD" "$@"
+  }
+  WAIT_LABEL="socket ${DB_SOCKET_PATH}"
+else
+  mysql_do() {
+    mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" \
+          --password="$DB_PASSWORD" "$@"
+  }
+  WAIT_LABEL="${DB_HOST}:${DB_PORT}"
+fi
 
 if [ "${APPLY_MIGRATIONS:-1}" != "0" ]; then
-  echo "[entrypoint] Đợi MySQL tại ${DB_HOST}:${DB_PORT} ..."
+  echo "[entrypoint] Đợi MySQL tại ${WAIT_LABEL} ..."
   for i in $(seq 1 60); do
-    if mysql_do -e "SELECT 1" >/dev/null 2>&1; then break; fi
+    LAST_ERR=$(mysql_do -e "SELECT 1" 2>&1 >/dev/null) && break
     sleep 2
-    if [ "$i" = "60" ]; then echo "[entrypoint] MySQL không phản hồi sau 120s" >&2; exit 1; fi
+    if [ "$i" = "60" ]; then
+      echo "[entrypoint] MySQL không phản hồi sau 120s — lỗi gần nhất:" >&2
+      echo "$LAST_ERR" >&2
+      exit 1
+    fi
   done
 
   echo "[entrypoint] Áp schema baseline ..."

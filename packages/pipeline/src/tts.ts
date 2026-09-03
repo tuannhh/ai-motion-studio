@@ -73,7 +73,10 @@ const applySpeed = (wav: Buffer, speed: number): Buffer => {
   ]);
   if (r.status !== 0) {
     fs.rmSync(tmp, { recursive: true, force: true });
-    throw new Error(`ffmpeg atempo lỗi: ${r.stderr?.toString().slice(0, 300)}`);
+    // r.error (vd ENOENT không tìm thấy binary ffmpeg) không có stderr — nếu chỉ
+    // đọc stderr sẽ hiện "undefined", che mất nguyên nhân thật lúc debug.
+    const detail = r.error ? r.error.message : r.stderr?.toString().slice(0, 300) || `exit ${r.status}`;
+    throw new Error(`ffmpeg atempo lỗi: ${detail}`);
   }
   const out = fs.readFileSync(outPath);
   fs.rmSync(tmp, { recursive: true, force: true });

@@ -3,8 +3,11 @@ import { appConfig } from "./config";
 
 /** Pool MySQL dùng chung — mọi truy vấn đều tham số hoá, không nối chuỗi SQL. */
 export const pool = mysql.createPool({
-  host: appConfig.DB_HOST,
-  port: appConfig.DB_PORT,
+  // Cloud SQL trên Cloud Run: có DB_SOCKET_PATH → nối qua Unix socket (host/port
+  // bị bỏ qua khi có socketPath, theo mysql2). Local/Docker: TCP host:port như cũ.
+  ...(appConfig.DB_SOCKET_PATH
+    ? { socketPath: appConfig.DB_SOCKET_PATH }
+    : { host: appConfig.DB_HOST, port: appConfig.DB_PORT }),
   user: appConfig.DB_USER,
   password: appConfig.DB_PASSWORD,
   database: appConfig.DB_NAME,
