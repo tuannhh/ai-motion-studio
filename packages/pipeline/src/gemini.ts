@@ -82,7 +82,11 @@ export type VoiceProfile = {
   /** giọng miền */
   region: "bac" | "nam";
   /** phong cách đọc */
-  style: "thoisu" | "tintuc";
+  style: "thoisu" | "tintuc" | "tvc";
+  /** tâm trạng/mood giọng đọc — mặc định "neutral" giữ nguyên hành vi cũ */
+  mood: "neutral" | "cheerful" | "energetic";
+  /** độ tuổi chất giọng, để Gemini chọn tông phù hợp đối tượng nghe */
+  age: "thanhnien" | "trungnien" | "nguoidilam";
   /** tốc độ đọc: 1 = bình thường, 1.2 = nhanh (xử lý hậu kỳ ffmpeg atempo) */
   speed: 1 | 1.2;
 };
@@ -91,7 +95,27 @@ export const DEFAULT_VOICE_PROFILE: VoiceProfile = {
   gender: "female",
   region: "bac",
   style: "tintuc",
+  mood: "neutral",
+  age: "nguoidilam",
   speed: 1,
+};
+
+const STYLE_TEXT: Record<VoiceProfile["style"], string> = {
+  thoisu: "thời sự trang trọng, chậm rãi có điểm nhấn",
+  tintuc: "tin tức hiện đại, gọn gàng, dứt khoát",
+  tvc: "quảng cáo TVC sôi nổi, cuốn hút, nhấn nhá như đang giới thiệu sản phẩm",
+};
+
+const MOOD_TEXT: Record<VoiceProfile["mood"], string> = {
+  neutral: "",
+  cheerful: ", tâm trạng vui vẻ, tươi tắn",
+  energetic: ", tâm trạng năng động, tràn đầy năng lượng",
+};
+
+const AGE_TEXT: Record<VoiceProfile["age"], string> = {
+  thanhnien: "chất giọng trẻ trung của thanh niên",
+  trungnien: "chất giọng chín chắn, từng trải của người trung niên",
+  nguoidilam: "chất giọng tự tin, chuyên nghiệp của người đi làm",
 };
 
 /**
@@ -102,12 +126,11 @@ export const DEFAULT_VOICE_PROFILE: VoiceProfile = {
 export const buildVoiceInstruction = (profile: VoiceProfile): string => {
   const gender = profile.gender === "male" ? "nam" : "nữ";
   const region = profile.region === "nam" ? "miền Nam" : "miền Bắc";
-  const style =
-    profile.style === "thoisu"
-      ? "thời sự trang trọng, chậm rãi có điểm nhấn"
-      : "tin tức hiện đại, gọn gàng, dứt khoát";
+  const age = AGE_TEXT[profile.age];
+  const style = STYLE_TEXT[profile.style];
+  const mood = MOOD_TEXT[profile.mood];
   return [
-    `Bạn là MỘT phát thanh viên ${gender} giọng ${region}, phong cách ${style}.`,
+    `Bạn là MỘT phát thanh viên ${gender} giọng ${region}, ${age}, phong cách ${style}${mood}.`,
     "Đọc NGUYÊN VĂN đoạn văn dưới đây bằng đúng MỘT giọng duy nhất từ đầu đến cuối.",
     "TUYỆT ĐỐI không đổi giọng, không nhập vai nhân vật khác kể cả khi gặp câu trích dẫn hay lời thoại.",
     "Không thêm, không bớt, không bình luận. Chỉ đọc:",

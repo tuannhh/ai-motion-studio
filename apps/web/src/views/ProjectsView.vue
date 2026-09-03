@@ -83,6 +83,34 @@ async function exportToDrive(jobId: number): Promise<void> {
   }
 }
 
+const VOICE_STYLE_LABEL: Record<string, string> = {
+  thoisu: "thời sự",
+  tintuc: "tin tức",
+  tvc: "quảng cáo TVC",
+};
+const VOICE_MOOD_LABEL: Record<string, string> = {
+  neutral: "",
+  cheerful: "vui vẻ",
+  energetic: "năng động",
+};
+const VOICE_AGE_LABEL: Record<string, string> = {
+  thanhnien: "thanh niên",
+  trungnien: "trung niên",
+  nguoidilam: "người đi làm",
+};
+const voiceSummary = computed(() => {
+  const p = detail.value?.project;
+  if (!p) return "";
+  const parts = [
+    `Giọng ${p.voice_gender === "male" ? "nam" : "nữ"} miền ${p.voice_region === "nam" ? "Nam" : "Bắc"}`,
+    VOICE_STYLE_LABEL[p.voice_style] ?? p.voice_style,
+    VOICE_AGE_LABEL[p.voice_age] ?? p.voice_age,
+    VOICE_MOOD_LABEL[p.voice_mood] || "",
+    Number(p.voice_speed) === 1.2 ? "nhanh 1,2x" : "tốc độ thường",
+  ].filter(Boolean);
+  return parts.join(", ");
+});
+
 const PROJECT_STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: "Nháp", color: "neutral" },
   generating: { label: "Đang sinh kịch bản", color: "info" },
@@ -285,12 +313,7 @@ onMounted(async () => {
             </MTag>
             <span>{{ detail.project.mode === "series" ? "Serie nối tập" : "Đa chiều" }}</span>
             <span>·</span>
-            <span>
-              Giọng {{ detail.project.voice_gender === "male" ? "nam" : "nữ" }}
-              miền {{ detail.project.voice_region === "nam" ? "Nam" : "Bắc" }},
-              {{ detail.project.voice_style === "thoisu" ? "thời sự" : "tin tức" }},
-              {{ Number(detail.project.voice_speed) === 1.2 ? "nhanh 1,2x" : "tốc độ thường" }}
-            </span>
+            <span>{{ voiceSummary }}</span>
             <span v-if="detail.project.duration_sec">· ≈{{ detail.project.duration_sec }}s</span>
           </p>
         </div>

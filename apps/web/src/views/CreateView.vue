@@ -25,7 +25,9 @@ const presetHint = ref("");
 const durationSec = ref(45);
 const voiceGender = ref<"male" | "female">("female");
 const voiceRegion = ref<"bac" | "nam">("bac");
-const voiceStyle = ref<"thoisu" | "tintuc">("tintuc");
+const voiceStyle = ref<"thoisu" | "tintuc" | "tvc">("tintuc");
+const voiceMood = ref<"neutral" | "cheerful" | "energetic">("neutral");
+const voiceAge = ref<"thanhnien" | "trungnien" | "nguoidilam">("nguoidilam");
 const voiceSpeed = ref<1 | 1.2>(1);
 const ideaError = ref("");
 const submitting = ref(false);
@@ -232,6 +234,8 @@ async function submit(): Promise<void> {
         voiceGender: voiceGender.value,
         voiceRegion: voiceRegion.value,
         voiceStyle: voiceStyle.value,
+        voiceMood: voiceMood.value,
+        voiceAge: voiceAge.value,
         voiceSpeed: voiceSpeed.value,
         templateId: templateId.value === "" ? undefined : templateId.value,
         musicTrackId: musicTrackId.value === "" ? undefined : musicTrackId.value,
@@ -519,6 +523,33 @@ async function submit(): Promise<void> {
             :options="[
               { label: 'Tin tức — gọn, dứt khoát', value: 'tintuc' },
               { label: 'Thời sự — trang trọng', value: 'thoisu' },
+              { label: 'Quảng cáo — TVC sôi nổi', value: 'tvc' },
+            ]"
+            direction="horizontal"
+          />
+        </label>
+        <label class="block text-[13px] font-medium">
+          Tâm trạng
+          <MRadioGroup
+            v-model="voiceMood"
+            class="mt-1"
+            :options="[
+              { label: 'Trung tính', value: 'neutral' },
+              { label: 'Vui vẻ', value: 'cheerful' },
+              { label: 'Năng động', value: 'energetic' },
+            ]"
+            direction="horizontal"
+          />
+        </label>
+        <label class="block text-[13px] font-medium">
+          Độ tuổi giọng đọc
+          <MRadioGroup
+            v-model="voiceAge"
+            class="mt-1"
+            :options="[
+              { label: 'Thanh niên', value: 'thanhnien' },
+              { label: 'Trung niên', value: 'trungnien' },
+              { label: 'Người đi làm', value: 'nguoidilam' },
             ]"
             direction="horizontal"
           />

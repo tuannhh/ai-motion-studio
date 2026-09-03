@@ -32,7 +32,9 @@ const watermarkPresetId = ref<number | "">("");
 const templateId = ref<number | "">("");
 const voiceGender = ref<"female" | "male">("female");
 const voiceRegion = ref<"bac" | "nam">("bac");
-const voiceStyle = ref<"tintuc" | "thoisu">("tintuc");
+const voiceStyle = ref<"tintuc" | "thoisu" | "tvc">("tintuc");
+const voiceMood = ref<"neutral" | "cheerful" | "energetic">("neutral");
+const voiceAge = ref<"thanhnien" | "trungnien" | "nguoidilam">("nguoidilam");
 const voiceSpeed = ref<1 | 1.2>(1);
 const submitting = ref(false);
 
@@ -120,7 +122,8 @@ async function submit(): Promise<void> {
         idea: idea.value.trim(), sourceMode: sourceMode.value, mode: mode.value,
         variantCount: variantCount.value, presetHint: presetHint.value || undefined,
         durationSec: durationSec.value, voiceGender: voiceGender.value, voiceRegion: voiceRegion.value,
-        voiceStyle: voiceStyle.value, voiceSpeed: voiceSpeed.value,
+        voiceStyle: voiceStyle.value, voiceMood: voiceMood.value, voiceAge: voiceAge.value,
+        voiceSpeed: voiceSpeed.value,
         templateId: templateId.value || undefined, musicTrackId: musicTrackId.value || undefined,
         watermarkPresetId: watermarkPresetId.value || undefined,
         seriesId: mode.value === "series" ? seriesId.value || undefined : undefined,
@@ -215,7 +218,9 @@ async function submit(): Promise<void> {
         <div class="mds-mobile-column-gap-4 mt-4 flex flex-col gap-4">
           <fieldset><legend class="mb-1 text-[13px] font-medium">Giọng</legend><MRadioGroup v-model="voiceGender" :options="[{ label: 'Nữ', value: 'female' }, { label: 'Nam', value: 'male' }]" direction="horizontal" /></fieldset>
           <fieldset><legend class="mb-1 text-[13px] font-medium">Miền</legend><MRadioGroup v-model="voiceRegion" :options="[{ label: 'Miền Bắc', value: 'bac' }, { label: 'Miền Nam', value: 'nam' }]" direction="horizontal" /></fieldset>
-          <fieldset><legend class="mb-1 text-[13px] font-medium">Phong cách</legend><MRadioGroup v-model="voiceStyle" :options="[{ label: 'Tin tức', value: 'tintuc' }, { label: 'Thời sự', value: 'thoisu' }]" direction="horizontal" /></fieldset>
+          <fieldset><legend class="mb-1 text-[13px] font-medium">Phong cách</legend><MRadioGroup v-model="voiceStyle" :options="[{ label: 'Tin tức', value: 'tintuc' }, { label: 'Thời sự', value: 'thoisu' }, { label: 'Quảng cáo TVC', value: 'tvc' }]" direction="horizontal" /></fieldset>
+          <fieldset><legend class="mb-1 text-[13px] font-medium">Tâm trạng</legend><MRadioGroup v-model="voiceMood" :options="[{ label: 'Trung tính', value: 'neutral' }, { label: 'Vui vẻ', value: 'cheerful' }, { label: 'Năng động', value: 'energetic' }]" direction="horizontal" /></fieldset>
+          <fieldset><legend class="mb-1 text-[13px] font-medium">Độ tuổi</legend><MRadioGroup v-model="voiceAge" :options="[{ label: 'Thanh niên', value: 'thanhnien' }, { label: 'Trung niên', value: 'trungnien' }, { label: 'Người đi làm', value: 'nguoidilam' }]" direction="horizontal" /></fieldset>
           <fieldset><legend class="mb-1 text-[13px] font-medium">Tốc độ</legend><MRadioGroup v-model="voiceSpeed" :options="[{ label: 'Bình thường', value: 1 }, { label: 'Nhanh 1,2x', value: 1.2 }]" direction="horizontal" /></fieldset>
         </div>
       </section>

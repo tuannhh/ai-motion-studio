@@ -33,7 +33,9 @@ export type CreateProjectInput = {
   durationSec?: number;
   voiceGender: "male" | "female";
   voiceRegion: "bac" | "nam";
-  voiceStyle: "thoisu" | "tintuc";
+  voiceStyle: "thoisu" | "tintuc" | "tvc";
+  voiceMood: "neutral" | "cheerful" | "energetic";
+  voiceAge: "thanhnien" | "trungnien" | "nguoidilam";
   voiceSpeed: 1 | 1.2;
   /** template-from-video áp cho project (phải thuộc user và đã ready) */
   templateId?: number;
@@ -76,8 +78,8 @@ export const createProject = async (
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO projects
        (user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, source_mode, mode, variant_count, preset_hint, duration_sec,
-        voice_gender, voice_region, voice_style, voice_speed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        voice_gender, voice_region, voice_style, voice_mood, voice_age, voice_speed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       input.templateId ?? null,
@@ -93,6 +95,8 @@ export const createProject = async (
       input.voiceGender,
       input.voiceRegion,
       input.voiceStyle,
+      input.voiceMood,
+      input.voiceAge,
       input.voiceSpeed,
     ]
   );
@@ -443,6 +447,8 @@ const voiceProfileOf = (project: RowDataPacket): VoiceProfile => ({
   gender: project.voice_gender,
   region: project.voice_region,
   style: project.voice_style,
+  mood: project.voice_mood,
+  age: project.voice_age,
   speed: Number(project.voice_speed) === 1.2 ? 1.2 : 1,
 });
 

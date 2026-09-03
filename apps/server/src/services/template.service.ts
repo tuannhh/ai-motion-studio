@@ -25,7 +25,9 @@ export const workflowSchema = z.object({
   durationSec: z.number().int().min(20).max(120).default(50),
   voiceGender: z.enum(["male", "female"]).default("female"),
   voiceRegion: z.enum(["bac", "nam"]).default("bac"),
-  voiceStyle: z.enum(["thoisu", "tintuc"]).default("tintuc"),
+  voiceStyle: z.enum(["thoisu", "tintuc", "tvc"]).default("tintuc"),
+  voiceMood: z.enum(["neutral", "cheerful", "energetic"]).default("neutral"),
+  voiceAge: z.enum(["thanhnien", "trungnien", "nguoidilam"]).default("nguoidilam"),
   voiceSpeed: z.union([z.literal(1), z.literal(1.2)]).default(1),
   /**
    * true (mặc định) = giữ gate người duyệt kịch bản trước khi render;

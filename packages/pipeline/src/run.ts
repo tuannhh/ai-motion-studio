@@ -9,10 +9,12 @@
  *   --variants N          số kịch bản (mặc định 1, tối đa 5)
  *   --preset <tên>        midnight|aurora|paper|noir (gợi ý cho AI)
  *   --duration N          thời lượng mục tiêu giây (20-120)
- *   --voice male|female   giọng đọc (mặc định female)
- *   --region bac|nam      giọng miền (mặc định bac)
- *   --style thoisu|tintuc phong cách đọc (mặc định tintuc)
- *   --speed 1|1.2         tốc độ đọc (mặc định 1)
+ *   --voice male|female         giọng đọc (mặc định female)
+ *   --region bac|nam            giọng miền (mặc định bac)
+ *   --style thoisu|tintuc|tvc   phong cách đọc (mặc định tintuc)
+ *   --mood neutral|cheerful|energetic  tâm trạng giọng đọc (mặc định neutral)
+ *   --age thanhnien|trungnien|nguoidilam  độ tuổi chất giọng (mặc định nguoidilam)
+ *   --speed 1|1.2               tốc độ đọc (mặc định 1)
  *   --no-images           bỏ sinh ảnh minh họa (Gemini image)
  *   --no-tts              bỏ giọng đọc (render câm, duration mặc định)
  *   --no-render           chỉ sinh kịch bản + spec, không render (để duyệt trước)
@@ -70,7 +72,20 @@ const durationSec = flag("duration")
 const voiceProfile: VoiceProfile = {
   gender: flag("voice") === "male" ? "male" : "female",
   region: flag("region") === "nam" ? "nam" : "bac",
-  style: flag("style") === "thoisu" ? "thoisu" : "tintuc",
+  style:
+    flag("style") === "thoisu" ? "thoisu" : flag("style") === "tvc" ? "tvc" : "tintuc",
+  mood:
+    flag("mood") === "cheerful"
+      ? "cheerful"
+      : flag("mood") === "energetic"
+        ? "energetic"
+        : "neutral",
+  age:
+    flag("age") === "thanhnien"
+      ? "thanhnien"
+      : flag("age") === "trungnien"
+        ? "trungnien"
+        : "nguoidilam",
   speed: flag("speed") === "1.2" ? 1.2 : 1,
 };
 const doTts = !has("no-tts");

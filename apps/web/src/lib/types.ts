@@ -44,7 +44,9 @@ export type ProjectDetail = {
   project: ProjectRow & {
     voice_gender: "male" | "female";
     voice_region: "bac" | "nam";
-    voice_style: "thoisu" | "tintuc";
+    voice_style: "thoisu" | "tintuc" | "tvc";
+    voice_mood: "neutral" | "cheerful" | "energetic";
+    voice_age: "thanhnien" | "trungnien" | "nguoidilam";
     voice_speed: string;
   };
   sources: SourceRow[];
@@ -115,7 +117,9 @@ export type TemplateWorkflow = {
   durationSec: number;
   voiceGender: "male" | "female";
   voiceRegion: "bac" | "nam";
-  voiceStyle: "thoisu" | "tintuc";
+  voiceStyle: "thoisu" | "tintuc" | "tvc";
+  voiceMood: "neutral" | "cheerful" | "energetic";
+  voiceAge: "thanhnien" | "trungnien" | "nguoidilam";
   voiceSpeed: 1 | 1.2;
   approveGate: boolean;
   scriptPipeline: string[];
