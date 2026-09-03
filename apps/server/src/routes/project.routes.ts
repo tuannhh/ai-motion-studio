@@ -13,6 +13,7 @@ import {
   getProjectDetail,
   getSourceFile,
   listProjects,
+  updateProjectSettings,
 } from "../services/project.service";
 
 const createSchema = z.object({
@@ -80,6 +81,20 @@ projectRoutes.get(
   "/:id",
   asyncHandler(async (req, res) => {
     res.json({ data: await getProjectDetail(req.user!.id, idParam(req.params.id)) });
+  })
+);
+
+/** Sửa thiết lập (thời lượng/giọng/nhạc/watermark/…) của project đã tạo — dùng
+ * cho luồng "xem lại video đã tạo, đổi thiết lập, làm lại" (không đụng video cũ). */
+projectRoutes.patch(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.");
+    }
+    await updateProjectSettings(req.user!.id, idParam(req.params.id), parsed.data);
+    res.json({ data: { ok: true } });
   })
 );
 

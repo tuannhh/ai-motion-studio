@@ -14,7 +14,7 @@ import { api, ApiError } from "../lib/api";
 import type { DriveExport, ProjectDetail, ProjectRow, ScriptRow } from "../lib/types";
 
 const props = defineProps<{ focusProjectId: number | null }>();
-const emit = defineEmits<{ focused: [] }>();
+const emit = defineEmits<{ focused: []; "edit-setup": [projectId: number] }>();
 const toast = useToast();
 
 const projects = ref<ProjectRow[]>([]);
@@ -318,7 +318,16 @@ onMounted(async () => {
           </p>
         </div>
       </div>
-      <MSpinner v-if="isBusy" :size="20" />
+      <div class="flex shrink-0 items-center gap-2">
+        <MSpinner v-if="isBusy" :size="20" />
+        <MButton
+          v-if="detail.project.status !== 'generating'"
+          title="Xem lại bước thiết lập ban đầu — đổi thời lượng, tư liệu, giọng đọc… rồi tạo lại (video hiện có vẫn giữ nguyên)"
+          @click="emit('edit-setup', detail.project.id)"
+        >
+          <MIcon name="edit" :size="16" /> Sửa thiết lập &amp; tạo lại
+        </MButton>
+      </div>
     </div>
 
     <p

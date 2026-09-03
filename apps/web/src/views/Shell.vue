@@ -26,6 +26,14 @@ const collapsed = ref(false);
 const userMenuOpen = ref(false);
 /** project đang mở chi tiết (ProjectsView quản lý) — set khi tạo xong để nhảy thẳng vào */
 const focusProjectId = ref<number | null>(null);
+/** project đang SỬA THIẾT LẬP & LÀM LẠI (mở từ nút trong "Video đã tạo") — null = tạo mới bình thường */
+const editProjectId = ref<number | null>(null);
+
+/** Bấm menu bên trái: tự tay chọn "Tạo video" luôn quay về form trống (không kẹt ở chế độ sửa cũ) */
+function onSidebarNav(key: string): void {
+  active.value = key;
+  if (key === "create") editProjectId.value = null;
+}
 
 const items = computed(() => {
   const base = [
@@ -46,7 +54,13 @@ const items = computed(() => {
 
 function onProjectCreated(projectId: number): void {
   focusProjectId.value = projectId;
+  editProjectId.value = null;
   active.value = "projects";
+}
+
+function onEditSetup(projectId: number): void {
+  editProjectId.value = projectId;
+  active.value = "create";
 }
 
 async function logout(): Promise<void> {
@@ -192,17 +206,27 @@ async function changePassword(): Promise<void> {
       <MButton class="mt-2 [&]:w-full" @click="logout">Đăng xuất</MButton>
     </div>
     <div class="flex min-h-0 flex-1" @click="userMenuOpen = false">
-      <MSidebar v-model="active" v-model:collapsed="collapsed" :items="items" />
+      <MSidebar
+        :model-value="active"
+        @update:model-value="onSidebarNav"
+        v-model:collapsed="collapsed"
+        :items="items"
+      />
       <main class="flex min-w-0 flex-1 flex-col overflow-auto">
         <!-- KeepAlive: giữ nội dung form Tạo video khi chuyển sang menu khác rồi
              quay lại (không mất dữ liệu đang nhập; form tự reset sau khi tạo xong) -->
         <KeepAlive>
-          <CreateView v-if="active === 'create'" @created="onProjectCreated" />
+          <CreateView
+            v-if="active === 'create'"
+            :edit-project-id="editProjectId"
+            @created="onProjectCreated"
+          />
         </KeepAlive>
         <ProjectsView
           v-if="active === 'projects'"
           :focus-project-id="focusProjectId"
           @focused="focusProjectId = null"
+          @edit-setup="onEditSetup"
         />
         <SeriesView v-else-if="active === 'series'" />
         <TemplatesView v-else-if="active === 'templates'" />

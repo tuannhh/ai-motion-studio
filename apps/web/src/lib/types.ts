@@ -42,6 +42,11 @@ export type ScriptRow = {
 
 export type ProjectDetail = {
   project: ProjectRow & {
+    source_mode: "user" | "ai" | "combine";
+    template_id: number | null;
+    series_id: number | null;
+    music_track_id: number | null;
+    watermark_preset_id: number | null;
     voice_gender: "male" | "female";
     voice_region: "bac" | "nam";
     voice_style: "thoisu" | "tintuc" | "tvc";

@@ -49,10 +49,15 @@ export type CreateProjectInput = {
   watermarkPresetId?: number;
 };
 
-export const createProject = async (
+/**
+ * Kiểm tra sở hữu + tính hợp lệ của template/serie/nhạc/watermark tham chiếu
+ * trong input tạo/sửa project — dùng chung cho createProject và updateProjectSettings
+ * (chống IDOR: mọi tham chiếu chéo bảng đều xác thực thuộc đúng userId).
+ */
+const resolveProjectRefs = async (
   userId: number,
   input: CreateProjectInput
-): Promise<number> => {
+): Promise<{ presetHint: string | null; seriesId: number | null }> => {
   let presetHint = input.presetHint ?? null;
   if (input.templateId) {
     // Kiểm tra sở hữu + ready (fail-closed); preset khoá theo profile template
@@ -75,6 +80,14 @@ export const createProject = async (
     // chống IDOR: preset phải thuộc user (getPresetForRender ném 404 nếu không)
     await getPresetForRender(userId, input.watermarkPresetId);
   }
+  return { presetHint, seriesId };
+};
+
+export const createProject = async (
+  userId: number,
+  input: CreateProjectInput
+): Promise<number> => {
+  const { presetHint, seriesId } = await resolveProjectRefs(userId, input);
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO projects
        (user_id, template_id, series_id, music_track_id, watermark_preset_id, idea, source_mode, mode, variant_count, preset_hint, duration_sec,
@@ -101,6 +114,51 @@ export const createProject = async (
     ]
   );
   return result.insertId;
+};
+
+/**
+ * Sửa thiết lập của project ĐÃ TẠO (thời lượng/giọng/tư liệu nguồn/nhạc/watermark…)
+ * rồi gọi lại generateScripts để "làm lại" — video đã render trước đó vẫn giữ
+ * nguyên (generateScripts chỉ xoá script CHƯA có render job 'done', xem đó).
+ * Không cho sửa khi đang generating để tránh đụng độ với lần sinh đang chạy.
+ */
+export const updateProjectSettings = async (
+  userId: number,
+  projectId: number,
+  input: CreateProjectInput
+): Promise<void> => {
+  const project = await getProjectOwned(userId, projectId);
+  if (project.status === "generating") {
+    throw badRequest("Project đang sinh kịch bản, đợi xong rồi hãy sửa thiết lập.");
+  }
+  const { presetHint, seriesId } = await resolveProjectRefs(userId, input);
+  await pool.query(
+    `UPDATE projects SET
+       template_id = ?, series_id = ?, music_track_id = ?, watermark_preset_id = ?,
+       idea = ?, source_mode = ?, mode = ?, variant_count = ?, preset_hint = ?, duration_sec = ?,
+       voice_gender = ?, voice_region = ?, voice_style = ?, voice_mood = ?, voice_age = ?, voice_speed = ?
+     WHERE id = ? AND user_id = ?`,
+    [
+      input.templateId ?? null,
+      seriesId,
+      input.musicTrackId ?? null,
+      input.watermarkPresetId ?? null,
+      input.idea,
+      input.sourceMode,
+      input.mode,
+      input.variantCount,
+      presetHint,
+      input.durationSec ?? null,
+      input.voiceGender,
+      input.voiceRegion,
+      input.voiceStyle,
+      input.voiceMood,
+      input.voiceAge,
+      input.voiceSpeed,
+      projectId,
+      userId,
+    ]
+  );
 };
 
 /**

@@ -10,8 +10,19 @@ import RangeField from "../components/RangeField.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, apiForm, ApiError } from "../lib/api";
 import MInput from "../components/mds/MInput.vue";
-import type { MusicTrack, SeriesRow, TemplateRow, WatermarkPreset } from "../lib/types";
+import MTag from "../components/mds/MTag.vue";
+import type {
+  MusicTrack,
+  ProjectDetail,
+  SeriesRow,
+  SourceRow,
+  TemplateRow,
+  WatermarkPreset,
+} from "../lib/types";
 
+/** editProjectId = đang sửa thiết lập & làm lại 1 project đã có (từ "Video đã tạo");
+ * null = tạo mới bình thường. Video đã render trước đó KHÔNG bị mất khi làm lại. */
+const props = defineProps<{ editProjectId?: number | null }>();
 const emit = defineEmits<{ created: [projectId: number] }>();
 const toast = useToast();
 
@@ -178,7 +189,67 @@ function resetForm(): void {
   mode.value = "angles";
   variantCount.value = 1;
   durationSec.value = 45;
+  existingSources.value = [];
 }
+
+// ---- Sửa thiết lập & làm lại (mở từ "Video đã tạo") ----
+const editLoading = ref(false);
+/** Tư liệu ĐÃ có sẵn trên project đang sửa (khác uploadItems = tư liệu MỚI thêm) */
+const existingSources = ref<SourceRow[]>([]);
+const removingSourceId = ref<number | null>(null);
+
+async function loadForEdit(projectId: number): Promise<void> {
+  editLoading.value = true;
+  try {
+    const { project, sources } = await api<ProjectDetail>(`/v1/projects/${projectId}`);
+    idea.value = project.idea;
+    sourceMode.value = project.source_mode;
+    mode.value = project.mode;
+    variantCount.value = project.variant_count;
+    presetHint.value = project.preset_hint ?? "";
+    durationSec.value = project.duration_sec ?? 45;
+    voiceGender.value = project.voice_gender;
+    voiceRegion.value = project.voice_region;
+    voiceStyle.value = project.voice_style;
+    voiceMood.value = project.voice_mood;
+    voiceAge.value = project.voice_age;
+    voiceSpeed.value = Number(project.voice_speed) === 1.2 ? 1.2 : 1;
+    templateId.value = project.template_id ?? "";
+    seriesId.value = project.series_id ?? "";
+    newSeriesName.value = "";
+    musicTrackId.value = project.music_track_id ?? "";
+    watermarkPresetId.value = project.watermark_preset_id ?? "";
+    existingSources.value = sources;
+    linkInputs.value = [""];
+    uploadItems.value = [];
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không nạp được thiết lập project.");
+  } finally {
+    editLoading.value = false;
+  }
+}
+
+async function removeExistingSource(sourceId: number): Promise<void> {
+  if (!props.editProjectId) return;
+  removingSourceId.value = sourceId;
+  try {
+    await api(`/v1/projects/${props.editProjectId}/sources/${sourceId}`, { method: "DELETE" });
+    existingSources.value = existingSources.value.filter((s) => s.id !== sourceId);
+  } catch (cause) {
+    toast.error(cause instanceof ApiError ? cause.message : "Không xoá được tư liệu.");
+  } finally {
+    removingSourceId.value = null;
+  }
+}
+
+watch(
+  () => props.editProjectId,
+  (id) => {
+    if (id) void loadForEdit(id);
+    else resetForm();
+  },
+  { immediate: true }
+);
 
 /** KeepAlive: mỗi lần quay lại màn, nạp lại các danh sách chọn (template/serie/nhạc/watermark mới tạo) */
 onActivated(async () => {
@@ -214,6 +285,33 @@ async function waitForExtraction(projectId: number): Promise<boolean> {
   return false;
 }
 
+function buildSettingsPayload() {
+  return {
+    idea: idea.value.trim(),
+    sourceMode: sourceMode.value,
+    mode: mode.value,
+    variantCount: variantCount.value,
+    presetHint: presetHint.value || undefined,
+    durationSec: durationSec.value,
+    voiceGender: voiceGender.value,
+    voiceRegion: voiceRegion.value,
+    voiceStyle: voiceStyle.value,
+    voiceMood: voiceMood.value,
+    voiceAge: voiceAge.value,
+    voiceSpeed: voiceSpeed.value,
+    templateId: templateId.value === "" ? undefined : templateId.value,
+    musicTrackId: musicTrackId.value === "" ? undefined : musicTrackId.value,
+    watermarkPresetId:
+      watermarkPresetId.value === "" ? undefined : watermarkPresetId.value,
+    seriesId:
+      mode.value === "series" && seriesId.value !== "" ? seriesId.value : undefined,
+    newSeriesName:
+      mode.value === "series" && seriesId.value === "" && newSeriesName.value.trim()
+        ? newSeriesName.value.trim()
+        : undefined,
+  };
+}
+
 async function submit(): Promise<void> {
   ideaError.value = "";
   if (idea.value.trim().length < 10) {
@@ -222,33 +320,20 @@ async function submit(): Promise<void> {
   }
   submitting.value = true;
   try {
-    const { id: projectId } = await api<{ id: number }>("/v1/projects", {
-      method: "POST",
-      body: JSON.stringify({
-        idea: idea.value.trim(),
-        sourceMode: sourceMode.value,
-        mode: mode.value,
-        variantCount: variantCount.value,
-        presetHint: presetHint.value || undefined,
-        durationSec: durationSec.value,
-        voiceGender: voiceGender.value,
-        voiceRegion: voiceRegion.value,
-        voiceStyle: voiceStyle.value,
-        voiceMood: voiceMood.value,
-        voiceAge: voiceAge.value,
-        voiceSpeed: voiceSpeed.value,
-        templateId: templateId.value === "" ? undefined : templateId.value,
-        musicTrackId: musicTrackId.value === "" ? undefined : musicTrackId.value,
-        watermarkPresetId:
-          watermarkPresetId.value === "" ? undefined : watermarkPresetId.value,
-        seriesId:
-          mode.value === "series" && seriesId.value !== "" ? seriesId.value : undefined,
-        newSeriesName:
-          mode.value === "series" && seriesId.value === "" && newSeriesName.value.trim()
-            ? newSeriesName.value.trim()
-            : undefined,
-      }),
-    });
+    let projectId: number;
+    if (props.editProjectId) {
+      projectId = props.editProjectId;
+      await api(`/v1/projects/${projectId}`, {
+        method: "PATCH",
+        body: JSON.stringify(buildSettingsPayload()),
+      });
+    } else {
+      const created = await api<{ id: number }>("/v1/projects", {
+        method: "POST",
+        body: JSON.stringify(buildSettingsPayload()),
+      });
+      projectId = created.id;
+    }
 
     // Chỉ nạp tư liệu người dùng khi nguồn là "user"/"combine" (bỏ qua khi "AI tự tìm")
     let hasSources = false;
@@ -294,11 +379,21 @@ async function submit(): Promise<void> {
     }
 
     await api(`/v1/projects/${projectId}/generate`, { method: "POST" });
-    toast.success("Đã bắt đầu sinh kịch bản — duyệt kịch bản khi AI hoàn tất.");
-    resetForm();
+    toast.success(
+      props.editProjectId
+        ? "Đã lưu thiết lập mới — đang sinh lại kịch bản (video cũ vẫn giữ nguyên)."
+        : "Đã bắt đầu sinh kịch bản — duyệt kịch bản khi AI hoàn tất."
+    );
+    if (!props.editProjectId) resetForm();
     emit("created", projectId);
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không thể tạo dự án.");
+    toast.error(
+      cause instanceof ApiError
+        ? cause.message
+        : props.editProjectId
+          ? "Không lưu được thiết lập."
+          : "Không thể tạo dự án."
+    );
   } finally {
     submitting.value = false;
   }
@@ -310,9 +405,15 @@ async function submit(): Promise<void> {
     <div class="min-h-0 flex-1 overflow-auto">
       <div class="mx-auto w-full max-w-[760px] p-6">
     <header class="mb-4">
-      <h1 class="m-0 text-xl font-semibold">Tạo video mới</h1>
+      <h1 class="m-0 text-xl font-semibold">
+        {{ editProjectId ? "Sửa thiết lập & làm lại" : "Tạo video mới" }}
+      </h1>
       <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
-        Nhập ý tưởng, đính kèm tư liệu (nếu có) — AI sinh kịch bản để bạn duyệt trước khi render.
+        {{
+          editProjectId
+            ? "Đổi thời lượng, tư liệu, giọng đọc… rồi sinh lại kịch bản. Video đã render trước đó vẫn giữ nguyên."
+            : "Nhập ý tưởng, đính kèm tư liệu (nếu có) — AI sinh kịch bản để bạn duyệt trước khi render."
+        }}
       </p>
     </header>
 
@@ -371,8 +472,31 @@ async function submit(): Promise<void> {
       </div>
 
       <div v-if="showUserSources" class="mt-4">
+        <div v-if="editProjectId && existingSources.length" class="mb-3">
+          <p class="m-0 mb-1 text-[13px] font-medium">Tư liệu hiện có ({{ existingSources.length }})</p>
+          <ul class="m-0 list-none space-y-1 p-0">
+            <li
+              v-for="s in existingSources"
+              :key="s.id"
+              class="flex items-center gap-2 rounded-md bg-[var(--mds-bg-page)] px-2 py-1.5 text-[13px]"
+            >
+              <MIcon name="file-text" :size="16" class="shrink-0 text-[var(--mds-text-secondary)]" />
+              <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
+              <MTag :color="s.status === 'ready' ? 'success' : s.status === 'failed' ? 'danger' : 'info'" size="sm">
+                {{ s.status === "ready" ? "Đã trích xuất" : s.status === "failed" ? "Lỗi" : "Đang trích xuất" }}
+              </MTag>
+              <MButton
+                :loading="removingSourceId === s.id"
+                title="Xoá tư liệu"
+                @click="removeExistingSource(s.id)"
+              >
+                <MIcon name="trash" :size="16" />
+              </MButton>
+            </li>
+          </ul>
+        </div>
         <p class="m-0 mb-1 text-[13px] font-medium">
-          Tư liệu tham khảo
+          {{ editProjectId ? "Thêm tư liệu mới" : "Tư liệu tham khảo" }}
           <span class="font-normal text-[var(--mds-text-secondary)]">
             — txt, docx, pdf, âm thanh, video, ảnh (jpg/png/webp) (≤18MB/file). Ảnh thật của bạn sẽ được AI ưu tiên dùng làm minh hoạ.</span>
         </p>
@@ -578,8 +702,8 @@ async function submit(): Promise<void> {
       class="shrink-0 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
     >
       <div class="mx-auto flex w-full max-w-[760px] justify-end gap-2">
-        <MButton variant="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
-          Tạo kịch bản
+        <MButton variant="primary" :loading="submitting" :disabled="!canSubmit || editLoading" @click="submit">
+          {{ editProjectId ? "Lưu & làm lại" : "Tạo kịch bản" }}
         </MButton>
       </div>
     </div>
