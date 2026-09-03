@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from "vue";
 import MButton from "../components/mds/MButton.vue";
+import MIcon from "../components/mds/MIcon.vue";
 import MRadioGroup from "../components/mds/MRadioGroup.vue";
 import MSelect from "../components/mds/MSelect.vue";
 import MTextarea from "../components/mds/MTextarea.vue";
@@ -337,7 +338,7 @@ async function submit(): Promise<void> {
           v-else-if="selectedTemplate?.profile"
           class="mt-1 flex items-start gap-1.5 rounded-md bg-[var(--mds-warning-bg,#FFF7E6)] p-2 font-normal text-[var(--mds-warning-text,#8A5A00)]"
         >
-          <span aria-hidden="true">⚠️</span>
+          <MIcon name="alert-triangle" :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
           <span>
             Mẫu này <strong>tự render ngay, KHÔNG chờ bạn duyệt</strong> kịch bản (preset
             {{ selectedTemplate.profile.preset }}). Muốn xem/sửa kịch bản trước khi render thì bật

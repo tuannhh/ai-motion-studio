@@ -9,6 +9,7 @@ import MSpinner from "../components/mds/MSpinner.vue";
 import MSwitch from "../components/mds/MSwitch.vue";
 import MTag from "../components/mds/MTag.vue";
 import MTextarea from "../components/mds/MTextarea.vue";
+import MUpload from "../components/mds/MUpload.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, apiForm, ApiError } from "../lib/api";
 import type { TemplateRow, TemplateWorkflow } from "../lib/types";
@@ -61,19 +62,22 @@ onBeforeUnmount(() => {
 const createOpen = ref(false);
 const newName = ref("");
 const newFile = ref<File | null>(null);
+const uploadItems = ref<Array<{ id: string; name: string; size: number; status: "pending"; file: File }>>([]);
 const nameError = ref("");
 const fileError = ref("");
 const creating = ref(false);
 
-function onPickFile(e: Event): void {
+function onPickFile(files: File[]): void {
   fileError.value = "";
-  const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+  const file = files[0] ?? null;
   if (file && file.size > 18 * 1024 * 1024) {
     fileError.value = "Video nặng quá 18MB — hãy nén hoặc cắt đoạn tiêu biểu 30-60 giây.";
     newFile.value = null;
+    uploadItems.value = [];
     return;
   }
   newFile.value = file;
+  uploadItems.value = file ? [{ id: String(Date.now()), name: file.name, size: file.size, status: "pending", file }] : [];
 }
 
 async function createTemplate(): Promise<void> {
@@ -97,6 +101,7 @@ async function createTemplate(): Promise<void> {
     createOpen.value = false;
     newName.value = "";
     newFile.value = null;
+    uploadItems.value = [];
     await reload();
   } catch (cause) {
     toast.error(cause instanceof ApiError ? cause.message : "Không tạo được mẫu.");
@@ -299,12 +304,7 @@ const hasTemplates = computed(() => templates.value.length > 0);
         <div class="text-[13px] font-medium">
           Video mẫu <span class="text-[var(--mds-danger)]">*</span>
           <span class="font-normal text-[var(--mds-text-secondary)]"> — mp4, mov, webm ≤18MB</span>
-          <input
-            type="file"
-            accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
-            class="mt-1 block w-full text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--mds-brand-50,#EFF4FF)] file:px-3 file:py-1.5 file:text-[13px] file:font-medium file:text-[var(--mds-brand-600,#245FDF)]"
-            @change="onPickFile"
-          />
+          <MUpload :model-value="uploadItems" accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" :multiple="false" :max-size-m-b="18" label="Chọn video mẫu" @select-files="onPickFile" @remove="onPickFile([])" />
           <p v-if="fileError" class="m-0 mt-1 text-xs text-[var(--mds-danger)]">{{ fileError }}</p>
           <p v-else-if="newFile" class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]">
             {{ newFile.name }} — {{ (newFile.size / 1e6).toFixed(1) }}MB

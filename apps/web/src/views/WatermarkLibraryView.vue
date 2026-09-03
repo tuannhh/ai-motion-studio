@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import MButton from "../components/mds/MButton.vue";
+import MDialog from "../components/mds/MDialog.vue";
 import MDrawer from "../components/mds/MDrawer.vue";
 import MEmptyState from "../components/mds/MEmptyState.vue";
 import MIcon from "../components/mds/MIcon.vue";
 import MInput from "../components/mds/MInput.vue";
 import MRadioGroup from "../components/mds/MRadioGroup.vue";
+import MUpload from "../components/mds/MUpload.vue";
 import RangeField from "../components/RangeField.vue";
 import WatermarkView from "./WatermarkView.vue";
 import { useToast } from "../components/mds/toast.js";
@@ -49,6 +51,7 @@ const scale = ref(0.16);
 const posX = ref(0.5);
 const posY = ref(0.06);
 const imageFile = ref<File | null>(null);
+const imageUploadItems = ref<Array<{ id: string; name: string; size: number; status: "pending"; file: File }>>([]);
 const localImageUrl = ref("");
 const saving = ref(false);
 
@@ -80,6 +83,7 @@ function resetForm(): void {
   posX.value = 0.5;
   posY.value = 0.06;
   imageFile.value = null;
+  imageUploadItems.value = [];
   if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
   localImageUrl.value = "";
 }
@@ -102,14 +106,18 @@ function openEdit(p: WatermarkPreset): void {
   posX.value = p.x;
   posY.value = p.y;
   imageFile.value = null;
+  imageUploadItems.value = [];
   if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
   localImageUrl.value = "";
   drawerOpen.value = true;
 }
 
-function onPickImage(e: Event): void {
-  const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+function onPickImage(files: File[]): void {
+  const file = files[0] ?? null;
   imageFile.value = file;
+  imageUploadItems.value = file
+    ? [{ id: String(Date.now()), name: file.name, size: file.size, status: "pending", file }]
+    : [];
   if (localImageUrl.value) URL.revokeObjectURL(localImageUrl.value);
   localImageUrl.value = file ? URL.createObjectURL(file) : "";
 }
@@ -310,15 +318,16 @@ async function confirmDelete(): Promise<void> {
             Nội dung chữ <span class="text-[var(--mds-danger)]">*</span>
             <MInput v-model="text" class="mt-1" :maxlength="40" placeholder="© Kênh của bạn" />
           </label>
-          <label v-else class="block text-[13px] font-medium">
-            Ảnh (PNG/JPEG/WebP ≤4MB){{ editingId !== null ? " — chọn để thay ảnh" : "" }}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              class="mt-1 block w-full text-[13px]"
-              @change="onPickImage"
-            />
-          </label>
+          <MUpload
+            v-else
+            :model-value="imageUploadItems"
+            accept="image/png,image/jpeg,image/webp"
+            :multiple="false"
+            :max-size-m-b="4"
+            :label="`Ảnh watermark${editingId !== null ? ' — chọn để thay ảnh' : ''}`"
+            @select-files="onPickImage"
+            @remove="onPickImage([])"
+          />
           <div class="text-[13px] font-medium">
             Độ mờ
             <RangeField v-model="opacity" :min="0.05" :max="1" :step="0.05" :format="(v: number) => `${Math.round(v * 100)}%`" />
@@ -335,23 +344,16 @@ async function confirmDelete(): Promise<void> {
       </template>
     </MDrawer>
 
-    <!-- Xác nhận xoá -->
-    <div
-      v-if="deleteTarget"
-      class="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4"
-      @click.self="deleteTarget = null"
+    <MDialog
+      :model-value="!!deleteTarget"
+      title="Xoá watermark?"
+      type="danger"
+      confirm-text="Xoá"
+      @update:model-value="!$event && (deleteTarget = null)"
+      @confirm="confirmDelete"
     >
-      <div class="w-full max-w-[360px] rounded-lg bg-[var(--mds-bg)] p-5 shadow-2xl">
-        <h3 class="m-0 text-[16px] font-semibold">Xoá watermark?</h3>
-        <p class="m-0 mt-2 text-[13px] text-[var(--mds-text-secondary)]">
-          Xoá “{{ deleteTarget.name }}” — video đang dùng sẽ quay về watermark mặc định. Không hoàn tác.
-        </p>
-        <div class="mt-4 flex justify-end gap-2">
-          <MButton @click="deleteTarget = null">Hủy</MButton>
-          <MButton variant="primary" @click="confirmDelete">Xoá</MButton>
-        </div>
-      </div>
-    </div>
+      Xoá “{{ deleteTarget?.name }}” — video đang dùng sẽ quay về watermark mặc định. Không hoàn tác.
+    </MDialog>
 
     <!-- Admin: cấu hình watermark mặc định hệ thống (thu gọn — ít dùng hơn thư viện trên) -->
     <section v-if="isAdmin" class="mt-8 border-t border-[var(--mds-neutral-300,#E9EAEB)] pt-5">

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import MButton from "../components/mds/MButton.vue";
 import MInput from "../components/mds/MInput.vue";
 import MRadioGroup from "../components/mds/MRadioGroup.vue";
+import MUpload from "../components/mds/MUpload.vue";
 import RangeField from "../components/RangeField.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, apiForm, ApiError } from "../lib/api";
@@ -35,6 +36,7 @@ const imageVersion = ref(0);
 const saving = ref(false);
 const uploading = ref(false);
 const loaded = ref(false);
+const imageUploadItems = ref<Array<{ id: string; name: string; size: number; status: "pending" }>>([]);
 
 /** khung preview: 270×480 (tỷ lệ đúng 1080×1920, hệ số 1/4) */
 const PREVIEW_W = 270;
@@ -83,10 +85,8 @@ function endDrag(): void {
   dragging.value = false;
 }
 
-async function uploadImage(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = "";
+async function uploadImage(files: File[]): Promise<void> {
+  const file = files[0];
   if (!file) return;
   uploading.value = true;
   try {
@@ -94,6 +94,7 @@ async function uploadImage(event: Event): Promise<void> {
     form.append("file", file, file.name);
     await apiForm(`${BASE()}/image`, form);
     hasImage.value = true;
+    imageUploadItems.value = [{ id: String(Date.now()), name: file.name, size: file.size, status: "pending" }];
     imageVersion.value += 1;
     if (kind.value === "none") kind.value = "image";
     toast.success("Đã tải ảnh watermark.");
@@ -225,12 +226,16 @@ async function save(): Promise<void> {
 
         <div v-if="kind === 'image'" class="mt-4">
           <p class="m-0 mb-1 text-[13px] font-medium">Ảnh watermark (PNG/JPEG/WebP, nên là PNG nền trong)</p>
-          <label
-            class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[var(--mds-neutral-400,#CED1D6)] px-3 py-2 text-[13px] hover:border-[var(--mds-brand-600)]"
-          >
-            <input type="file" class="hidden" accept="image/png,image/jpeg,image/webp" @change="uploadImage" />
-            {{ uploading ? "Đang tải lên…" : hasImage ? "Thay ảnh khác" : "Chọn ảnh" }}
-          </label>
+          <MUpload
+            :model-value="imageUploadItems"
+            accept="image/png,image/jpeg,image/webp"
+            :multiple="false"
+            :max-size-m-b="4"
+            :disabled="uploading"
+            :label="uploading ? 'Đang tải ảnh watermark' : hasImage ? 'Thay ảnh watermark' : 'Ảnh watermark'"
+            @select-files="uploadImage"
+            @remove="imageUploadItems = []"
+          />
         </div>
 
         <div v-if="kind === 'text' || kind === 'image'" class="mt-5 space-y-4">
