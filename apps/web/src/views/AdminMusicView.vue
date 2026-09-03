@@ -4,6 +4,7 @@ import MButton from "../components/mds/MButton.vue";
 import MDialog from "../components/mds/MDialog.vue";
 import MDrawer from "../components/mds/MDrawer.vue";
 import MEmptyState from "../components/mds/MEmptyState.vue";
+import MIcon from "../components/mds/MIcon.vue";
 import MInput from "../components/mds/MInput.vue";
 import MSpinner from "../components/mds/MSpinner.vue";
 import MTag from "../components/mds/MTag.vue";
@@ -21,6 +22,41 @@ import type { MusicTrack } from "../lib/types";
 const toast = useToast();
 const tracks = ref<MusicTrack[]>([]);
 const loading = ref(true);
+const showKeywordHints = ref(false);
+
+/**
+ * Gợi ý từ khoá tìm nhạc trên pixabay.com/music — nhóm theo 4 preset màu thật
+ * của engine (style/presets.ts) + flavor VOX, để kho nhạc phủ đủ tông cho mọi
+ * video thay vì chỉ có 1-2 bài lặp lại. Ưu tiên bản KHÔNG lời (instrumental) —
+ * video luôn có lời đọc voice-off nên nhạc có lời sẽ chỏi. (Phản hồi 2026-09-03.)
+ */
+const KEYWORD_GROUPS: { preset: string; desc: string; keywords: string[] }[] = [
+  {
+    preset: "midnight",
+    desc: "Tối xanh đêm, công nghệ/AI, glow tiết chế",
+    keywords: ["corporate technology", "tech ambient", "futuristic corporate", "digital innovation instrumental"],
+  },
+  {
+    preset: "aurora",
+    desc: "Tối tím-teal, cực quang, truyền cảm hứng",
+    keywords: ["inspiring ambient", "uplifting corporate", "dreamy ambient chill", "cinematic ambient"],
+  },
+  {
+    preset: "paper",
+    desc: "Editorial giấy kem, ấm áp, giải thích nhẹ nhàng",
+    keywords: ["soft corporate", "warm ukulele corporate", "minimal piano background", "light acoustic corporate"],
+  },
+  {
+    preset: "noir",
+    desc: "Gần đen, đỏ báo chí, kiểu tin tức điều tra",
+    keywords: ["dark cinematic tension", "investigative news background", "dramatic corporate tension", "suspense minimal"],
+  },
+  {
+    preset: "vox (mọi màu)",
+    desc: "Flavor cắt nhanh, năng lượng cao, giải thích dứt khoát",
+    keywords: ["energetic corporate upbeat", "modern tech beat", "fast corporate no vocal"],
+  },
+];
 
 async function reload(): Promise<void> {
   try {
@@ -125,6 +161,31 @@ const fmtSize = (b: number) => `${(b / 1e6).toFixed(1)}MB`;
       </div>
       <MButton variant="primary" @click="createOpen = true">Thêm nhạc</MButton>
     </header>
+
+    <button
+      type="button"
+      class="mb-4 flex items-center gap-1.5 text-[13px] font-medium text-[var(--mds-brand-600)]"
+      @click="showKeywordHints = !showKeywordHints"
+    >
+      <MIcon :name="showKeywordHints ? 'chevron-down' : 'chevron-right'" :size="14" />
+      Gợi ý từ khoá tìm nhạc theo tông màu video
+    </button>
+    <div
+      v-if="showKeywordHints"
+      class="mb-4 grid gap-3 rounded-lg bg-[var(--mds-bg)] p-4 shadow-[var(--mds-shadow-card)] sm:grid-cols-2"
+    >
+      <div v-for="g in KEYWORD_GROUPS" :key="g.preset">
+        <p class="m-0 text-[13px] font-semibold">{{ g.preset }}</p>
+        <p class="m-0 mb-1.5 text-xs text-[var(--mds-text-secondary)]">{{ g.desc }}</p>
+        <div class="flex flex-wrap gap-1">
+          <MTag v-for="k in g.keywords" :key="k" size="sm" color="info">{{ k }}</MTag>
+        </div>
+      </div>
+      <p class="col-span-full m-0 text-xs text-[var(--mds-text-secondary)]">
+        Ưu tiên bản KHÔNG LỜI (instrumental) — video luôn có lời đọc voice-off, nhạc có lời sẽ
+        chỏi tai.
+      </p>
+    </div>
 
     <div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div>
 
