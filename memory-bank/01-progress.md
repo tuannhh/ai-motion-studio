@@ -1,5 +1,30 @@
 # Progress
 
+## 2026-09-03 (tiếp 3) — Giọng đọc: thêm mood, độ tuổi, phong cách TVC quảng cáo
+
+Yêu cầu: bổ sung mood vui vẻ/năng động, phong cách đọc TVC-quảng cáo, độ tuổi (thanh niên/
+trung niên/người đi làm) để Gemini TTS đọc đúng chất giọng theo nhu cầu.
+
+`VoiceProfile` (`packages/pipeline/src/gemini.ts`) += `mood` ("neutral"|"cheerful"|
+"energetic"), `age` ("thanhnien"|"trungnien"|"nguoidilam"); `style` += "tvc". Cả 2 chiều mới
+đi theo đúng cách `region`/`style` cũ đang làm — thuần prompt-text trong `buildVoiceInstruction()`
+(Gemini TTS không có tham số chọn mood/tuổi riêng), KHÔNG đổi `voiceName` (vẫn chỉ gender
+quyết định Charon/Kore). Giữ nguyên chỉ thị khoá giọng đã học từ lỗi thật 2026-09-01 (một
+giọng xuyên suốt, không nhập vai).
+
+Lan khắp chuỗi: DB (`changelogs/008-voice-mood-age.sql` — ADD COLUMN voice_mood/voice_age +
+MODIFY voice_style ENUM thêm 'tvc', idempotent theo pattern 001-007) → Zod schema
+(`project.routes.ts`, `template.service.ts`) → `CreateProjectInput`/`voiceProfileOf`
+(`project.service.ts`) → CLI `run.ts --mood/--age` → UI (`CreateView.vue` +
+`MobileCreateView.vue` thêm 2 `MRadioGroup`, option TVC vào phong cách đọc;
+`ProjectsView.vue` tóm tắt đủ 5 chiều thay vì 3 như cũ).
+
+Verify: rebuild Docker, restart container 2 lần xác nhận changelog idempotent (không lỗi
+ALTER ENUM lặp), tạo project THẬT qua UI (Browser pane, đăng nhập admin, chọn TVC/năng động/
+thanh niên) → sinh kịch bản thành công, tóm tắt hiển thị đúng. In thử `buildVoiceInstruction()`
+qua node/tsx cho nhiều tổ hợp — câu tiếng Việt mạch lạc, profile mặc định (neutral/nguoidilam)
+giữ nguyên hành vi cũ.
+
 ## 2026-09-03 (tiếp 2) — Xem ảnh trích xuất, ưu tiên ảnh tài liệu làm bằng chứng, gợi ý nhạc
 
 3 việc nhỏ cùng đợt phản hồi với fix "chữ chồng chữ" ở trên:
