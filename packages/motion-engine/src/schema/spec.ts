@@ -384,7 +384,13 @@ export const screenshotSceneSchema = z.object({
   url: z.string().max(40).optional(),
   /** pipeline điền sau khi sinh ảnh — validate.ts bắt lỗi nếu thiếu lúc render */
   image: z.string().optional(),
-  /** chấm chú thích đánh số 1..n chỉ vào chi tiết UI (toạ độ theo tỷ lệ ảnh) */
+  /** pipeline điền = true khi image là ẢNH CHỤP THẬT từ tư liệu người dùng (userimg:N),
+   * không phải ảnh AI vẽ — Screenshot.tsx đổi sang khung thẻ trắng bo góc thay vì khung
+   * điện thoại/trình duyệt giả (chrome giả chỉ hợp ảnh AI vẽ sẵn chrome). AI KHÔNG tự set. */
+  real: z.boolean().default(false),
+  /** chấm chú thích đánh số 1..n chỉ vào chi tiết UI (toạ độ theo tỷ lệ ảnh) — CHỈ áp
+   * dụng khi ảnh AI vẽ (real=false); ảnh thật render dạng thẻ sạch, không vẽ marker
+   * (toạ độ fraction không khớp khi ảnh thật hiển thị object-fit:contain letterbox). */
   markers: z
     .array(
       z.object({

@@ -366,8 +366,12 @@ export const generateSpecImages = async (
             : { sceneIndex: i, kind: "image", prompt: s.imagePrompt }
       );
     }
-    if (s.imagePrompt && type === "screenshot") {
-      tasks.push({ sceneIndex: i, kind: "uiImage", prompt: s.imagePrompt });
+    if (type === "screenshot") {
+      // ưu tiên ảnh chụp THẬT (userimg:N[:crop:...]) trong "image" — đáng tin hơn hẳn
+      // ảnh UI do AI vẽ; chỉ sinh ảnh AI (imagePrompt) khi không có ảnh thật khớp.
+      const uref = userRef(s.image);
+      if (uref) tasks.push({ sceneIndex: i, kind: "userImage", prompt: "", ref: uref });
+      else if (s.imagePrompt) tasks.push({ sceneIndex: i, kind: "uiImage", prompt: s.imagePrompt });
     }
     if (s.bgImagePrompt) {
       const uref = userRef(s.bgImagePrompt);
@@ -410,6 +414,7 @@ export const generateSpecImages = async (
           else {
             scene.image = path.relative(jobDir, dest);
             if (scene.type === "media" && !scene.credit) scene.credit = "Ảnh: tư liệu của bạn";
+            if (scene.type === "screenshot") scene.real = true;
           }
         } else if (redraw) {
           const desc = await describeImageForRedraw(buf, mime);
@@ -437,6 +442,7 @@ export const generateSpecImages = async (
           else {
             scene.image = path.relative(jobDir, dest);
             if (scene.type === "media" && !scene.credit) scene.credit = "Ảnh: tư liệu của bạn";
+            if (scene.type === "screenshot") scene.real = true;
           }
         }
       } else if (task.kind === "webImage" || task.kind === "webBg") {

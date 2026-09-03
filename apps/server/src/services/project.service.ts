@@ -4,7 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
-import { extractEmbeddedImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
+import { extractEmbeddedImages, extractUrlImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
 import { getReadyProfile } from "./template.service";
@@ -448,6 +448,33 @@ export const addLinkSource = async (
         `UPDATE project_sources SET status = 'failed', error_message = ? WHERE id = ?`,
         [String((err as Error).message).slice(0, 1000), sourceId]
       );
+    });
+
+  // Ảnh THẬT trong trang (img/og:image) → source ảnh riêng, đi tiếp qua caption +
+  // cổng an toàn như ảnh upload — để AI screen capture được từ chính link tư liệu
+  // (phản hồi 2026-09-03: link cũng phải cho ảnh chụp thật, không chỉ ảnh AI vẽ).
+  const dir = path.join(storagePaths.privateSources, String(projectId));
+  fs.mkdirSync(dir, { recursive: true });
+  void extractUrlImages(trimmed, dir, `link-${sourceId}`)
+    .then(async (imgs) => {
+      for (let n = 0; n < imgs.length; n++) {
+        const img = imgs[n];
+        let size = 0;
+        try {
+          size = fs.statSync(img.file).size;
+        } catch {
+          continue;
+        }
+        const [ins] = await pool.query<ResultSetHeader>(
+          `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
+           VALUES (?, ?, ?, ?, ?, 'extracting')`,
+          [projectId, `🔗 ${trimmed} — hình ${n + 1}`.slice(0, 255), img.file, img.mime, size]
+        );
+        ingestSourceRow(ins.insertId, img.file);
+      }
+    })
+    .catch(() => {
+      // Trích ảnh từ link lỗi không được chặn luồng tư liệu chính — bỏ qua êm
     });
   return sourceId;
 };

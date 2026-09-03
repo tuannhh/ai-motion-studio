@@ -44,8 +44,11 @@ export const ScreenshotScene: React.FC<{
   const screenH = screenW / screenAspect;
   const centerY = isPhone ? HEIGHT * 0.5 : hasHeader ? HEIGHT * 0.56 : HEIGHT * 0.5;
 
-  const shell = theme.isDark ? "#0E1220" : "#FFFFFF";
-  const chromeBorder = theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+  // Ảnh chụp THẬT (scene.real, từ userimg:N) không có chrome giả — thẻ viền trắng,
+  // bo góc nhẹ, object-fit:contain giữ nguyên khung hình đã crop (không cắt thêm),
+  // không vẽ marker (toạ độ fraction không khớp khi ảnh letterbox bên trong contain).
+  const shell = scene.real ? "#FFFFFF" : theme.isDark ? "#0E1220" : "#FFFFFF";
+  const chromeBorder = scene.real ? "rgba(0,0,0,0.08)" : theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
 
   return (
     <AbsoluteFill>
@@ -88,14 +91,14 @@ export const ScreenshotScene: React.FC<{
           transform: `translate(-50%, -50%) scale(${0.9 + frameIn * 0.1})`,
           opacity: frameIn,
           background: shell,
-          borderRadius: isPhone ? 52 : 22,
+          borderRadius: scene.real ? 24 : isPhone ? 52 : 22,
           border: `1.5px solid ${chromeBorder}`,
           padding: pad,
           boxShadow: theme.flat ? "0 6px 0 rgba(0,0,0,0.18)" : "0 34px 90px rgba(0,0,0,0.5)",
         }}
       >
-        {/* notch điện thoại */}
-        {isPhone ? (
+        {/* notch điện thoại — chỉ khung giả, ảnh thật không có notch */}
+        {isPhone && !scene.real ? (
           <div
             style={{
               width: 150,
@@ -114,13 +117,16 @@ export const ScreenshotScene: React.FC<{
             width: screenW,
             height: screenH,
             margin: "0 auto",
-            borderRadius: isPhone ? 30 : 12,
+            borderRadius: scene.real ? 14 : isPhone ? 30 : 12,
             overflow: "hidden",
-            background: theme.isDark ? "#05070C" : "#EDEEF0",
+            background: scene.real ? "#14161C" : theme.isDark ? "#05070C" : "#EDEEF0",
           }}
         >
           {scene.image ? (
-            <Img src={asSrc(scene.image)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <Img
+              src={asSrc(scene.image)}
+              style={{ width: "100%", height: "100%", objectFit: scene.real ? "contain" : "cover" }}
+            />
           ) : (
             <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: theme.textDim, fontFamily: FONT_MONO, fontSize: 26 }}>
               (ảnh giao diện)
@@ -128,8 +134,10 @@ export const ScreenshotScene: React.FC<{
           )}
 
           {/* chấm chú thích đánh số: badge ĐÚNG điểm (x,y), nhãn xổ sang một bên
-              (bên phải nếu điểm ở nửa trái, ngược lại) để không tràn khỏi khung */}
-          {scene.markers.map((m, i) => {
+              (bên phải nếu điểm ở nửa trái, ngược lại) để không tràn khỏi khung.
+              Ảnh thật (real) không vẽ marker — toạ độ fraction lệch khi ảnh letterbox
+              bên trong object-fit:contain, và AI không biết toạ độ ảnh thật. */}
+          {!scene.real && scene.markers.map((m, i) => {
             const pop = popSpring({ frame, fps, delay: 24 + i * 8 });
             const pulse = 1 + Math.sin(Math.max(0, frame - (24 + i * 8)) / 10) * 0.08;
             const labelLeft = m.x > 0.55; // điểm ở nửa phải → nhãn xổ sang trái

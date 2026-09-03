@@ -348,18 +348,15 @@ export const assertPublicHost = async (hostname: string): Promise<void> => {
 
 const MAX_URL_BYTES = 3 * 1024 * 1024;
 
-/**
- * Nạp text từ 1 URL công khai: chỉ http/https, chặn IP nội bộ, tự đi theo tối đa
- * 3 redirect (kiểm tra IP từng chặng), giới hạn dung lượng + timeout, strip HTML.
- */
-export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
+/** fetch 1 URL qua cổng SSRF (assertPublicHost), tự đi theo tối đa 3 redirect,
+ * kiểm IP lại ở MỖI chặng (redirect có thể trỏ sang host khác host gốc). */
+const safeFetch = async (rawUrl: string, accept: string): Promise<{ res: Response; finalUrl: URL }> => {
   let current: URL;
   try {
     current = new URL(rawUrl.trim());
   } catch {
     throw new Error(`Link không hợp lệ: ${rawUrl.slice(0, 80)}`);
   }
-  let res: Response | null = null;
   for (let hop = 0; hop < 4; hop++) {
     if (current.protocol !== "http:" && current.protocol !== "https:") {
       throw new Error("Chỉ hỗ trợ link http/https.");
@@ -368,16 +365,23 @@ export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
     const r = await fetch(current.toString(), {
       redirect: "manual",
       signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)", Accept: "text/html,text/plain,*/*" },
+      headers: { "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)", Accept: accept },
     });
     if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
       current = new URL(r.headers.get("location")!, current); // giải tương đối, vòng sau kiểm IP lại
       continue;
     }
-    res = r;
-    break;
+    return { res: r, finalUrl: current };
   }
-  if (!res) throw new Error("Link chuyển hướng quá nhiều lần.");
+  throw new Error("Link chuyển hướng quá nhiều lần.");
+};
+
+/**
+ * Nạp text từ 1 URL công khai: chỉ http/https, chặn IP nội bộ, tự đi theo tối đa
+ * 3 redirect (kiểm tra IP từng chặng), giới hạn dung lượng + timeout, strip HTML.
+ */
+export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
+  const { res, finalUrl: current } = await safeFetch(rawUrl, "text/html,text/plain,*/*");
   if (!res.ok) throw new Error(`Không tải được link (HTTP ${res.status}).`);
 
   const buf = Buffer.from(await res.arrayBuffer());
@@ -403,4 +407,96 @@ export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
     text: text.slice(0, 40000),
     method: "url",
   };
+};
+
+// ===== Trích ẢNH THẬT từ trang web (link tư liệu) =====
+
+/** Lọc icon/tracker theo KÍCH THƯỚC TỆP THẬT sau khi tải (không đoán qua tên) */
+const MIN_URL_IMAGE_BYTES = 15 * 1024;
+const MAX_URL_IMAGE_BYTES = 8 * 1024 * 1024;
+/** Trần số ảnh trích 1 trang (tránh ngập danh mục với trang nhiều ảnh) */
+const MAX_URL_IMAGES = 6;
+
+/**
+ * Trích vài ẢNH THẬT (<img src>, og:image/twitter:image) từ 1 trang web công khai
+ * làm tư liệu hình ảnh — cùng mục đích với extractEmbeddedImages (docx/pdf) nhưng
+ * nguồn là link (phản hồi 2026-09-03: link tư liệu cũng phải cho screen capture
+ * thật, không chỉ ảnh AI vẽ). Rút ứng viên từ HTML thô (ingestUrl chỉ giữ text đã
+ * strip); MỖI url ảnh phải qua LẠI assertPublicHost trước khi tải — ảnh có thể
+ * nằm trên CDN khác hẳn host của trang. Lọc icon/tracker theo kích thước tệp
+ * THẬT sau khi tải, giới hạn số lượng + dung lượng. Lỗi ở bước này KHÔNG được
+ * chặn luồng tư liệu chính (trả rỗng thay vì throw) — text vẫn nạp bình thường.
+ */
+export const extractUrlImages = async (
+  rawUrl: string,
+  destDir: string,
+  baseName: string
+): Promise<{ file: string; mime: string }[]> => {
+  let html: string;
+  let pageUrl: URL;
+  try {
+    const { res, finalUrl } = await safeFetch(rawUrl, "text/html,*/*");
+    if (!res.ok) return [];
+    const ctype = res.headers.get("content-type") ?? "";
+    if (!ctype.includes("html")) return [];
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_URL_BYTES) return [];
+    html = buf.toString("utf8");
+    pageUrl = finalUrl;
+  } catch {
+    return [];
+  }
+
+  const candidates = new Set<string>();
+  const imgTagRe = /<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = imgTagRe.exec(html))) candidates.add(m[1]);
+  const metaRe =
+    /<meta\b[^>]*?\bproperty\s*=\s*["'](?:og:image|twitter:image)["'][^>]*?\bcontent\s*=\s*["']([^"']+)["']/gi;
+  while ((m = metaRe.exec(html))) candidates.add(m[1]);
+
+  const resolved: URL[] = [];
+  for (const raw of candidates) {
+    const cleaned = raw.trim().replace(/&amp;/g, "&");
+    if (!cleaned || cleaned.startsWith("data:")) continue;
+    try {
+      resolved.push(new URL(cleaned, pageUrl));
+    } catch {
+      // src hỏng/tương đối không giải được — bỏ qua
+    }
+  }
+
+  fs.mkdirSync(destDir, { recursive: true });
+  const out: { file: string; mime: string }[] = [];
+  for (const u of resolved) {
+    if (out.length >= MAX_URL_IMAGES) break;
+    if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+    try {
+      await assertPublicHost(u.hostname); // host ảnh có thể khác host trang (CDN riêng)
+      const r = await fetch(u.toString(), {
+        redirect: "manual", // ảnh redirect sang host khác thì bỏ qua (giữ đơn giản, an toàn) thay vì đuổi theo
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)" },
+      });
+      if (!r.ok) continue;
+      const ctype = (r.headers.get("content-type") ?? "").toLowerCase();
+      const ext = ctype.includes("png")
+        ? ".png"
+        : ctype.includes("webp")
+          ? ".webp"
+          : ctype.includes("jpeg") || ctype.includes("jpg")
+            ? ".jpg"
+            : null;
+      if (!ext) continue; // chỉ nhận raster thật (bỏ svg/gif/loại không rõ)
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < MIN_URL_IMAGE_BYTES || buf.length > MAX_URL_IMAGE_BYTES) continue;
+      const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+      const dest = path.join(destDir, `${baseName}-img${out.length + 1}${ext}`);
+      fs.writeFileSync(dest, buf);
+      out.push({ file: dest, mime });
+    } catch {
+      // 1 ảnh lỗi không chặn ảnh khác
+    }
+  }
+  return out;
 };
