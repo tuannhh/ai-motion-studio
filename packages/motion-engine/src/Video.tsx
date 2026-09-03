@@ -13,6 +13,7 @@ import {
   TRANSITION_FRAMES,
   VideoSpec,
   sceneDurationInFrames,
+  totalDurationInFrames,
 } from "./schema/spec";
 import { resolveTheme, Theme } from "./style/presets";
 import { Background } from "./core/Background";
@@ -229,7 +230,10 @@ const sceneStartFrames = (spec: VideoSpec): number[] => {
 /**
  * Sidechain ducking: nhạc nền tự nhún xuống khi voiceover đang nói
  * (ramp 10 frame vào/ra, giữ ~28% mức gốc trong lúc nói).
+ * + Fade in/out toàn cục 1s đầu/cuối video (phản hồi 2026-09-03: nhạc cắt cụt lúc
+ * mở/kết thúc nghe hụt) — nhân thêm vào cùng envelope, không ảnh hưởng ducking.
  */
+const MUSIC_FADE_FRAMES = FPS; // 1 giây
 export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) => {
   const starts = sceneStartFrames(spec);
   const ranges = spec.scenes.flatMap((scene, i) =>
@@ -239,6 +243,7 @@ export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) =
   );
   const RAMP = 10;
   const DUCK = 0.28;
+  const total = totalDurationInFrames(spec);
   return (frame: number) => {
     let env = 0;
     for (const r of ranges) {
@@ -247,7 +252,10 @@ export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) =
       const fall = Math.min(1, Math.max(0, ((r.to + RAMP) - frame) / RAMP));
       env = Math.max(env, Math.min(rise, fall));
     }
-    return spec.audio.musicVolume * (1 - (1 - DUCK) * env);
+    const fadeIn = Math.min(1, Math.max(0, frame / MUSIC_FADE_FRAMES));
+    const fadeOut = Math.min(1, Math.max(0, (total - frame) / MUSIC_FADE_FRAMES));
+    const fade = Math.min(fadeIn, fadeOut);
+    return spec.audio.musicVolume * (1 - (1 - DUCK) * env) * fade;
   };
 };
 
