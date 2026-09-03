@@ -151,14 +151,23 @@ const prepareBundle = async (): Promise<string> => {
     }
   }
 
-  // SFX engine (nội dung ổn định) + asset job (namespace riêng) vào public của bundle
+  // SFX engine (nội dung ổn định) + asset job (namespace riêng) vào public của bundle.
+  // Thư viện SFX có thư mục con theo nhóm (01-transition, 02-list-reveal, ...) nên copy
+  // ĐỆ QUY — không chỉ đọc phẳng 1 cấp như trước (bỏ sót mọi file trong thư mục con).
   const bundlePublic = path.join(cacheDir, "public");
   const sfxSrcDir = path.join(pkgRoot, "assets/sfx");
-  if (fs.existsSync(sfxSrcDir)) {
-    fs.mkdirSync(path.join(bundlePublic, "sfx"), { recursive: true });
-    for (const f of fs.readdirSync(sfxSrcDir)) {
-      fs.copyFileSync(path.join(sfxSrcDir, f), path.join(bundlePublic, "sfx", f));
+  const copyRecursive = (src: string, dest: string) => {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue; // bỏ .DS_Store và file ẩn khác
+      const s = path.join(src, e.name);
+      const d = path.join(dest, e.name);
+      if (e.isDirectory()) copyRecursive(s, d);
+      else if (e.isFile()) fs.copyFileSync(s, d);
     }
+  };
+  if (fs.existsSync(sfxSrcDir)) {
+    copyRecursive(sfxSrcDir, path.join(bundlePublic, "sfx"));
   }
   if (fs.existsSync(path.join(publicDir, jobNs))) {
     fs.cpSync(path.join(publicDir, jobNs), path.join(bundlePublic, jobNs), { recursive: true });

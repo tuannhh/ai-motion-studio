@@ -1,0 +1,19 @@
+MIXKIT SOUND EFFECTS — LICENSE NOTE
+
+All source sounds in this folder were downloaded from Mixkit under its Sound
+Effects Free License.
+
+Mixkit's official sound-effects page states that its sound clips are royalty-free,
+can be used in commercial and personal projects, and do not require attribution.
+
+Official references:
+https://mixkit.co/free-sound-effects/
+https://mixkit.co/license/
+https://mixkit.co/terms/
+
+Important restriction summary: do not resell, redistribute, sublicense, or make
+the sounds available as a standalone stock library. This note is a practical
+summary, not legal advice; the official license and terms control.
+
+Downloaded and processed for the user's editing project on 2026-09-03.
+

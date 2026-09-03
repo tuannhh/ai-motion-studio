@@ -1,5 +1,45 @@
 # Progress
 
+## 2026-09-03 (tiếp 4) — Thư viện SFX thật (Mixkit) thay 6 file DSP tự sinh
+
+Yêu cầu: người dùng tải + phân nhóm sẵn thư viện SFX thật vào `assets/sfx/` (10 thư mục,
+license Mixkit Sound Effects Free — CC0 thương mại, không cần credit), giao toàn quyền chủ
+động chọn/dùng: "bạn chủ động chọn... không nhất thiết phải lấy từ thư viện tôi cung cấp".
+
+Trước đây `Video.tsx` chỉ có ĐÚNG 6 file DSP tự sinh (`gen-sfx.ts`: whoosh-a/b, thump, pop,
+tick, ding) lặp lại xuyên suốt mọi video — cùng 1 tiếng "ting" cho mọi khoảnh khắc chốt của
+cả video. Root cause được giữ nguyên (không đổi kiến trúc), chỉ thay NGUỒN âm thanh:
+
+- `packages/motion-engine/assets/sfx/` copy nguyên bộ 10 thư mục người dùng cung cấp
+  (~102 file, ~9.2MB) vào cạnh 6 file DSP cũ (giữ lại làm tư liệu, không xoá).
+- `core/sfx.ts` (mới): 10 pool (`transition`, `listReveal`, `statImpact`, `positive`,
+  `buildUp`, `uiScreen`, `uiScreenTech`, `moneyGrowth`, `compare`, `paper`) + `pick(pool, key)`
+  chọn theo `seedOf()` (KHÔNG Math.random — video render lại phải y hệt). Chỉ dùng ~64/102
+  file: bộ `10-technology` có ~27 file nhưng phần lớn là âm nền/ambient (glitch, scanner,
+  processor-drone, cyber-affirmation...) — chủ động BỎ, chỉ lấy 3 file transition-*.wav gộp
+  vào `transition` và 8 file ui-*.wav gộp vào `uiScreenTech`; không có gợi ý category nào tốt
+  hơn nên còn lại đều lấy nguyên theo nhóm người dùng chia.
+- `render.ts`: copy SFX vào bundle cache TỪNG LÀ đọc phẳng 1 cấp
+  (`fs.readdirSync` + `copyFileSync`) — sẽ ÂM THẦM bỏ sót mọi file trong thư mục con mới
+  (`01-transition/`, `02-list-reveal/`...). Sửa thành `copyRecursive()` trước khi wiring bất
+  kỳ pool nào, tránh bẫy lỗi câm ở render.
+- `Video.tsx`: mọi cue SFX (whoosh chuyển cảnh, thump số liệu lớn, tick/pop/ding theo nhịp
+  reveal từng loại scene) đổi từ 1 file cố định → `pick()` theo seed riêng (scene.id + tag +
+  số thứ tự gọi) nên cùng loại cue không lặp lại 1 âm xuyên suốt. Thêm mới: cue riser build-up
+  (`SFX.buildUp`) chèn cuối scene NGAY TRƯỚC 1 scene stat/bigword/chart để dẫn vào cú "đấm";
+  cue UI cho scene `screenshot` (trước đây HOÀN TOÀN không có SFX) — chọn `uiScreenTech` khi
+  preset midnight/aurora, `uiScreen` khi preset khác; `stat` có unit tiền tệ (đ/vnđ/usd/$/tỷ/
+  triệu — `isMoneyUnit()`) dùng bộ `moneyGrowth` thay vì `positive` chung; preset `paper`
+  (editorial giấy) override TOÀN BỘ tick/pop/ding/compare sang bộ `paper` (giấy/bút) cho đồng
+  nhất chất liệu hình — trước đây preset nào cũng dùng chung 1 bộ âm.
+
+Verify: `tsc --noEmit` sạch; kiểm tra script xác nhận cả 64 đường dẫn `sfx/...` trong
+`core/sfx.ts` đều tồn tại trên đĩa; render MP4 thật (không chỉ `--stills-only`, vì stills không
+kích hoạt audio) cho `demo-screenshot.json` (preset aurora, có scene screenshot) và
+`demo-paper-editorial.json` (preset paper) — cả hai render xong không lỗi "file not found";
+`ffprobe`/`ffmpeg silencedetect` trên video screenshot xác nhận có đoạn audio thật (không im
+lặng) đúng vị trí các cue kỳ vọng (đầu scene, quanh chuyển cảnh sang scene screenshot/outro).
+
 ## 2026-09-03 (tiếp 3) — Giọng đọc: thêm mood, độ tuổi, phong cách TVC quảng cáo
 
 Yêu cầu: bổ sung mood vui vẻ/năng động, phong cách đọc TVC-quảng cáo, độ tuổi (thanh niên/

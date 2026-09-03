@@ -47,6 +47,7 @@ import {
   whipPan,
 } from "./core/transitions";
 import { seedOf } from "./core/motion";
+import { isMoneyUnit, pick, SFX } from "./core/sfx";
 
 const SceneRenderer: React.FC<{
   scene: Scene;
@@ -98,11 +99,14 @@ const asSrc = (file: string) =>
   file.startsWith("http") ? file : staticFile(file);
 
 /**
- * SFX tự động của engine (assets/sfx do scripts/gen-sfx.ts sinh, license-free):
- * whoosh seeded ở mỗi lần vào cảnh, thump nhấn thêm cho cảnh số liệu lớn.
+ * SFX tự động của engine (thư viện Mixkit thật — xem core/sfx.ts): whoosh
+ * seeded ở mỗi lần vào cảnh, impact nhấn thêm cho cảnh số liệu lớn.
  */
-const AUTO_WHOOSH = ["sfx/whoosh-a.wav", "sfx/whoosh-b.wav"];
 const THUMP_TYPES = new Set(["stat", "bigword", "chart"]);
+/** Preset chất "công nghệ" → dùng bộ UI/tech riêng cho screenshot/terminal thay vì bộ UI thường */
+const TECH_PRESETS = new Set(["midnight", "aurora"]);
+/** Số frame riser build-up chạy TRƯỚC khi vào 1 scene số liệu/chữ lớn (~0.7s @30fps) */
+const BUILD_UP_LEAD = 20;
 /** scene lấy CHỮ làm trung tâm → cần scrim đậm hơn khi có ảnh nền để chữ nổi rõ */
 const TEXT_HEAVY_TYPES = new Set(["hook", "bigword", "quote", "outro"]);
 /**
@@ -114,20 +118,32 @@ const NO_CAPTION_TYPES = new Set(["outro", "quote", "bigword"]);
 
 /**
  * SFX nhấn theo NHỊP REVEAL của từng loại scene — đa dạng hoá âm thanh thay vì
- * chỉ 1 tiếng whoosh mỗi lần chuyển cảnh. tick = từng mục danh sách hiện; pop =
- * cụm chữ/khối; ding ("ting") = khoảnh khắc chốt (số liệu, dòng highlight, accent).
+ * chỉ 1 tiếng whoosh mỗi lần chuyển cảnh. tick/pop = từng mục danh sách/khối
+ * chữ hiện; ding = khoảnh khắc chốt (số liệu, dòng highlight, accent). Mỗi cue
+ * pick() theo seed riêng (scene.id + tag + số thứ tự gọi trong core/sfx.ts) nên
+ * không lặp đúng 1 âm thanh xuyên suốt video như engine cũ. Preset "paper"
+ * (editorial giấy) đổi hẳn sang bộ SFX.paper cho đồng nhất chất liệu hình ảnh.
  * Trả cue theo frame TƯƠNG ĐỐI trong scene; volume đã nhân sfxVolume. Nhịp bám
  * theo stagger reveal của scene (xem delay trong từng scene component).
  */
 const ENTRY = TRANSITION_FRAMES + 6;
 const autoRevealCues = (
   scene: Scene,
-  sfxVol: number
+  sfxVol: number,
+  theme: Theme,
+  isTechPreset: boolean
 ): { file: string; from: number; volume: number }[] => {
   const cues: { file: string; from: number; volume: number }[] = [];
-  const tick = (from: number, v = 0.5) => cues.push({ file: "sfx/tick.wav", from, volume: sfxVol * v });
-  const pop = (from: number, v = 0.7) => cues.push({ file: "sfx/pop.wav", from, volume: sfxVol * v });
-  const ding = (from: number, v = 0.85) => cues.push({ file: "sfx/ding.wav", from, volume: sfxVol * v });
+  let seq = 0;
+  const tickPool = theme.flat ? SFX.paper : SFX.listReveal;
+  const popPool = theme.flat ? SFX.paper : SFX.listReveal;
+  const dingPool = theme.flat ? SFX.paper : SFX.positive;
+  const tick = (from: number, v = 0.5) =>
+    cues.push({ file: pick(tickPool, `${scene.id}-tick-${seq++}`), from, volume: sfxVol * v });
+  const pop = (from: number, v = 0.7) =>
+    cues.push({ file: pick(popPool, `${scene.id}-pop-${seq++}`), from, volume: sfxVol * v });
+  const ding = (from: number, v = 0.85) =>
+    cues.push({ file: pick(dingPool, `${scene.id}-ding-${seq++}`), from, volume: sfxVol * v });
   switch (scene.type) {
     case "points":
       scene.items.forEach((_, i) => tick(ENTRY + i * 10));
@@ -139,18 +155,22 @@ const autoRevealCues = (
       scene.items.forEach((it, i) => (it.highlight ? ding(ENTRY + i * 10) : tick(ENTRY + i * 10)));
       break;
     case "flow":
-      scene.nodes.forEach((n, i) => (n.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12)));
+      scene.nodes.forEach((node, i) => (node.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12)));
       break;
     case "diagram":
-      scene.nodes.forEach((n, i) => (n.emphasis ? pop(ENTRY + i * 11, 0.5) : tick(ENTRY + i * 11)));
+      scene.nodes.forEach((node, i) => (node.emphasis ? pop(ENTRY + i * 11, 0.5) : tick(ENTRY + i * 11)));
       break;
-    case "compare":
-      tick(ENTRY, 0.55);
-      tick(ENTRY + 12, 0.55);
+    case "compare": {
+      const pool = theme.flat ? SFX.paper : SFX.compare;
+      cues.push({ file: pick(pool, `${scene.id}-cmp-${seq++}`), from: ENTRY, volume: sfxVol * 0.55 });
+      cues.push({ file: pick(pool, `${scene.id}-cmp-${seq++}`), from: ENTRY + 12, volume: sfxVol * 0.55 });
       break;
-    case "versus":
-      ding(ENTRY + 14, 0.7);
+    }
+    case "versus": {
+      const pool = theme.flat ? SFX.paper : SFX.compare;
+      cues.push({ file: pick(pool, `${scene.id}-versus-${seq++}`), from: ENTRY + 14, volume: sfxVol * 0.7 });
       break;
+    }
     case "terminal": {
       let f = ENTRY;
       for (const ln of scene.lines) {
@@ -161,9 +181,22 @@ const autoRevealCues = (
       }
       break;
     }
-    case "stat":
-      ding(ENTRY + 8);
+    case "screenshot": {
+      const pool = theme.flat ? SFX.paper : isTechPreset ? SFX.uiScreenTech : SFX.uiScreen;
+      if (scene.markers.length) {
+        scene.markers.forEach((_, i) =>
+          cues.push({ file: pick(pool, `${scene.id}-ui-${seq++}`), from: ENTRY + i * 14, volume: sfxVol * 0.5 })
+        );
+      } else {
+        cues.push({ file: pick(pool, `${scene.id}-ui-${seq++}`), from: ENTRY, volume: sfxVol * 0.6 });
+      }
       break;
+    }
+    case "stat": {
+      const pool = theme.flat ? SFX.paper : isMoneyUnit(scene.unit) ? SFX.moneyGrowth : SFX.positive;
+      cues.push({ file: pick(pool, `${scene.id}-ding-${seq++}`), from: ENTRY + 8, volume: sfxVol * 0.85 });
+      break;
+    }
     case "chart":
       ding(ENTRY + 10);
       break;
@@ -270,6 +303,7 @@ const transitionFor = (
 export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
   const theme = resolveTheme(spec.style.preset, spec.style.accent, spec.style.flavor);
   const total = spec.scenes.length;
+  const isTechPreset = TECH_PRESETS.has(spec.style.preset);
 
   return (
     <AbsoluteFill>
@@ -296,26 +330,35 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
               ))}
               {spec.audio.autoSfx && i > 0 ? (
                 <Audio
-                  src={staticFile(
-                    AUTO_WHOOSH[
-                      Math.floor(
-                        seedOf(`${spec.meta.slug}-sfx-${i}`) * AUTO_WHOOSH.length
-                      ) % AUTO_WHOOSH.length
-                    ]
-                  )}
+                  src={staticFile(pick(SFX.transition, `${spec.meta.slug}-sfx-${i}`))}
                   volume={spec.audio.sfxVolume}
                 />
               ) : null}
               {spec.audio.autoSfx && THUMP_TYPES.has(scene.type) ? (
                 <Sequence from={TRANSITION_FRAMES}>
                   <Audio
-                    src={staticFile("sfx/thump.wav")}
+                    src={staticFile(
+                      pick(
+                        isMoneyUnit(scene.type === "stat" ? scene.unit : undefined)
+                          ? SFX.moneyGrowth
+                          : SFX.statImpact,
+                        `${scene.id}-thump`
+                      )
+                    )}
                     volume={spec.audio.sfxVolume * 0.9}
                   />
                 </Sequence>
               ) : null}
+              {spec.audio.autoSfx && i < total - 1 && THUMP_TYPES.has(spec.scenes[i + 1].type) ? (
+                <Sequence from={Math.max(0, sceneDurationInFrames(scene) - BUILD_UP_LEAD)}>
+                  <Audio
+                    src={staticFile(pick(SFX.buildUp, `${scene.id}-buildup`))}
+                    volume={spec.audio.sfxVolume * 0.6}
+                  />
+                </Sequence>
+              ) : null}
               {spec.audio.autoSfx
-                ? autoRevealCues(scene, spec.audio.sfxVolume).map((c, ci) => (
+                ? autoRevealCues(scene, spec.audio.sfxVolume, theme, isTechPreset).map((c, ci) => (
                     <Sequence key={`rev-${ci}`} from={c.from}>
                       <Audio src={staticFile(c.file)} volume={c.volume} />
                     </Sequence>
