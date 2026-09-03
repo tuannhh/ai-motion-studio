@@ -405,14 +405,25 @@ export const getSourceFile = async (
  * theo thứ tự id ổn định → index 1..N. Dùng CHUNG cho lúc sinh kịch bản (cho AI
  * biết có ảnh nào để tham chiếu 'userimg:N') và lúc render (map index → file thật).
  * caption = dòng đầu extracted_text (mô tả ngắn) để AI/creator nhận diện ảnh.
+ *
+ * Gồm CẢ ảnh nhúng tự trích từ docx/pdf (`addSource` chèn thêm row cho mỗi ảnh
+ * nhúng, tên `"<file gốc> — hình N"`) — đây chính là ảnh MINH CHỨNG lấy thẳng từ
+ * tài liệu nguồn (biểu đồ/slide/số liệu thật), đáng tin hơn cả ảnh người dùng tải
+ * lên rời rạc, nên đánh dấu riêng để prompt khuyến khích AI ưu tiên dùng làm
+ * bằng chứng (phản hồi 2026-09-03: "capture nội dung tài liệu để tăng thuyết phục").
  */
-export type UserImageSource = { index: number; storedPath: string; caption: string };
+export type UserImageSource = {
+  index: number;
+  storedPath: string;
+  caption: string;
+  fromDocument: boolean;
+};
 
 export const getProjectImageSources = async (
   projectId: number
 ): Promise<UserImageSource[]> => {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT stored_path, extracted_text FROM project_sources
+    `SELECT file_name, stored_path, extracted_text FROM project_sources
       WHERE project_id = ? AND status = 'ready' AND extract_method LIKE 'image:%'
       ORDER BY id`,
     [projectId]
@@ -424,6 +435,7 @@ export const getProjectImageSources = async (
       .split("\n")[0]
       .trim()
       .slice(0, 160) || "ảnh không có mô tả",
+    fromDocument: / — hình \d+$/.test(String(r.file_name ?? "")),
   }));
 };
 
@@ -505,7 +517,11 @@ export const generateScripts = async (
         webSearch:
           project.source_mode === "ai" || project.source_mode === "combine",
         series,
-        userImages: userImages.map((u) => ({ index: u.index, caption: u.caption })),
+        userImages: userImages.map((u) => ({
+          index: u.index,
+          caption: u.caption,
+          fromDocument: u.fromDocument,
+        })),
       });
 
       // Sinh lại = thay thế bộ kịch bản cũ chưa duyệt (job đã render giữ nguyên qua script cũ bị xoá? Không — xoá cascade).

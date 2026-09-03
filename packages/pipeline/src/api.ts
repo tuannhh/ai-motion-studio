@@ -43,8 +43,9 @@ export type GeneratePlansOptions = {
   webSearch?: boolean;
   /** serie manager: tên + số tập bắt đầu + ngữ cảnh tập trước */
   series?: { name: string; startEpisode: number; context?: string };
-  /** ảnh thật người dùng tải lên (index + caption) để AI chèn 'userimg:N' */
-  userImages?: { index: number; caption: string }[];
+  /** ảnh thật người dùng tải lên (index + caption) để AI chèn 'userimg:N'; fromDocument =
+   * ảnh tự trích từ chính file tư liệu (bằng chứng thật, khác ảnh tải lên rời rạc) */
+  userImages?: { index: number; caption: string; fromDocument?: boolean }[];
 };
 
 /** Tách plan → spec engine (bỏ narration) + map sceneId → narration */
