@@ -8,6 +8,7 @@ import { FONT_MONO } from "../style/fonts";
 import { enterSpring, popSpring } from "../core/motion";
 import { Kicker } from "../core/ui";
 import { fitBox } from "../core/fit";
+import { RichText, stripMarkup } from "../core/RichText";
 
 const asSrc = (file: string) => (file.startsWith("http") ? file : staticFile(file));
 
@@ -69,13 +70,14 @@ export const ScreenshotScene: React.FC<{
             <h2
               style={{
                 ...type.title,
-                fontSize: fitBox(scene.headline, WIDTH - SAFE_X * 2, 2, { max: 58, min: 40, fontWeight: 700 }),
+                fontSize: fitBox(stripMarkup(scene.headline), WIDTH - SAFE_X * 2, 2, { max: 58, min: 40, fontWeight: 700 }),
                 lineHeight: 1.14,
                 color: theme.text,
                 margin: "14px 0 0",
+                textWrap: "balance",
               }}
             >
-              {scene.headline}
+              <RichText text={scene.headline} accent={theme.accentText} />
             </h2>
           ) : null}
         </div>

@@ -198,7 +198,10 @@ export const SceneHeader: React.FC<{
   title?: string;
   sub?: string;
   size?: number;
-}> = ({ theme, kicker, title, sub, size = 66 }) => {
+  /** khoảng cách xuống nội dung bên dưới (card ảnh, list...) — scene nào có
+   * khối nội dung sát ngay dưới (VD "media") nên truyền nhỏ hơn mặc định */
+  gap?: number;
+}> = ({ theme, kicker, title, sub, size = 66, gap = 48 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   if (!title && !kicker && !sub) return null;
@@ -208,7 +211,7 @@ export const SceneHeader: React.FC<{
   const displayTitle = title ? (vox ? title.toLocaleUpperCase("vi-VN") : title) : "";
   const fitW = vox ? SAFE_W / 0.9 : SAFE_W;
   return (
-    <div style={{ marginBottom: 48 }}>
+    <div style={{ marginBottom: gap }}>
       {kicker ? <Kicker theme={theme}>{kicker}</Kicker> : null}
       {title ? (
         <h2
@@ -221,6 +224,8 @@ export const SceneHeader: React.FC<{
             fontSize: fitBox(stripMarkup(displayTitle), fitW, 3, { max: size, min: Math.round(size * 0.6) }),
             color: theme.text,
             margin: 0,
+            // Cân dòng cuối — tránh chữ cuối bị mồ côi 1 từ xuống hẳn dòng riêng
+            textWrap: "balance",
             ...riseIn({ frame, fps, delay: 4 }),
           }}
         >

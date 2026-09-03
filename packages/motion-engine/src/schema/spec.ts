@@ -487,12 +487,12 @@ export const videoSpecSchema = z.object({
   audio: z
     .object({
       music: z.string().optional(),
-      musicVolume: z.number().min(0).max(1).default(0.12),
+      musicVolume: z.number().min(0).max(1).default(0.16),
       /** SFX tự động của engine (whoosh chuyển cảnh, thump số liệu) */
       autoSfx: z.boolean().default(true),
       sfxVolume: z.number().min(0).max(1).default(0.4),
     })
-    .default({ musicVolume: 0.12, autoSfx: true, sfxVolume: 0.4 }),
+    .default({ musicVolume: 0.16, autoSfx: true, sfxVolume: 0.4 }),
   scenes: z.array(sceneSchema).min(1).max(14),
 });
 export type VideoSpec = z.infer<typeof videoSpecSchema>;

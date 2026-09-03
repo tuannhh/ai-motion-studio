@@ -28,7 +28,7 @@ export const MediaScene: React.FC<{
 
   return (
     <SafeArea>
-      <SceneHeader theme={theme} kicker="Tư liệu" title={scene.title} sub={scene.sub} />
+      <SceneHeader theme={theme} kicker="Tư liệu" title={scene.title} sub={scene.sub} gap={22} />
       <div
         style={{
           background: theme.flat ? "#FDFBF7" : "#F7F4EC",

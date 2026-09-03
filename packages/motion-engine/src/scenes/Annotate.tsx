@@ -133,6 +133,7 @@ export const AnnotateScene: React.FC<{
                     color: theme.text,
                     margin: "22px 0 0",
                     textShadow: theme.flat ? undefined : "0 4px 30px rgba(0,0,0,0.6)",
+                    textWrap: "balance",
                   }}
                 >
                   <RichText text={displayHeadline} accent={theme.accentText} />

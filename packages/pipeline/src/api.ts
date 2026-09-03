@@ -69,7 +69,7 @@ export const planToSpec = (
       series: plan.series,
     },
     style: { preset: plan.preset, flavor: plan.flavor, captions: true, progress: true },
-    audio: { musicVolume: 0.12, autoSfx: true, sfxVolume: 0.4 },
+    audio: { musicVolume: 0.16, autoSfx: true, sfxVolume: 0.4 },
     scenes,
   };
   return { spec, narrations };
