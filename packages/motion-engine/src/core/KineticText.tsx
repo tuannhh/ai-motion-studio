@@ -3,7 +3,7 @@ import { spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { evolvePath } from "@remotion/paths";
 import { popSpring } from "./motion";
 import { smartLines, wordsIn } from "./viText";
-import { fitBox } from "./fit";
+import { fitLines, wordWidthAt } from "./fit";
 import { parseEmphasisMarkup } from "./RichText";
 import { type } from "../style/fonts";
 
@@ -50,12 +50,20 @@ export const KineticText: React.FC<{
   // Markup **accent**/~~dim~~ trong text (AI viết trực tiếp trong headline) → chữ
   // sạch để chia dòng/đo cỡ + danh sách từ accent/dim tự động (gộp với emphasis truyền vào).
   const parsed = parseEmphasisMarkup(text);
-  // Chia dòng TRƯỚC, rồi fit theo ĐÚNG số dòng thực tế (không phải maxLines) — đảm bảo
-  // mỗi dòng vừa bề rộng để dùng nowrap mà không tràn.
-  const lines = smartLines(parsed.text, maxCharsPerLine, maxLines);
-  const size = maxWidth
-    ? fitBox(parsed.text, maxWidth, lines.length, { max: fontSize, min: Math.round(fontSize * 0.55), fontWeight })
-    : fontSize;
+  // Chia dòng TRƯỚC (cân theo BỀ RỘNG THẬT, không phải đếm ký tự — chữ có dấu/i/m/w
+  // rộng hẹp khác nhau), rồi fit cỡ chữ theo dòng RỘNG NHẤT trong số các dòng đã chia
+  // (không phải trung bình cả câu) — đảm bảo mỗi dòng vừa bề rộng, không tràn/bị cắt.
+  // useMemo: tránh đo lại (measureText) mỗi frame animation — text/props này không đổi
+  // trong lúc scene chạy.
+  const { lines, size } = React.useMemo(() => {
+    const measureWord = (w: string) => wordWidthAt(w, fontSize, { max: fontSize, fontWeight });
+    const ls = smartLines(parsed.text, maxCharsPerLine, maxLines, measureWord);
+    const sz = maxWidth
+      ? fitLines(ls, maxWidth, { max: fontSize, min: Math.round(fontSize * 0.55), fontWeight })
+      : fontSize;
+    return { lines: ls, size: sz };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed.text, maxCharsPerLine, maxLines, maxWidth, fontSize, fontWeight]);
   const emphasisSet = new Set(
     [...emphasis, ...parsed.accentWords].map((w) => w.toLocaleLowerCase("vi-VN"))
   );

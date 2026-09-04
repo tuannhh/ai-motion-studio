@@ -99,6 +99,44 @@ const extractJson = (raw: string): string => {
   return s;
 };
 
+/** Chuẩn hoá câu để so khớp trùng lặp (bỏ khoảng trắng thừa/dấu câu/hoa-thường) */
+const normalizeForDupeCheck = (s: string): string =>
+  s
+    .trim()
+    .toLocaleLowerCase("vi-VN")
+    .replace(/\s+/g, " ")
+    .replace(/[.,!?;:"'()\-–—]/g, "");
+
+/**
+ * Phát hiện scene.id trùng và LỜI THOẠI TRÙNG LẶP trong 1 plan — bug thật đã gặp:
+ * model đôi khi trả về 2 scene có cùng 1 câu narration (nghe như bị lặp câu khi
+ * ghép audio). Câu quá ngắn (<12 ký tự sau chuẩn hoá) bỏ qua vì dễ trùng ngẫu
+ * nhiên (vd 2 scene cùng dùng câu chuyển "Vậy còn gì nữa?") mà không phải bug.
+ */
+const findDuplicateScenes = (plan: Plan): string[] => {
+  const errors: string[] = [];
+  const seenIds = new Set<string>();
+  const seenNarration = new Map<string, string>();
+  for (const scene of plan.scenes as { id: string; narration: string }[]) {
+    if (seenIds.has(scene.id)) {
+      errors.push(`[${plan.slug}/${scene.id}] Trùng scene.id — mỗi scene phải có id riêng.`);
+    }
+    seenIds.add(scene.id);
+    const norm = normalizeForDupeCheck(scene.narration ?? "");
+    if (norm.length >= 12) {
+      const firstId = seenNarration.get(norm);
+      if (firstId) {
+        errors.push(
+          `[${plan.slug}/${firstId},${scene.id}] Lời thoại bị lặp giữa 2 scene: "${(scene.narration ?? "").slice(0, 60)}"`
+        );
+      } else {
+        seenNarration.set(norm, scene.id);
+      }
+    }
+  }
+  return errors;
+};
+
 export const validatePlans = (
   raw: string
 ): { plans: Plan[]; errors: string[] } => {
@@ -120,6 +158,7 @@ export const validatePlans = (
   const errors: string[] = [];
   for (const plan of result.data) {
     try {
+      errors.push(...findDuplicateScenes(plan));
       const { spec } = planToSpec(plan);
       // Ảnh sinh SAU vòng validate — điền placeholder cho annotate có imagePrompt
       // để lint "annotate thiếu ảnh" không chặn oan plan hợp lệ.

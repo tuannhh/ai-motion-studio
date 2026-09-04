@@ -12,26 +12,32 @@ const TRAILING_CONNECTORS = new Set([
 export const wordsIn = (value: string): string[] =>
   value.trim().split(/\s+/).filter(Boolean);
 
-const lineLen = (words: string[]) => words.join(" ").length;
+/** Đo "độ dài" 1 từ để cân dòng — mặc định đếm ký tự; truyền measureWord (đo
+ * bề rộng pixel thật, vd từ fit.ts) để cân theo bề rộng thật, chính xác hơn vì
+ * chữ tiếng Việt có dấu và các ký tự (i, m, w...) rộng hẹp khác nhau rõ rệt. */
+type Measure = (word: string) => number;
+const charLen: Measure = (w) => w.length;
+const lineLen = (words: string[], measure: Measure) =>
+  words.reduce((sum, w) => sum + measure(w), 0) + (words.length - 1) * measure(" ");
 
 /**
- * Chia words thành n dòng CÂN ĐỐI THEO ĐỘ DÀI KÝ TỰ (không theo số từ) — mỗi dòng
- * xấp xỉ nhau về bề rộng nên không lòi 1 dòng quá dài khiến engine tự xuống dòng
- * lung tung (mồ côi "con", "sự"...). Tôn trọng quy tắc không kết dòng bằng từ nối.
+ * Chia words thành n dòng CÂN ĐỐI THEO BỀ RỘNG (measure) — mỗi dòng xấp xỉ nhau
+ * về bề rộng nên không lòi 1 dòng quá dài khiến engine tự xuống dòng lung tung
+ * (mồ côi "con", "sự"...). Tôn trọng quy tắc không kết dòng bằng từ nối.
  */
-const splitBalanced = (words: string[], lines: number): string[][] => {
+const splitBalanced = (words: string[], lines: number, measure: Measure): string[][] => {
   if (lines <= 1) return [words];
-  const target = lineLen(words) / lines; // độ dài ký tự mục tiêu mỗi dòng
+  const target = lineLen(words, measure) / lines; // bề rộng mục tiêu mỗi dòng
   const result: string[][] = [];
   let rest = [...words];
   for (let ln = 0; ln < lines - 1; ln++) {
     const linesLeft = lines - ln;
     const maxTake = rest.length - (linesLeft - 1); // chừa ≥1 từ cho mỗi dòng sau
     let take = 1;
-    let len = rest[0].length;
+    let len = measure(rest[0]);
     // gộp thêm từ khi còn khiến dòng GẦN target hơn (greedy tối thiểu độ lệch)
     while (take < maxTake) {
-      const nextLen = len + 1 + rest[take].length;
+      const nextLen = len + measure(" ") + measure(rest[take]);
       if (Math.abs(nextLen - target) >= Math.abs(len - target)) break;
       len = nextLen;
       take += 1;
@@ -55,17 +61,25 @@ const splitBalanced = (words: string[], lines: number): string[][] => {
 
 /**
  * Trả về headline đã chia dòng. Ưu tiên: người dùng tự đánh dấu bằng "\n";
- * nếu không, tự chia theo độ dài (≤ maxChars/dòng) và cân đối, tối đa maxLines dòng.
+ * nếu không, tự chia theo độ dài (≤ maxChars/dòng, ước lượng SỐ dòng cần) và cân
+ * đối theo bề rộng thật (measureWord, nếu có) — tối đa maxLines dòng.
  */
-export const smartLines = (text: string, maxChars = 20, maxLines = 3): string[] => {
+export const smartLines = (
+  text: string,
+  maxChars = 20,
+  maxLines = 3,
+  measureWord?: Measure
+): string[] => {
   if (text.includes("\n")) {
     return text.split("\n").map((l) => l.trim()).filter(Boolean);
   }
   const words = wordsIn(text);
   if (words.length <= 1) return [words.join(" ")];
-  const total = lineLen(words);
+  // Số dòng ước lượng vẫn theo đếm ký tự (chỉ cần thô để chọn 1/2/3 dòng);
+  // ĐIỂM CẮT giữa các dòng mới cần chính xác nên dùng measure thật ở splitBalanced.
+  const total = lineLen(words, charLen);
   const lines = Math.min(maxLines, words.length, Math.max(1, Math.ceil(total / maxChars)));
-  const split = splitBalanced(words, lines);
+  const split = splitBalanced(words, lines, measureWord ?? charLen);
   // chống mồ côi: dòng cuối chỉ 1 từ mà có ≥2 dòng → nhập từ của dòng trước xuống
   const last = split[split.length - 1];
   if (split.length > 1 && last.length === 1) {
