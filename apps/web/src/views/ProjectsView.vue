@@ -12,6 +12,7 @@ import MProgress from "../components/mds/MProgress.vue";
 import MSpinner from "../components/mds/MSpinner.vue";
 import MTag from "../components/mds/MTag.vue";
 import MTextarea from "../components/mds/MTextarea.vue";
+import SceneContentEditor from "../components/SceneContentEditor.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, ApiError } from "../lib/api";
 import type { DriveExport, ProjectDetail, ProjectRow, ScriptRow } from "../lib/types";
@@ -181,6 +182,11 @@ function onPageSizeChange(size: number): void {
 }
 
 function applyDetail(next: ProjectDetail): void {
+  // content luôn do server trả, nhưng phòng dữ liệu cũ/cache thiếu field này
+  // (vd giữa lúc deploy) — tránh form sửa "chữ trên hình" crash vì content undefined.
+  for (const s of next.scripts) {
+    for (const sc of s.scenes) if (!sc.content) sc.content = {};
+  }
   detail.value = next;
   // Lấy link Drive đã export (nếu có) cho các video đã render xong
   for (const s of next.scripts) {
@@ -261,10 +267,10 @@ async function saveNarration(script: ScriptRow): Promise<void> {
     await api(`/v1/scripts/${script.id}/narration`, {
       method: "PUT",
       body: JSON.stringify({
-        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration })),
+        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration, content: s.content })),
       }),
     });
-    toast.success("Đã lưu chỉnh sửa lời thoại.");
+    toast.success("Đã lưu chỉnh sửa.");
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
     toast.error(cause instanceof ApiError ? cause.message : "Không lưu được lời thoại.");
@@ -295,14 +301,14 @@ async function saveAndRerender(script: ScriptRow): Promise<void> {
     await api(`/v1/scripts/${script.id}/narration`, {
       method: "PUT",
       body: JSON.stringify({
-        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration })),
+        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration, content: s.content })),
       }),
     });
     await api(`/v1/scripts/${script.id}/approve`, { method: "POST" });
     const next = new Set(editingIds.value);
     next.delete(script.id);
     editingIds.value = next;
-    toast.success("Đã lưu lời thoại — đang render lại video.");
+    toast.success("Đã lưu chỉnh sửa — đang render lại video.");
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
     toast.error(cause instanceof ApiError ? cause.message : "Không render lại được.");
@@ -465,7 +471,7 @@ watch(
       <!-- Kịch bản: chữ trên hình + lời đọc voice-off từng scene để duyệt -->
       <details class="mt-3" :open="script.status === 'pending' || editingIds.has(script.id)">
         <summary class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]">
-          {{ isEditing(script) && script.scenes?.length ? "Xem kịch bản & sửa lời đọc từng scene" : "Xem kịch bản & lời đọc từng scene" }}
+          {{ isEditing(script) && script.scenes?.length ? "Xem kịch bản & sửa từng scene" : "Xem kịch bản & lời đọc từng scene" }}
         </summary>
 
         <div v-if="script.scenes?.length" class="mt-2 space-y-3">
@@ -481,8 +487,14 @@ watch(
             <p class="m-0 mb-1.5 text-[12px] font-semibold text-[var(--mds-text-secondary)]">
               Scene {{ i + 1 }} — {{ sc.type }}
             </p>
-            <!-- Chữ trên hình (read-only) -->
-            <div v-if="sc.display" class="mb-2">
+            <!-- Chữ trên hình -->
+            <div v-if="isEditing(script)" class="mb-2">
+              <p class="m-0 mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]">
+                Chữ trên hình
+              </p>
+              <SceneContentEditor :scene-type="sc.type" :content="sc.content!" />
+            </div>
+            <div v-else-if="sc.display" class="mb-2">
               <p class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]">
                 Chữ trên hình
               </p>
@@ -511,7 +523,7 @@ watch(
               <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
             </MButton>
             <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-              Chỉ sửa được <b>lời đọc</b>; chữ trên hình do bố cục scene quyết định. Sửa xong bấm "Lưu chỉnh sửa", rồi "Duyệt & render".
+              Sửa được cả <b>chữ trên hình</b> lẫn <b>lời đọc</b>. Sửa xong bấm "Lưu chỉnh sửa", rồi "Duyệt & render".
               Số/năm/ngày sẽ được đọc thành chữ tiếng Việt khi lồng tiếng.
             </p>
           </template>
@@ -524,8 +536,8 @@ watch(
               <MButton :disabled="savingEditId === script.id" @click="cancelEdit(script)">Huỷ</MButton>
             </div>
             <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-              Sửa <b>lời đọc</b> rồi bấm "Lưu &amp; render lại" — hệ thống dựng lại video mới từ lời thoại đã sửa
-              (video cũ vẫn giữ tới khi bản mới xong). Chữ trên hình do bố cục scene quyết định, không sửa ở đây.
+              Sửa <b>chữ trên hình</b> và/hoặc <b>lời đọc</b> rồi bấm "Lưu &amp; render lại" — hệ thống dựng lại
+              video mới từ nội dung đã sửa (video cũ vẫn giữ tới khi bản mới xong).
             </p>
           </template>
           <!-- Kịch bản đã render, chưa vào chế độ sửa: nút mở sửa lại -->

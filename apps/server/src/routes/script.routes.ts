@@ -8,7 +8,7 @@ import {
   getScriptDetail,
   listFinishedJobs,
   rejectScript,
-  updateScriptNarration,
+  updateScriptScenes,
 } from "../services/script.service";
 import { exportJobToDrive, getJobExport } from "../services/gdrive.service";
 
@@ -27,14 +27,23 @@ scriptRoutes.get(
   })
 );
 
+/** Sửa lời thoại và/hoặc chữ trên hình từng scene — content là object tuỳ ý,
+ * server tự lọc theo allow-list (SCENE_CONTENT_FIELDS) nên không cần whitelist
+ * lại ở đây; chỉ chặn hình dạng request rõ ràng sai. */
 scriptRoutes.put(
   "/:id/narration",
   asyncHandler(async (req, res) => {
     const edits = req.body?.scenes;
-    if (!Array.isArray(edits) || edits.some((e) => typeof e?.id !== "string" || typeof e?.narration !== "string")) {
-      throw badRequest("Dữ liệu lời thoại không hợp lệ.");
-    }
-    await updateScriptNarration(req.user!.id, idParam(req.params.id), edits);
+    const valid =
+      Array.isArray(edits) &&
+      edits.every(
+        (e) =>
+          typeof e?.id === "string" &&
+          (e.narration === undefined || typeof e.narration === "string") &&
+          (e.content === undefined || (typeof e.content === "object" && e.content !== null && !Array.isArray(e.content)))
+      );
+    if (!valid) throw badRequest("Dữ liệu sửa không hợp lệ.");
+    await updateScriptScenes(req.user!.id, idParam(req.params.id), edits);
     res.json({ data: { ok: true } });
   })
 );

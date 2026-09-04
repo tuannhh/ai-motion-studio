@@ -7,6 +7,7 @@ import { badRequest, notFound } from "../http-error";
 import { generatePublicId } from "../lib/public-id";
 import { extractEmbeddedImages, extractUrlImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
+import { extractSceneContent } from "@ams/pipeline/src/scene-content";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
 import { getReadyProfile } from "./template.service";
 import { enqueueRender } from "./render-worker";
@@ -314,7 +315,13 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
   // trả nguyên plan_json (nặng + lộ chi tiết dựng không cần cho màn duyệt).
   const scripts = scriptRows.map((r) => {
     const { plan_json, ...rest } = r;
-    let scenes: Array<{ id: string; type: string; narration: string; display: string }> = [];
+    let scenes: Array<{
+      id: string;
+      type: string;
+      narration: string;
+      display: string;
+      content: Record<string, unknown>;
+    }> = [];
     try {
       const plan = JSON.parse(String(plan_json));
       scenes = (plan.scenes ?? []).map((s: any) => ({
@@ -323,6 +330,8 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
         narration: s.narration,
         // chữ hiển thị trên hình (để đối chiếu với lời đọc voice-off)
         display: sceneDisplayText(s),
+        // giá trị hiện tại của từng field chữ-trên-hình được phép sửa (form sửa)
+        content: extractSceneContent(s),
       }));
     } catch {
       // plan hỏng không chặn hiển thị — chỉ mất khả năng sửa scene

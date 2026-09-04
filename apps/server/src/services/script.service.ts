@@ -4,6 +4,7 @@ import { badRequest, notFound } from "../http-error";
 import { enqueueRender } from "./render-worker";
 import { planSchema } from "@ams/pipeline/src/prompts";
 import { planToNarrationMd } from "@ams/pipeline/src/api";
+import { mergeSceneContent } from "@ams/pipeline/src/scene-content";
 
 /**
  * Duyệt/từ chối kịch bản + tra job render. Mọi truy vấn join tới
@@ -48,17 +49,20 @@ const hasActiveJob = async (scriptId: number): Promise<boolean> => {
 };
 
 /**
- * Sửa lời thoại (narration) từng scene — cho phép CẢ trước khi duyệt (pending) LẪN
- * sau khi đã render (approved), để người dùng phát hiện lỗi thì sửa rồi render lại.
- * Chỉ cấm khi kịch bản đã bị từ chối hoặc đang có job render chạy dở. Ghi đè
- * scene.narration trong plan_json, re-validate theo planSchema (fail-closed), dựng
- * lại narration_md. IDOR qua getScriptOwned. (Không tự render lại — người dùng bấm
- * "Duyệt & render" / "Render lại" sau khi lưu.)
+ * Sửa lời thoại (narration) + chữ trên hình (content — headline/sub/items...)
+ * từng scene — cho phép CẢ trước khi duyệt (pending) LẪN sau khi đã render
+ * (approved), để người dùng phát hiện lỗi thì sửa rồi render lại. Chỉ cấm khi
+ * kịch bản đã bị từ chối hoặc đang có job render chạy dở. `content` chỉ ghi đè
+ * field text thuần theo SCENE_CONTENT_FIELDS (allow-list, không tin field lạ
+ * từ client) — giữ nguyên field cấu trúc/thẩm mỹ do AI/engine quyết định. Re-
+ * validate theo planSchema (fail-closed), dựng lại narration_md. IDOR qua
+ * getScriptOwned. (Không tự render lại — người dùng bấm "Duyệt & render" /
+ * "Render lại" sau khi lưu.)
  */
-export const updateScriptNarration = async (
+export const updateScriptScenes = async (
   userId: number,
   scriptId: number,
-  edits: Array<{ id: string; narration: string }>
+  edits: Array<{ id: string; narration?: string; content?: Record<string, unknown> }>
 ): Promise<void> => {
   const script = await getScriptOwned(userId, scriptId);
   if (script.status === "rejected") {
@@ -68,15 +72,17 @@ export const updateScriptNarration = async (
     throw badRequest("Kịch bản đang render — đợi render xong rồi hãy sửa.");
   }
   const plan = JSON.parse(String(script.plan_json));
-  const byId = new Map(edits.map((e) => [e.id, e.narration]));
-  for (const scene of plan.scenes as Array<{ id: string; narration: string }>) {
-    const next = byId.get(scene.id);
-    if (next !== undefined) scene.narration = next.trim();
+  const byId = new Map(edits.map((e) => [e.id, e]));
+  for (const scene of plan.scenes as Array<Record<string, unknown>>) {
+    const edit = byId.get(scene.id as string);
+    if (!edit) continue;
+    if (edit.narration !== undefined) scene.narration = edit.narration.trim();
+    mergeSceneContent(scene, edit.content);
   }
   const parsed = planSchema.safeParse(plan);
   if (!parsed.success) {
     throw badRequest(
-      `Lời thoại không hợp lệ: ${parsed.error.issues
+      `Nội dung không hợp lệ: ${parsed.error.issues
         .slice(0, 5)
         .map((i) => `${i.path.join(".")}: ${i.message}`)
         .join("; ")}`
