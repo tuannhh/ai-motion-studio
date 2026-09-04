@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import MButton from "../../components/mds/MButton.vue";
 import MIcon from "../../components/mds/MIcon.vue";
+import AccountDialogs from "../../components/AccountDialogs.vue";
 import MMobileBottomNav from "../../components/mobile/MMobileBottomNav.vue";
 import MMobileTopBar from "../../components/mobile/MMobileTopBar.vue";
 import { requestHostBack } from "../../lib/mobile-surface";
@@ -16,9 +17,15 @@ import MobileResourceView from "./MobileResourceView.vue";
 type MobileRoute = "create" | "projects" | "series" | "templates" | "watermark" | "music" | "users" | "more";
 
 const props = defineProps<{ user: SessionUser }>();
+const emit = defineEmits<{ signedOut: [] }>();
 const route = useRoute();
 const router = useRouter();
 const isAdmin = computed(() => props.user.role === "admin");
+const accountDialogs = ref<InstanceType<typeof AccountDialogs> | null>(null);
+
+function logout(): void {
+  void accountDialogs.value?.logout();
+}
 
 const ROUTE_PATHS: Record<MobileRoute, string> = {
   create: FEATURE_ROUTES.create,
@@ -67,6 +74,11 @@ const bottomItems = [
   { key: "more", label: "Thêm", icon: "layout-grid" },
 ];
 const bottomActive = computed(() => ["templates", "watermark", "music", "users"].includes(activeKey.value) ? "more" : activeKey.value);
+const accountItems = computed(() => [
+  { key: "drive", label: "Google Drive", icon: "cloud-upload", action: () => accountDialogs.value?.openDriveDialog() },
+  { key: "password", label: "Đổi mật khẩu", icon: "lock", action: () => accountDialogs.value?.openPasswordDialog() },
+  { key: "logout", label: "Đăng xuất", icon: "logout", action: logout },
+]);
 const moreItems = computed(() => [
   { key: "templates" as const, label: "Video Template", description: "Quản lý video mẫu", icon: "layout-grid" },
   { key: "watermark" as const, label: "Watermark", description: "Ảnh và chữ nhận diện", icon: "photo" },
@@ -114,7 +126,24 @@ async function onProjectCreated(projectId: number): Promise<void> {
     <section v-else class="mds-mobile-app flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--mds-bg)] text-[var(--mds-text)]">
       <MMobileTopBar title="Thêm" :show-back="false" />
       <main class="min-h-0 flex-1 overflow-y-auto">
-        <div class="mx-auto w-full max-w-[720px] divide-y divide-[var(--mds-border-light)]">
+        <div class="mds-mobile-gutter-x mx-auto w-full max-w-[720px] pt-4">
+          <p class="m-0 text-[14px] font-semibold">{{ user.displayName }}</p>
+          <p class="m-0 mt-0.5 text-[12px] text-[var(--mds-text-secondary)]">{{ user.email }}</p>
+        </div>
+        <div class="mx-auto w-full max-w-[720px] divide-y divide-[var(--mds-border-light)] mt-3">
+          <button
+            v-for="item in accountItems"
+            :key="item.key"
+            type="button"
+            class="mds-mobile-gutter-x flex min-h-[56px] w-full items-center gap-3 bg-[var(--mds-bg)] py-3 text-left active:bg-[var(--mds-bg-hover-soft)]"
+            @click="item.action"
+          >
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--mds-brand-50)] text-[var(--mds-brand-600)]"><MIcon :name="item.icon" :size="22" /></span>
+            <span class="min-w-0 flex-1 truncate text-[14px] font-semibold">{{ item.label }}</span>
+            <MIcon name="chevron-right" :size="20" class="shrink-0 text-[var(--mds-icon-neutral)]" />
+          </button>
+        </div>
+        <div class="mx-auto w-full max-w-[720px] divide-y divide-[var(--mds-border-light)] mt-3">
           <button
             v-for="item in moreItems"
             :key="item.key"
@@ -134,5 +163,6 @@ async function onProjectCreated(projectId: number): Promise<void> {
     </section>
 
     <MMobileBottomNav :items="bottomItems" :active="bottomActive" @select="navigate" />
+    <AccountDialogs ref="accountDialogs" @signed-out="emit('signedOut')" />
   </div>
 </template>

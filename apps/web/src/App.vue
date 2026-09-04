@@ -32,7 +32,7 @@ onMounted(async () => {
     Đang khởi động AI Motion Studio…
   </main>
   <LoginView v-else-if="!user" @signed-in="user = $event" />
-  <MobileShell v-else-if="isNative" :user="user" />
+  <MobileShell v-else-if="isNative" :user="user" @signed-out="user = null" />
   <Shell v-else :user="user" @signed-out="user = null" />
   <MToast />
 </template>
