@@ -1,4 +1,7 @@
 import { Router } from "express";
+import fs from "node:fs";
+import { styleProfileSchema } from "@ams/pipeline/src/template";
+import { getTemplateOwned } from "../services/template.service";
 import multer from "multer";
 import { z } from "zod";
 import { appConfig, storagePaths } from "../config";
@@ -17,13 +20,18 @@ import {
 
 const upload = multer({
   dest: storagePaths.temp,
-  limits: { fileSize: appConfig.UPLOAD_MAX_MB * 1024 * 1024, files: 1 },
+  limits: { fileSize: 128 * 1024 * 1024, files: 1 },
 });
 
-const nameSchema = z.string().trim().min(2, "Tên template tối thiểu 2 ký tự.").max(120);
+const nameSchema = z
+  .string()
+  .trim()
+  .min(2, "Tên template tối thiểu 2 ký tự.")
+  .max(120);
 
 const updateSchema = z.object({
   name: nameSchema.optional(),
+  profile: styleProfileSchema.optional(),
   workflow: workflowSchema.optional(),
 });
 
@@ -39,7 +47,7 @@ templateRoutes.get(
   "/",
   asyncHandler(async (req, res) => {
     res.json({ data: await listTemplates(req.user!.id) });
-  })
+  }),
 );
 
 templateRoutes.post(
@@ -53,23 +61,28 @@ templateRoutes.post(
     }
     const id = await createTemplate(req.user!.id, name.data, req.file);
     res.status(201).json({ data: { id } });
-  })
+  }),
 );
 
 /** Tra template theo public_id (URL sub-path /video-template/:slug/:id). */
 templateRoutes.get(
   "/public/:publicId",
   asyncHandler(async (req, res) => {
-    const id = await resolveTemplateIdByPublicId(req.user!.id, req.params.publicId);
+    const id = await resolveTemplateIdByPublicId(
+      req.user!.id,
+      req.params.publicId,
+    );
     res.json({ data: await getTemplateDetail(req.user!.id, id) });
-  })
+  }),
 );
 
 templateRoutes.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    res.json({ data: await getTemplateDetail(req.user!.id, idParam(req.params.id)) });
-  })
+    res.json({
+      data: await getTemplateDetail(req.user!.id, idParam(req.params.id)),
+    });
+  }),
 );
 
 templateRoutes.put(
@@ -77,11 +90,13 @@ templateRoutes.put(
   asyncHandler(async (req, res) => {
     const parsed = updateSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.");
+      throw badRequest(
+        parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.",
+      );
     }
     await updateTemplate(req.user!.id, idParam(req.params.id), parsed.data);
     res.json({ data: { ok: true } });
-  })
+  }),
 );
 
 templateRoutes.post(
@@ -89,7 +104,7 @@ templateRoutes.post(
   asyncHandler(async (req, res) => {
     await reanalyzeTemplate(req.user!.id, idParam(req.params.id));
     res.status(202).json({ data: { status: "analyzing" } });
-  })
+  }),
 );
 
 templateRoutes.delete(
@@ -97,5 +112,15 @@ templateRoutes.delete(
   asyncHandler(async (req, res) => {
     await deleteTemplate(req.user!.id, idParam(req.params.id));
     res.json({ data: { ok: true } });
-  })
+  }),
+);
+
+templateRoutes.get(
+  "/:id/video",
+  asyncHandler(async (req, res) => {
+    const row = await getTemplateOwned(req.user!.id, idParam(req.params.id));
+    if (!row.source_video_path || !fs.existsSync(String(row.source_video_path)))
+      throw badRequest("Video gốc không còn trên máy chủ.");
+    res.sendFile(String(row.source_video_path));
+  }),
 );

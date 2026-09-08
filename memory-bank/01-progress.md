@@ -747,3 +747,14 @@ User cung cấp 11 video (ainius.net tải về Downloads) + diagram-video-tool-
 **Bẫy đã né (từ dự án cũ):** duration phải lấy từ WAV thật; Remotion bundle không cache giữa job; model ID Gemini luôn để config; fail-closed khi spec lỗi.
 
 **Việc kế tiếp đề xuất:** GĐ2 server + web (load skill misa-backend-standard + misa-design-system), hoặc mở rộng scene types (chart, image-hero) tùy user ưu tiên.
+
+## 2026-09-07 — isolated Next build
+
+See [02-next-build.md](02-next-build.md) and [README-NEXT.md](../README-NEXT.md). Added the scene studio, shared Remotion preview, versioned edits, private music, source evidence, style/profile editing, local runtime and Gemini 3.8 content/OCR. Source checkout remains untouched. Verification and current limits are documented in the handover.
+
+## 2026-09-08 — local reliability and final visual corrections
+
+- Fixed unresolved `userimg:N` background references before rendering; job 15 proves the source images are archived into the render job instead of leaking into asset paths.
+- Enlarged diagram nodes/labels, raised music audibility under narration, and fitted real reference images to their source ratio. Render jobs 19 and 20 completed; visual evidence is in `../qa/`.
+- Replaced terminal-bound local startup with persistent `ams-next-studio` Docker runtime (`compose.next.yml`, `unless-stopped`). Login `studio@local.test` was verified through the browser and authenticated render assets returned correctly.
+- Detailed operational history: [03-motion-reconstruction.md](03-motion-reconstruction.md), [04-image-reference-fix.md](04-image-reference-fix.md), [05-video-readability.md](05-video-readability.md), [06-persistent-local-login.md](06-persistent-local-login.md).

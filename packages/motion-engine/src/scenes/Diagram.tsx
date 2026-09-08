@@ -61,21 +61,19 @@ const layoutNodes = (
   const maxLevel = Math.max(...nodes.map((n) => level.get(n.id)!));
   const rows: NodeIn[][] = Array.from({ length: maxLevel + 1 }, () => []);
   nodes.forEach((n) => rows[level.get(n.id)!].push(n));
-  const maxCols = Math.max(...rows.map((r) => r.length));
-
-  const gapX = 36;
+  const gapX = 24;
   const rowH = CANVAS_H / rows.length;
-  const boxW = Math.max(190, Math.min(340, (CANVAS_W - gapX) / maxCols - gapX));
-  const boxH = Math.min(148, rowH * 0.6);
+  const boxH = Math.min(200, rowH * 0.65);
 
   const laid: Laid[] = [];
   rows.forEach((row, r) => {
+    const boxW = Math.min(400, CANVAS_W / row.length - gapX);
     row.forEach((n, c) => {
       const cx = ((c + 0.5) * CANVAS_W) / row.length;
       const cy = (r + 0.5) * rowH;
       const isHub = n.kind === "hub";
-      const w = isHub ? Math.min(boxW, boxH) : boxW;
-      const h = boxH;
+      const w = isHub ? Math.min(boxW, 240, rowH * 0.7) : boxW;
+      const h = isHub ? w : boxH;
       laid.push({ ...n, cx, cy, w, h });
     });
   });
@@ -229,9 +227,9 @@ export const DiagramScene: React.FC<{
           const radius = isHub ? n.w / 2 : n.kind === "pill" ? n.h / 2 : 22;
           const pulse = n.emphasis && p > 0.95 ? breathe(frame - delay, 0.02) : 1;
           const contentW = n.w - (isHub ? 28 : n.icon ? 84 : 44);
-          const labelSize = fitBox(n.label, contentW, 2, {
-            max: isHub ? 26 : 32,
-            min: 18,
+          const labelSize = fitBox(n.label, contentW, isHub ? 3 : 2, {
+            max: isHub ? 34 : 38,
+            min: 24,
           });
           return (
             <div
@@ -270,7 +268,7 @@ export const DiagramScene: React.FC<{
               >
                 {n.icon ? (
                   <div style={popIn({ frame, fps, delay: delay + 4 })}>
-                    <Icon name={n.icon} size={isHub ? 38 : 42} color={theme.accentText} />
+                    <Icon name={n.icon} size={isHub ? 44 : 46} color={theme.accentText} />
                   </div>
                 ) : null}
                 <span

@@ -23,6 +23,15 @@ import {
   stopRenderWorker,
 } from "./services/render-worker";
 
+import { studioRoutes } from "./routes/studio.routes";
+
+import { reconstructionRoutes } from "./routes/reconstruction.routes";
+import {
+  recoverMotionRuns,
+  startMotionWorker,
+  stopMotionWorker,
+} from "./services/reconstruction.service";
+
 const app = express();
 app.disable("x-powered-by");
 // Helmet: giữ CSP chặt nhưng BỎ `upgrade-insecure-requests` và HSTS — app phục vụ
@@ -36,10 +45,12 @@ app.use(
         "upgrade-insecure-requests": null,
         "img-src": ["'self'", "data:", "blob:"],
         "media-src": ["'self'", "blob:"],
+        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+        "connect-src": ["'self'", "https://fonts.gstatic.com"],
       },
     },
     strictTransportSecurity: false,
-  })
+  }),
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
@@ -56,10 +67,12 @@ app.get("/healthz", async (_req, res) => {
 
 app.use("/v1/auth", authRoutes);
 app.use("/v1/projects", requireAuth, projectRoutes);
+app.use("/v1/scripts", requireAuth, studioRoutes);
 app.use("/v1/scripts", requireAuth, scriptRoutes);
 app.use("/v1/jobs", requireAuth, jobRoutes);
 app.use("/v1/watermark", requireAuth, watermarkRoutes);
 app.use("/v1/watermark-presets", requireAuth, watermarkPresetRoutes);
+app.use("/v1/motion-runs", requireAuth, reconstructionRoutes);
 app.use("/v1/templates", requireAuth, templateRoutes);
 app.use("/v1/series", requireAuth, seriesRoutes);
 app.use("/v1/music", requireAuth, musicRoutes);
@@ -87,18 +100,28 @@ if (fs.existsSync(appConfig.webDist)) {
 app.use(errorHandler);
 
 const main = async () => {
-  for (const dir of Object.values(storagePaths)) fs.mkdirSync(dir, { recursive: true });
+  for (const dir of Object.values(storagePaths))
+    fs.mkdirSync(dir, { recursive: true });
   await verifyTables();
   await recoverStaleJobs();
   startRenderWorker();
+  await recoverMotionRuns();
+  startMotionWorker();
 
-  const server = app.listen(appConfig.listenPort, () => {
-    console.log(`[server] AI Motion Studio API — http://localhost:${appConfig.listenPort} (${appConfig.NODE_ENV})`);
-  });
+  const server = app.listen(
+    appConfig.listenPort,
+    appConfig.isProduction ? "0.0.0.0" : "127.0.0.1",
+    () => {
+      console.log(
+        `[server] AI Motion Studio API — http://localhost:${appConfig.listenPort} (${appConfig.NODE_ENV})`,
+      );
+    },
+  );
 
   const shutdown = (signal: string) => {
     console.log(`[server] Nhận ${signal} — đóng graceful...`);
     stopRenderWorker();
+    stopMotionWorker();
     server.close(() => {
       void pool.end().then(() => process.exit(0));
     });

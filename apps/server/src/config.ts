@@ -15,6 +15,7 @@ const envSchema = z.object({
   // PORT (chuẩn Cloud Run/PaaS) ưu tiên hơn SERVER_PORT nếu có.
   PORT: z.coerce.number().int().min(1).max(65535).optional(),
   SERVER_PORT: z.coerce.number().int().min(1).max(65535).default(4600),
+  STORAGE_ROOT: z.string().min(1).optional(),
   DB_HOST: z.string().default("127.0.0.1"),
   DB_PORT: z.coerce.number().int().default(3310),
   /** Cloud SQL trên Cloud Run chỉ lộ Unix socket (không TCP) — đặt path
@@ -68,7 +69,7 @@ export const appConfig = {
   /** cổng lắng nghe thực tế: PORT (Cloud Run) > SERVER_PORT */
   listenPort: parsed.data.PORT ?? parsed.data.SERVER_PORT,
   /** thư mục gốc dữ liệu server (ngoài src, gitignored) */
-  storageRoot: path.resolve(__dirname, "../storage"),
+  storageRoot: parsed.data.STORAGE_ROOT ? path.resolve(parsed.data.STORAGE_ROOT) : path.resolve(__dirname, "../storage"),
   /** thư mục web build tĩnh (apps/web/dist) — phục vụ SPA ở production */
   webDist: path.resolve(__dirname, "../../web/dist"),
   /** Drive export bật khi có đủ client id/secret */

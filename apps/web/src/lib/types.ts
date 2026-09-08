@@ -102,6 +102,8 @@ export type WatermarkConfig = {
 
 /** StyleProfile do Gemini phân tích từ video mẫu (camelCase DTO từ server) */
 export type StyleProfile = {
+  motionBlueprint?: import("@ams/motion-engine/src/motion/schema").MotionDocument;
+  motionEnabled?: boolean;
   preset: "midnight" | "aurora" | "paper" | "noir";
   accent?: string;
   paletteNotes: string;
@@ -169,14 +171,26 @@ export type SeriesEpisode = {
   slug: string;
   scriptStatus: "pending" | "approved" | "rejected";
   jobId: number | null;
-  jobStatus: "queued" | "images" | "tts" | "rendering" | "done" | "failed" | null;
+  jobStatus:
+    | "queued"
+    | "images"
+    | "tts"
+    | "rendering"
+    | "done"
+    | "failed"
+    | null;
   jobProgress: number | null;
   hasVideo: boolean;
   createdAt: string;
 };
 
 export type SeriesDetail = {
-  series: { id: number; name: string; description: string | null; created_at: string };
+  series: {
+    id: number;
+    name: string;
+    description: string | null;
+    created_at: string;
+  };
   episodes: SeriesEpisode[];
 };
 
@@ -191,7 +205,12 @@ export type MusicTrack = {
 
 export type GDriveStatus =
   | { connected: false }
-  | { connected: true; email: string | null; connectedAt: string; enabled: boolean };
+  | {
+      connected: true;
+      email: string | null;
+      connectedAt: string;
+      enabled: boolean;
+    };
 
 export type DriveExport = {
   fileId: string;

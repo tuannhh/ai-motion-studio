@@ -2,12 +2,19 @@
   "name": "ai-motion-studio",
   "version": "0.1.0",
   "private": true,
-  "description": "Hệ thống tạo video motion-graphics tự động bằng AI — idea → script → scene spec → Remotion render (1080x1920)",
+  "description": "H\u1ec7 th\u1ed1ng t\u1ea1o video motion-graphics t\u1ef1 \u0111\u1ed9ng b\u1eb1ng AI \u2014 idea \u2192 script \u2192 scene spec \u2192 Remotion render (1080x1920)",
   "scripts": {
     "engine:preview": "pnpm --filter @ams/motion-engine preview",
     "engine:render": "pnpm --filter @ams/motion-engine render",
     "server:dev": "pnpm --filter @ams/server dev",
-    "web:dev": "pnpm --filter @ams/web dev"
+    "web:dev": "pnpm --filter @ams/web dev",
+    "dev": "node scripts/start-local.mjs",
+    "setup:local": "node scripts/setup-local.mjs",
+    "prepare:preview": "node scripts/prepare-preview.mjs",
+    "build": "pnpm prepare:preview && pnpm --filter @ams/web build",
+    "typecheck": "pnpm --filter @ams/server typecheck && pnpm --filter @ams/web typecheck",
+    "test": "pnpm --filter @ams/server exec tsx --test test/studio.test.ts",
+    "renderer:build": "docker build -f Dockerfile.renderer -t ai-motion-studio-next-renderer:local ."
   },
   "engines": {
     "node": ">=20"

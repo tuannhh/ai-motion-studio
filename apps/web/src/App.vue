@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import MobileReconstructionView from "./reconstruction/MobileReconstructionView.vue";
+import MobileStudioView from "./studio/MobileStudioView.vue";
+const route = useRoute();
 import MToast from "./components/mds/MToast.vue";
 import LoginView from "./views/LoginView.vue";
 import Shell from "./views/Shell.vue";
@@ -13,7 +17,9 @@ const { isNative } = useMisaSurface();
 
 onMounted(async () => {
   try {
-    const data = await api<{ user: SessionUser; csrfToken: string }>("/v1/auth/me");
+    const data = await api<{ user: SessionUser; csrfToken: string }>(
+      "/v1/auth/me",
+    );
     user.value = data.user;
     setCsrfToken(data.csrfToken);
   } catch {
@@ -32,6 +38,18 @@ onMounted(async () => {
     Đang khởi động AI Motion Studio…
   </main>
   <LoginView v-else-if="!user" @signed-in="user = $event" />
+  <MobileReconstructionView
+    v-else-if="isNative && route.name === 'reconstruction'"
+    :key="String(route.params.templateId)"
+    :template-id="Number(route.params.templateId)"
+    :user-id="user.id"
+  />
+  <MobileStudioView
+    v-else-if="isNative && route.name === 'studio'"
+    :key="String(route.params.scriptId)"
+    :script-id="Number(route.params.scriptId)"
+    :user-id="user.id"
+  />
   <MobileShell v-else-if="isNative" :user="user" @signed-out="user = null" />
   <Shell v-else :user="user" @signed-out="user = null" />
   <MToast />

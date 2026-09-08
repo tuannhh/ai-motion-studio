@@ -15,7 +15,7 @@ const planSceneSchema = z.intersection(
     imagePrompt: z.string().max(400).optional(),
     /** mô tả ảnh NỀN nhiếp ảnh cho scene (hook/quote/stat/bigword) — gán vào scene.bgImage */
     bgImagePrompt: z.string().max(400).optional(),
-  })
+  }),
 );
 
 export const planSchema = z.object({
@@ -34,7 +34,19 @@ export const planSchema = z.object({
       total: z.number().int().min(1).optional(),
     })
     .optional(),
-  scenes: z.array(planSceneSchema).min(5).max(10),
+  studio: z
+    .object({
+      musicVolume: z.number().min(0).max(1).default(0.25),
+      sfxVolume: z.number().min(0).max(1).default(0.35),
+      autoSfx: z.boolean().default(true),
+      captions: z.boolean().default(true),
+      accent: z
+        .string()
+        .regex(/^#[0-9a-fA-F]{6}$/)
+        .optional(),
+    })
+    .optional(),
+  scenes: z.array(planSceneSchema).min(2).max(14),
 });
 export const plansSchema = z.array(planSchema).min(1).max(5);
 export type Plan = z.infer<typeof planSchema>;
@@ -87,7 +99,8 @@ HÌNH ẢNH (điểm ăn tiền của video — bắt buộc dùng có chiến l
 ẢNH THẬT TỪ INTERNET (Creative Commons — dùng khi cần ảnh CÓ THẬT thay vì AI dựng, ví dụ địa danh/đồ vật/khung cảnh thật): thay vì mô tả để AI vẽ, đặt tiền tố "web:" + TRUY VẤN TIẾNG ANH ngắn (2-5 từ) — hệ thống tự tìm ảnh có giấy phép, tải về và tự thêm dòng nguồn (credit). Dùng được ở: scene "media" ("image":"web:solar panels field"), hoặc bgImagePrompt ("web:busy office night"), hoặc imagePrompt của annotate ("web:electric car charging"). Chỉ dùng khi ảnh thật có giá trị hơn ảnh AI; vẫn tuân thủ mọi điều CẤM ở trên (không bản đồ/cờ/lãnh đạo/chính trị...). Nếu không chắc có ảnh phù hợp, cứ mô tả để AI vẽ như thường.
 - Cách viết imagePrompt/bgImagePrompt: mô tả CẢNH THẬT cụ thể bằng tiếng Việt — chủ thể rõ (người/vật/không gian), bối cảnh, ánh sáng, không khí. Ví dụ: "Bàn làm việc văn phòng ban đêm, màn hình laptop hắt sáng xanh lên khuôn mặt người phụ nữ đang tập trung, xung quanh tối, giấy tờ chất đống". KHÔNG yêu cầu chữ, số, logo, biểu đồ, UI trong ảnh.
 
-CẤM TUYỆT ĐỐI khi mô tả imagePrompt/bgImagePrompt (chính sách nội dung): KHÔNG mô tả hay gợi ý bản đồ Việt Nam / bản đồ quốc gia / đường biên giới, cờ Việt Nam / bất kỳ quốc kỳ nào, hình ảnh Chủ tịch Hồ Chí Minh / lãnh tụ / lãnh đạo Đảng, Nhà nước Việt Nam / chính khách, và mọi nội dung chính trị, tôn giáo, sắc tộc, quân sự nhạy cảm. Nếu chủ đề đụng tới các yếu tố này, hãy minh hoạ bằng cảnh TRUNG TÍNH, an toàn (không quốc kỳ/bản đồ/nhân vật chính trị).
+TÍNH CHÍNH XÁC HÌNH ẢNH: Với bản đồ, cờ, nhân vật lịch sử, ảnh sự kiện hoặc giao diện sản phẩm cụ thể, ưu tiên tư liệu thật người dùng cung cấp. Không dựng ảnh minh họa rồi trình bày như bằng chứng thật. Gắn nhãn minh họa khi dùng ảnh sinh. Không bịa biên giới, ký hiệu bản đồ, trích dẫn hoặc tài khoản mạng xã hội.
+GIỮ ĐÚNG PHẠM VI: Phong cách chỉ điều chỉnh hình thức và nhịp kể, không được thay đổi dữ kiện hoặc lấn át yêu cầu người dùng. Không tự thêm mốc năm, tên thương hiệu hay handle. Không có handle do người dùng cung cấp thì bỏ trường handle. Tránh khẳng định tuyệt đối (luôn, mọi, không bao giờ) khi tư liệu không chứng minh.
 
 CHUYỂN ĐỘNG CAMERA (trường "motion", thêm được vào BẤT KỲ scene có ảnh — bgImage/annotate/screenshot/media): "auto" (mặc định — engine tự chọn), "zoom-in" (từ từ phóng vào nhấn chủ thể — hợp cảnh có 1 chủ thể/khoảnh khắc), "zoom-out" (lùi ra mở bối cảnh), "pan-left"/"pan-right" (quét ngang không gian rộng/toàn cảnh), "still" (đứng yên — cho ảnh cần đọc kỹ chi tiết). Chọn motion khớp NỘI DUNG ảnh để video có nhịp điện ảnh; scene annotate nên "zoom-in" hoặc "still" để mũi tên chỉ đúng.
 
@@ -131,10 +144,25 @@ export const buildPlansPrompt = (params: {
    * = ảnh tự trích từ chính file tư liệu (docx/pdf) — bằng chứng thật gắn với số liệu
    * đang trích dẫn, đáng ưu tiên hơn ảnh người dùng tải lên rời rạc không liên quan;
    * isFullPage = ảnh TOÀN TRANG tài liệu (render từ pdf) — phải CẮT VÙNG mới dùng được */
-  userImages?: { index: number; caption: string; fromDocument?: boolean; isFullPage?: boolean }[];
+  userImages?: {
+    index: number;
+    caption: string;
+    fromDocument?: boolean;
+    isFullPage?: boolean;
+  }[];
 }): string => {
-  const { idea, mode, count, sources, presetHint, durationSec, styleBlock, scriptPipeline, series, userImages } =
-    params;
+  const {
+    idea,
+    mode,
+    count,
+    sources,
+    presetHint,
+    durationSec,
+    styleBlock,
+    scriptPipeline,
+    series,
+    userImages,
+  } = params;
   const pipelineBlock = scriptPipeline?.length
     ? `\n<SCRIPT_PIPELINE>\nCreator yêu cầu kịch bản đi theo ĐÚNG trình tự các nhịp kể chuyện sau (đây là CẤU TRÚC bắt buộc, không phải nội dung — điền nội dung theo chủ đề & tư liệu vào từng nhịp, ánh xạ mỗi nhịp sang loại scene phù hợp, giữ nguyên thứ tự):\n${scriptPipeline
         .map((step, i) => `${i + 1}. ${step}`)
@@ -165,10 +193,10 @@ export const buildPlansPrompt = (params: {
     ? `\n<USER_IMAGES>\nNgười dùng đã tải lên ${userImages.length} ẢNH THẬT (ưu tiên dùng khi phù hợp — ảnh thật đáng tin hơn ảnh AI dựng). Nếu có ảnh nào là ẢNH CHỤP GIAO DIỆN/UI app/web/sản phẩm số, BẮT BUỘC dùng nó cho scene "screenshot" (đặt vào "image", KHÔNG dùng imagePrompt AI vẽ) — video PHẢI có ít nhất 1 ảnh chụp thật nếu tư liệu có sẵn ảnh UI/sản phẩm phù hợp, vì ảnh chụp thật uy tín hơn hẳn UI do AI vẽ:\n${userImages
         .map(
           (u) =>
-            `- userimg:${u.index}${u.fromDocument ? " [TRÍCH TỪ TÀI LIỆU NGUỒN — dùng làm bằng chứng khi scene nhắc số liệu/luận điểm lấy từ tài liệu này]" : ""}${u.isFullPage ? " [ẢNH TOÀN TRANG — BẮT BUỘC cắt vùng bằng userimg:N:crop, không dùng nguyên cả trang]" : ""} — ${u.caption}`
+            `- userimg:${u.index}${u.fromDocument ? " [TRÍCH TỪ TÀI LIỆU NGUỒN — dùng làm bằng chứng khi scene nhắc số liệu/luận điểm lấy từ tài liệu này]" : ""}${u.isFullPage ? " [ẢNH TOÀN TRANG — BẮT BUỘC cắt vùng bằng userimg:N:crop, không dùng nguyên cả trang]" : ""} — ${u.caption}`,
         )
         .join(
-          "\n"
+          "\n",
         )}\nCÁCH DÙNG (chỉ khi ảnh khớp nội dung scene):\n• Dùng NGUYÊN ảnh thật: đặt giá trị "userimg:N" vào "image" của scene "media" hoặc "screenshot" (screenshot: KHÔNG kèm "markers"), hoặc vào "imagePrompt" của scene "annotate", hoặc "bgImagePrompt" (ảnh nền).\n• Nhờ AI VẼ LẠI theo phong cách minh hoạ (giữ bố cục/chủ thể của ảnh thật nhưng thành tranh vector/illustration hợp tông video): đặt "userimg:N:redraw".\n• CẮT VÙNG (chụp 1 phần ảnh) — dùng cho ẢNH TOÀN TRANG [ẢNH TOÀN TRANG]: đặt "userimg:N:crop:x0,y0,x1,y1" — 4 số thập phân 0-1 là TỈ LỆ toạ độ (0,0)=góc trên-trái, (1,1)=góc dưới-phải trang; cắt SÁT vào ĐÚNG đoạn văn/bảng/biểu đồ/hình đang được scene đó nhắc tới trong narration (không cắt cả trang, không cắt bừa/random) — coi như đang chụp màn hình đúng phần tài liệu minh hoạ cho câu đang nói. Vùng cắt nên đủ lớn để đọc được (khuyến nghị rộng ≥0.25 và cao ≥0.15 tỉ lệ trang).\nẢnh TOÀN TRANG (isFullPage) TUYỆT ĐỐI không dùng "userimg:N" trần (nguyên cả trang trông như ảnh chụp màn hình nhỏ, không phải minh hoạ) — luôn phải kèm ":crop:...".\nẢnh đánh dấu [TRÍCH TỪ TÀI LIỆU NGUỒN]: ưu tiên dùng (nguyên hoặc cắt vùng, KHÔNG redraw) ở đúng scene đang nói tới số liệu/luận điểm đó, để tăng tính thuyết phục — coi như ảnh chụp bằng chứng, không phải minh hoạ.\nKhông bịa ảnh không có trong danh sách trên (chỉ index 1..${userImages.length}). Nếu không ảnh nào khớp, cứ mô tả để AI vẽ mới như bình thường.\n</USER_IMAGES>\n`
     : "";
 
@@ -197,8 +225,8 @@ Trả về DUY NHẤT một mảng JSON gồm ${count} plan hợp lệ theo sche
  */
 export const buildResearchPrompt = (
   idea: string,
-  existingContext?: string
-): string => `Bạn là trợ lý nghiên cứu. Dùng công cụ tìm kiếm Google để tra cứu thông tin, số liệu, ví dụ THỰC TẾ MỚI NHẤT liên quan chủ đề dưới đây, phục vụ việc viết kịch bản video ngắn.
+  existingContext?: string,
+): string => `Bạn là trợ lý nghiên cứu. Dùng công cụ tìm kiếm Google để tra cứu thông tin và ví dụ thực tế phù hợp yêu cầu liên quan chủ đề dưới đây, phục vụ việc viết kịch bản video ngắn.
 
 CHỦ ĐỀ: ${idea}
 ${
@@ -207,14 +235,14 @@ ${
     : ""
 }
 YÊU CẦU:
-- Tìm 3-6 thông tin/số liệu CỤ THỂ, CÓ THẬT (không suy đoán, không bịa), ưu tiên nguồn uy tín và MỚI (ưu tiên 2025-2026).
+- Tìm 3-6 luận điểm có căn cứ. Ưu tiên tài liệu chính thức và nghiên cứu gốc; bỏ nguồn tổng hợp nếu có bản gốc. Chỉ tìm số liệu/mốc mới khi chủ đề yêu cầu; tôn trọng yêu cầu không dùng số liệu. Không thêm dự báo hoặc thông tin ngoài phạm vi.
 - Với mỗi ý, ghi rõ tên tổ chức/nguồn (và năm nếu có) ngay sau ý đó.
 - Nếu tra cứu không ra số liệu cụ thể cho một khía cạnh, bỏ qua khía cạnh đó — KHÔNG ước lượng thay.
 - Trả lời bằng tiếng Việt, dạng gạch đầu dòng ngắn gọn, không mở đầu/kết luận dài dòng.`;
 
 export const buildRepairPrompt = (
   original: string,
-  errors: string[]
+  errors: string[],
 ): string => `JSON dưới đây không đạt schema/lint. Sửa đúng các lỗi liệt kê, giữ nguyên nội dung sáng tạo, trả về DUY NHẤT mảng JSON đã sửa (không markdown).
 
 LỖI:

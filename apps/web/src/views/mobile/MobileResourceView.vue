@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRouter } from "vue-router";
 import { computed, onMounted, ref } from "vue";
 import MButton from "../../components/mds/MButton.vue";
 import MEmptyState from "../../components/mds/MEmptyState.vue";
@@ -17,6 +18,7 @@ type ResourceKind = "series" | "templates" | "watermark" | "music" | "users";
 const props = defineProps<{ kind: ResourceKind; isAdmin: boolean }>();
 const emit = defineEmits<{ back: [] }>();
 const toast = useToast();
+const router = useRouter();
 
 const meta = computed(() => ({
   series: { title: "Serie", icon: "copy", endpoint: "/v1/series", empty: "Chưa có serie nào", add: "Tạo serie" },
@@ -119,14 +121,14 @@ function rowTag(row: Record<string, unknown>): { label: string; color: string } 
           <fieldset v-if="props.kind === 'users'"><legend class="mb-1 text-[13px] font-medium">Vai trò</legend><MRadioGroup v-model="role" :options="[{ label: 'Creator', value: 'creator' }, { label: 'Quản trị', value: 'admin' }]" direction="horizontal" /></fieldset>
           <fieldset v-if="props.kind === 'watermark'"><legend class="mb-1 text-[13px] font-medium">Loại watermark</legend><MRadioGroup v-model="watermarkKind" :options="[{ label: 'Chữ', value: 'text' }, { label: 'Hình', value: 'image' }]" direction="horizontal" /></fieldset>
           <label v-if="props.kind === 'watermark' && watermarkKind === 'text'" class="block text-[13px] font-medium">Nội dung chữ<MInput v-model="watermarkText" class="mt-1" maxlength="40" placeholder="© Kênh của bạn" /></label>
-          <MUpload v-if="props.kind === 'templates' || props.kind === 'music' || (props.kind === 'watermark' && watermarkKind === 'image')" :model-value="uploadItems" :accept="props.kind === 'templates' ? '.mp4,.mov,.webm,video/*' : props.kind === 'music' ? '.mp3,.wav,.m4a,.aac,.ogg,audio/*' : 'image/png,image/jpeg,image/webp'" :max-size-m-b="props.kind === 'music' ? 20 : props.kind === 'templates' ? 18 : 4" :label="props.kind === 'templates' ? 'Video mẫu' : props.kind === 'music' ? 'File nhạc' : 'Ảnh watermark'" @select-files="selectFile" @remove="removeFile" />
+          <MUpload v-if="props.kind === 'templates' || props.kind === 'music' || (props.kind === 'watermark' && watermarkKind === 'image')" :model-value="uploadItems" :accept="props.kind === 'templates' ? '.mp4,.mov,.webm,video/*' : props.kind === 'music' ? '.mp3,.wav,.m4a,.aac,.ogg,audio/*' : 'image/png,image/jpeg,image/webp'" :max-size-m-b="props.kind === 'music' ? 20 : props.kind === 'templates' ? 128 : 4" :label="props.kind === 'templates' ? 'Video mẫu' : props.kind === 'music' ? 'File nhạc' : 'Ảnh watermark'" @select-files="selectFile" @remove="removeFile" />
         </div>
       </div></main>
       <footer class="border-t border-[var(--mds-border-light)] bg-[var(--mds-bg)] py-2"><div class="mds-mobile-gutter-x mx-auto flex w-full max-w-[720px] justify-end"><MButton variant="primary" :loading="saving" @click="save">Lưu</MButton></div></footer>
     </template>
     <template v-else>
       <MMobileTopBar :title="meta.title" back-label="Quay lại" @back="emit('back')"><template #actions><MButton variant="icon" aria-label="Làm mới" @click="load"><template #icon><MIcon name="refresh" :size="20" /></template></MButton></template></MMobileTopBar>
-      <main class="min-h-0 flex-1 overflow-y-auto"><div class="mx-auto w-full max-w-[840px]"><div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div><MEmptyState v-else-if="!rows.length" :title="meta.empty" description="Thêm dữ liệu để bắt đầu sử dụng tính năng này." /><article v-for="row in rows" v-else :key="String(row.id)" class="mds-mobile-gutter-x flex min-h-[68px] min-w-0 items-center gap-3 border-b border-[var(--mds-border-light)] py-3"><MIcon :name="meta.icon" :size="24" class="shrink-0 text-[var(--mds-icon-neutral)]" /><div class="min-w-0 flex-1"><h2 class="m-0 truncate text-[14px] font-semibold">{{ rowTitle(row) }}</h2><p class="m-0 mt-1 truncate text-[12px] text-[var(--mds-text-secondary)]">{{ rowMeta(row) }}</p></div><MTag v-if="rowTag(row)" :color="rowTag(row)?.color" size="sm">{{ rowTag(row)?.label }}</MTag></article></div></main>
+      <main class="min-h-0 flex-1 overflow-y-auto"><div class="mx-auto w-full max-w-[840px]"><div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div><MEmptyState v-else-if="!rows.length" :title="meta.empty" description="Thêm dữ liệu để bắt đầu sử dụng tính năng này." /><article v-for="row in rows" v-else :key="String(row.id)" class="mds-mobile-gutter-x flex min-h-[68px] min-w-0 items-center gap-3 border-b border-[var(--mds-border-light)] py-3"><MIcon :name="meta.icon" :size="24" class="shrink-0 text-[var(--mds-icon-neutral)]" /><div class="min-w-0 flex-1"><h2 class="m-0 truncate text-[14px] font-semibold">{{ rowTitle(row) }}</h2><p class="m-0 mt-1 truncate text-[12px] text-[var(--mds-text-secondary)]">{{ rowMeta(row) }}</p></div><MButton v-if="props.kind === 'templates'" @click="router.push(`/tai-dung/${row.id}`)">Tái dựng</MButton><MTag v-if="rowTag(row)" :color="rowTag(row)?.color" size="sm">{{ rowTag(row)?.label }}</MTag></article></div></main>
       <footer class="border-t border-[var(--mds-border-light)] bg-[var(--mds-bg)] py-2"><div class="mds-mobile-gutter-x mx-auto flex w-full max-w-[840px] justify-end"><MButton variant="primary" @click="openCreate"><MIcon name="plus" :size="16" /> {{ meta.add }}</MButton></div></footer>
     </template>
   </div>

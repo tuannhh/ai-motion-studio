@@ -5,7 +5,14 @@ import { pool } from "../db";
 import { storagePaths } from "../config";
 import { badRequest, notFound } from "../http-error";
 import { generatePublicId } from "../lib/public-id";
-import { extractEmbeddedImages, extractUrlImages, ingestFile, ingestUrl, renderPdfPages } from "@ams/pipeline/src/ingest";
+import {
+  extractEmbeddedImages,
+  extractUrlImages,
+  ingestFile,
+  ingestUrl,
+  renderPdfPages,
+} from "@ams/pipeline/src/ingest";
+import { config as aiConfig } from "@ams/pipeline/src/env";
 import { generatePlans, planToNarrationMd } from "@ams/pipeline/src/api";
 import { extractSceneContent } from "@ams/pipeline/src/scene-content";
 import type { VoiceProfile } from "@ams/pipeline/src/gemini";
@@ -58,7 +65,7 @@ export type CreateProjectInput = {
  */
 const resolveProjectRefs = async (
   userId: number,
-  input: CreateProjectInput
+  input: CreateProjectInput,
 ): Promise<{ presetHint: string | null; seriesId: number | null }> => {
   let presetHint = input.presetHint ?? null;
   if (input.templateId) {
@@ -77,7 +84,7 @@ const resolveProjectRefs = async (
   } else if (input.seriesId || input.newSeriesName) {
     throw badRequest("Serie chỉ dùng với chế độ kịch bản 'series'.");
   }
-  if (input.musicTrackId) await assertMusicExists(input.musicTrackId);
+  if (input.musicTrackId) await assertMusicExists(input.musicTrackId, userId);
   if (input.watermarkPresetId) {
     // chống IDOR: preset phải thuộc user (getPresetForRender ném 404 nếu không)
     await getPresetForRender(userId, input.watermarkPresetId);
@@ -87,7 +94,7 @@ const resolveProjectRefs = async (
 
 export const createProject = async (
   userId: number,
-  input: CreateProjectInput
+  input: CreateProjectInput,
 ): Promise<{ id: number; publicId: string }> => {
   const { presetHint, seriesId } = await resolveProjectRefs(userId, input);
   const publicId = generatePublicId();
@@ -115,7 +122,7 @@ export const createProject = async (
       input.voiceMood,
       input.voiceAge,
       input.voiceSpeed,
-    ]
+    ],
   );
   return { id: result.insertId, publicId };
 };
@@ -129,40 +136,65 @@ export const createProject = async (
 export const updateProjectSettings = async (
   userId: number,
   projectId: number,
-  input: CreateProjectInput
+  input: CreateProjectInput,
 ): Promise<void> => {
-  const project = await getProjectOwned(userId, projectId);
-  if (project.status === "generating") {
-    throw badRequest("Project đang sinh kịch bản, đợi xong rồi hãy sửa thiết lập.");
-  }
   const { presetHint, seriesId } = await resolveProjectRefs(userId, input);
-  await pool.query(
-    `UPDATE projects SET
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [projects] = await conn.query<RowDataPacket[]>(
+      "SELECT status FROM projects WHERE id=? AND user_id=? FOR UPDATE",
+      [projectId, userId],
+    );
+    if (!projects[0]) throw notFound();
+    const project = projects[0];
+    const [active] = await conn.query<RowDataPacket[]>(
+      "SELECT j.id FROM render_jobs j JOIN scripts s ON s.id=j.script_id WHERE s.project_id=? AND j.status IN ('queued','images','tts','rendering') LIMIT 1",
+      [projectId],
+    );
+    if (active.length)
+      throw badRequest(
+        "Video đang dựng. Đợi hoàn tất trước khi đổi thiết lập.",
+      );
+    if (project.status === "generating") {
+      throw badRequest(
+        "Project đang sinh kịch bản, đợi xong rồi hãy sửa thiết lập.",
+      );
+    }
+    await conn.query(
+      `UPDATE projects SET
        template_id = ?, series_id = ?, music_track_id = ?, watermark_preset_id = ?,
        idea = ?, source_mode = ?, mode = ?, variant_count = ?, preset_hint = ?, duration_sec = ?,
        voice_gender = ?, voice_region = ?, voice_style = ?, voice_mood = ?, voice_age = ?, voice_speed = ?
      WHERE id = ? AND user_id = ?`,
-    [
-      input.templateId ?? null,
-      seriesId,
-      input.musicTrackId ?? null,
-      input.watermarkPresetId ?? null,
-      input.idea,
-      input.sourceMode,
-      input.mode,
-      input.variantCount,
-      presetHint,
-      input.durationSec ?? null,
-      input.voiceGender,
-      input.voiceRegion,
-      input.voiceStyle,
-      input.voiceMood,
-      input.voiceAge,
-      input.voiceSpeed,
-      projectId,
-      userId,
-    ]
-  );
+      [
+        input.templateId ?? null,
+        seriesId,
+        input.musicTrackId ?? null,
+        input.watermarkPresetId ?? null,
+        input.idea,
+        input.sourceMode,
+        input.mode,
+        input.variantCount,
+        presetHint,
+        input.durationSec ?? null,
+        input.voiceGender,
+        input.voiceRegion,
+        input.voiceStyle,
+        input.voiceMood,
+        input.voiceAge,
+        input.voiceSpeed,
+        projectId,
+        userId,
+      ],
+    );
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
 };
 
 /**
@@ -172,7 +204,7 @@ export const updateProjectSettings = async (
  */
 export const listProjects = async (
   userId: number,
-  opts: { cursor?: number; limit?: number } = {}
+  opts: { cursor?: number; limit?: number } = {},
 ): Promise<{ items: RowDataPacket[]; nextCursor: number | null }> => {
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
   const hasCursor = typeof opts.cursor === "number" && opts.cursor > 0;
@@ -185,7 +217,7 @@ export const listProjects = async (
       WHERE p.user_id = ?${hasCursor ? " AND p.id < ?" : ""}
       ORDER BY p.id DESC
       LIMIT ?`,
-    hasCursor ? [userId, opts.cursor, limit + 1] : [userId, limit + 1]
+    hasCursor ? [userId, opts.cursor, limit + 1] : [userId, limit + 1],
   );
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
@@ -196,7 +228,7 @@ export const listProjects = async (
 export const getProjectOwned = async (userId: number, projectId: number) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM projects WHERE id = ? AND user_id = ? LIMIT 1`,
-    [projectId, userId]
+    [projectId, userId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy project.");
   return rows[0];
@@ -205,11 +237,11 @@ export const getProjectOwned = async (userId: number, projectId: number) => {
 /** Tra id số từ public_id (URL sub-path) — chống IDOR bằng điều kiện user_id. */
 export const resolveProjectIdByPublicId = async (
   userId: number,
-  publicId: string
+  publicId: string,
 ): Promise<number> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT id FROM projects WHERE public_id = ? AND user_id = ? LIMIT 1`,
-    [publicId, userId]
+    [publicId, userId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy project.");
   return Number(rows[0].id);
@@ -226,13 +258,17 @@ const sceneDisplayText = (s: any): string => {
   };
   switch (s?.type) {
     case "hook":
-      push(s.badge); push(s.headline); push(s.sub);
+      push(s.badge);
+      push(s.headline);
+      push(s.sub);
       break;
     case "points":
-      push(s.title); (s.items ?? []).forEach((it: any) => push(it?.text));
+      push(s.title);
+      (s.items ?? []).forEach((it: any) => push(it?.text));
       break;
     case "flow":
-      push(s.title); (s.nodes ?? []).forEach((n: any) => push(n?.label));
+      push(s.title);
+      (s.nodes ?? []).forEach((n: any) => push(n?.label));
       break;
     case "diagram":
       push(s.title);
@@ -241,7 +277,9 @@ const sceneDisplayText = (s: any): string => {
       break;
     case "timeline":
       push(s.title);
-      (s.steps ?? []).forEach((st: any) => push([st?.time, st?.label, st?.desc].filter(Boolean).join(" — ")));
+      (s.steps ?? []).forEach((st: any) =>
+        push([st?.time, st?.label, st?.desc].filter(Boolean).join(" — ")),
+      );
       break;
     case "compare":
       push(s.title);
@@ -250,40 +288,64 @@ const sceneDisplayText = (s: any): string => {
       break;
     case "versus":
       push(s.title);
-      push(`${s.left?.label ?? ""}: ${s.left?.value ?? ""}${s.left?.detail ? " — " + s.left.detail : ""}`);
-      push(`${s.right?.label ?? ""}: ${s.right?.value ?? ""}${s.right?.detail ? " — " + s.right.detail : ""}`);
+      push(
+        `${s.left?.label ?? ""}: ${s.left?.value ?? ""}${s.left?.detail ? " — " + s.left.detail : ""}`,
+      );
+      push(
+        `${s.right?.label ?? ""}: ${s.right?.value ?? ""}${s.right?.detail ? " — " + s.right.detail : ""}`,
+      );
       break;
     case "stat":
-      push(`${s.value ?? ""}${s.unit ?? ""} — ${s.label ?? ""}`); push(s.source);
+      push(`${s.value ?? ""}${s.unit ?? ""} — ${s.label ?? ""}`);
+      push(s.source);
       break;
     case "quote":
-      push(`“${s.text ?? ""}”`); push(s.author);
+      push(`“${s.text ?? ""}”`);
+      push(s.author);
       break;
     case "rank":
       push(s.title);
-      (s.items ?? []).forEach((it: any) => push(`${it?.label ?? ""}: ${it?.value ?? ""}${it?.unit ?? ""}`));
+      (s.items ?? []).forEach((it: any) =>
+        push(`${it?.label ?? ""}: ${it?.value ?? ""}${it?.unit ?? ""}`),
+      );
       break;
     case "chart":
-      push(s.title); push((s.points ?? []).map((p: any) => `${p?.label}:${p?.value}`).join("  "));
+      push(s.title);
+      push(
+        (s.points ?? []).map((p: any) => `${p?.label}:${p?.value}`).join("  "),
+      );
       break;
     case "media":
-      push(s.title); push(s.caption); push(s.credit);
+      push(s.title);
+      push(s.caption);
+      push(s.credit);
       break;
     case "bigword":
-      push((s.phrases ?? []).map((p: any) => p?.text).filter(Boolean).join("  •  "));
+      push(
+        (s.phrases ?? [])
+          .map((p: any) => p?.text)
+          .filter(Boolean)
+          .join("  •  "),
+      );
       break;
     case "annotate":
-      push(s.kicker); push(s.headline); push(s.note);
+      push(s.kicker);
+      push(s.headline);
+      push(s.note);
       break;
     case "terminal":
-      push(s.title); (s.lines ?? []).forEach((l: any) => push(l?.text));
+      push(s.title);
+      (s.lines ?? []).forEach((l: any) => push(l?.text));
       break;
     case "screenshot":
-      push(s.kicker); push(s.headline);
+      push(s.kicker);
+      push(s.headline);
       (s.markers ?? []).forEach((m: any) => push(m?.label));
       break;
     case "outro":
-      push(s.headline); push(s.cta); push(s.handle);
+      push(s.headline);
+      push(s.cta);
+      push(s.handle);
       break;
     default:
       break;
@@ -296,7 +358,7 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
   const [sources] = await pool.query<RowDataPacket[]>(
     `SELECT id, file_name, mime, size_bytes, status, extract_method, error_message, created_at
        FROM project_sources WHERE project_id = ? ORDER BY id`,
-    [projectId]
+    [projectId],
   );
   const [scriptRows] = await pool.query<RowDataPacket[]>(
     `SELECT s.id, s.variant_index, s.title, s.angle, s.slug, s.preset,
@@ -309,7 +371,7 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
         AND j.id = (SELECT MAX(id) FROM render_jobs WHERE script_id = s.id)
       WHERE s.project_id = ?
       ORDER BY s.variant_index`,
-    [projectId]
+    [projectId],
   );
   // Bóc scenes (id/type/narration) để client sửa lời thoại trước duyệt; KHÔNG
   // trả nguyên plan_json (nặng + lộ chi tiết dựng không cần cho màn duyệt).
@@ -345,7 +407,7 @@ export const getProjectDetail = async (userId: number, projectId: number) => {
 export const addSource = async (
   userId: number,
   projectId: number,
-  file: { originalname: string; path: string; mimetype: string; size: number }
+  file: { originalname: string; path: string; mimetype: string; size: number },
 ): Promise<number> => {
   await getProjectOwned(userId, projectId);
   const dir = path.join(storagePaths.privateSources, String(projectId));
@@ -358,7 +420,13 @@ export const addSource = async (
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
      VALUES (?, ?, ?, ?, ?, 'extracting')`,
-    [projectId, file.originalname.slice(0, 255), storedPath, file.mimetype, file.size]
+    [
+      projectId,
+      file.originalname.slice(0, 255),
+      storedPath,
+      file.mimetype,
+      file.size,
+    ],
   );
   const sourceId = result.insertId;
 
@@ -386,7 +454,7 @@ export const addSource = async (
             img.file,
             img.mime,
             size,
-          ]
+          ],
         );
         ingestSourceRow(ins.insertId, img.file);
       }
@@ -416,7 +484,7 @@ export const addSource = async (
             p.file,
             "image/png",
             size,
-          ]
+          ],
         );
         ingestSourceRow(ins.insertId, p.file);
       }
@@ -433,13 +501,13 @@ const ingestSourceRow = (sourceId: number, filePath: string): void => {
     .then(async (r) => {
       await pool.query(
         `UPDATE project_sources SET status = 'ready', extracted_text = ?, extract_method = ? WHERE id = ?`,
-        [r.text.slice(0, 200_000), r.method, sourceId]
+        [r.text.slice(0, 200_000), r.method, sourceId],
       );
     })
     .catch(async (err) => {
       await pool.query(
         `UPDATE project_sources SET status = 'failed', error_message = ? WHERE id = ?`,
-        [String((err as Error).message).slice(0, 1000), sourceId]
+        [String((err as Error).message).slice(0, 1000), sourceId],
       );
     });
 };
@@ -451,27 +519,27 @@ const ingestSourceRow = (sourceId: number, filePath: string): void => {
 export const addLinkSource = async (
   userId: number,
   projectId: number,
-  url: string
+  url: string,
 ): Promise<number> => {
   await getProjectOwned(userId, projectId);
   const trimmed = url.trim().slice(0, 500);
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
      VALUES (?, ?, ?, 'text/link', 0, 'extracting')`,
-    [projectId, `🔗 ${trimmed}`.slice(0, 255), trimmed]
+    [projectId, `🔗 ${trimmed}`.slice(0, 255), trimmed],
   );
   const sourceId = result.insertId;
   void ingestUrl(trimmed)
     .then(async (r) => {
       await pool.query(
         `UPDATE project_sources SET status = 'ready', extracted_text = ?, extract_method = ? WHERE id = ?`,
-        [r.text.slice(0, 200_000), r.method, sourceId]
+        [r.text.slice(0, 200_000), r.method, sourceId],
       );
     })
     .catch(async (err) => {
       await pool.query(
         `UPDATE project_sources SET status = 'failed', error_message = ? WHERE id = ?`,
-        [String((err as Error).message).slice(0, 1000), sourceId]
+        [String((err as Error).message).slice(0, 1000), sourceId],
       );
     });
 
@@ -493,7 +561,13 @@ export const addLinkSource = async (
         const [ins] = await pool.query<ResultSetHeader>(
           `INSERT INTO project_sources (project_id, file_name, stored_path, mime, size_bytes, status)
            VALUES (?, ?, ?, ?, ?, 'extracting')`,
-          [projectId, `🔗 ${trimmed} — hình ${n + 1}`.slice(0, 255), img.file, img.mime, size]
+          [
+            projectId,
+            `🔗 ${trimmed} — hình ${n + 1}`.slice(0, 255),
+            img.file,
+            img.mime,
+            size,
+          ],
         );
         ingestSourceRow(ins.insertId, img.file);
       }
@@ -507,17 +581,18 @@ export const addLinkSource = async (
 export const deleteSource = async (
   userId: number,
   projectId: number,
-  sourceId: number
+  sourceId: number,
 ): Promise<void> => {
   await getProjectOwned(userId, projectId);
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT stored_path, mime FROM project_sources WHERE id = ? AND project_id = ? LIMIT 1`,
-    [sourceId, projectId]
+    [sourceId, projectId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy tư liệu.");
   await pool.query(`DELETE FROM project_sources WHERE id = ?`, [sourceId]);
   // Link (mime text/link) không có file trên đĩa — stored_path là URL, đừng rm
-  if (rows[0].mime !== "text/link") fs.rmSync(String(rows[0].stored_path), { force: true });
+  if (rows[0].mime !== "text/link")
+    fs.rmSync(String(rows[0].stored_path), { force: true });
 };
 
 /**
@@ -529,12 +604,12 @@ export const deleteSource = async (
 export const getSourceFile = async (
   userId: number,
   projectId: number,
-  sourceId: number
+  sourceId: number,
 ): Promise<{ path: string; mime: string }> => {
   await getProjectOwned(userId, projectId);
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT stored_path, mime FROM project_sources WHERE id = ? AND project_id = ? LIMIT 1`,
-    [sourceId, projectId]
+    [sourceId, projectId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy tư liệu.");
   const mime = String(rows[0].mime);
@@ -567,21 +642,22 @@ export type UserImageSource = {
 };
 
 export const getProjectImageSources = async (
-  projectId: number
+  projectId: number,
 ): Promise<UserImageSource[]> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT file_name, stored_path, extracted_text FROM project_sources
       WHERE project_id = ? AND status = 'ready' AND extract_method LIKE 'image:%'
       ORDER BY id`,
-    [projectId]
+    [projectId],
   );
   return rows.map((r, i) => ({
     index: i + 1,
     storedPath: String(r.stored_path),
-    caption: String(r.extracted_text ?? "")
-      .split("\n")[0]
-      .trim()
-      .slice(0, 160) || "ảnh không có mô tả",
+    caption:
+      String(r.extracted_text ?? "")
+        .split("\n")[0]
+        .trim()
+        .slice(0, 160) || "ảnh không có mô tả",
     fromDocument: / — (hình|trang) \d+$/.test(String(r.file_name ?? "")),
     isFullPage: / — trang \d+$/.test(String(r.file_name ?? "")),
   }));
@@ -604,33 +680,63 @@ export { voiceProfileOf };
  */
 export const generateScripts = async (
   userId: number,
-  projectId: number
+  projectId: number,
 ): Promise<void> => {
-  const project = await getProjectOwned(userId, projectId);
-  if (project.status === "generating") {
-    throw badRequest("Project đang sinh kịch bản, vui lòng đợi.");
+  const conn = await pool.getConnection();
+  let project: RowDataPacket;
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT * FROM projects WHERE id=? AND user_id=? FOR UPDATE",
+      [projectId, userId],
+    );
+    if (!rows[0]) throw notFound();
+    project = rows[0];
+    if (project.status === "generating")
+      throw badRequest("Đang sinh kịch bản, vui lòng đợi.");
+    const [active] = await conn.query<RowDataPacket[]>(
+      "SELECT j.id FROM render_jobs j JOIN scripts s ON s.id=j.script_id WHERE s.project_id=? AND j.status IN ('queued','images','tts','rendering') LIMIT 1",
+      [projectId],
+    );
+    if (active.length)
+      throw badRequest(
+        "Video đang dựng. Đợi hoàn tất trước khi tạo lại kịch bản.",
+      );
+    const [sources] = await conn.query<RowDataPacket[]>(
+      "SELECT status FROM project_sources WHERE project_id=?",
+      [projectId],
+    );
+    if (sources.some((s) => ["extracting", "uploaded"].includes(s.status)))
+      throw badRequest(
+        "Tư liệu đang trích xuất. Đợi hoàn tất trước khi tạo kịch bản.",
+      );
+    if (
+      project.source_mode !== "ai" &&
+      !sources.some((s) => s.status === "ready")
+    )
+      throw badRequest(
+        "Hãy thêm ít nhất một tư liệu hợp lệ, hoặc chọn AI tìm kiếm.",
+      );
+    await conn.query(
+      "UPDATE projects SET status='generating',error_message=NULL,research_json=NULL WHERE id=?",
+      [projectId],
+    );
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
   }
-  const [pending] = await pool.query<RowDataPacket[]>(
-    `SELECT COUNT(*) AS n FROM project_sources WHERE project_id = ? AND status = 'extracting'`,
-    [projectId]
-  );
-  if (Number(pending[0].n) > 0) {
-    throw badRequest("Tư liệu đang được trích xuất — đợi xong rồi sinh kịch bản.");
-  }
-
-  await pool.query(
-    `UPDATE projects SET status = 'generating', error_message = NULL WHERE id = ?`,
-    [projectId]
-  );
 
   void (async () => {
     try {
       const [sources] = await pool.query<RowDataPacket[]>(
         `SELECT file_name, extracted_text FROM project_sources
           WHERE project_id = ? AND status = 'ready' AND extracted_text IS NOT NULL`,
-        [projectId]
+        [projectId],
       );
-      const sourcesText = sources
+      const sourcesText = (project.source_mode === "ai" ? [] : sources)
         .map((s) => `--- Nguồn: ${s.file_name} ---\n${s.extracted_text}`)
         .join("\n\n");
 
@@ -654,13 +760,31 @@ export const generateScripts = async (
           : tpl.profile.scriptPipeline
         : undefined;
 
+      let researchEvidence: unknown = {
+        model: aiConfig().contentModel,
+        sourceMode: project.source_mode,
+        searched: false,
+        sources: [],
+        queries: [],
+        at: new Date().toISOString(),
+      };
       const plans = await generatePlans({
+        onGrounding: (e) => {
+          researchEvidence = {
+            ...e,
+            model: aiConfig().contentModel,
+            sourceMode: project.source_mode,
+            at: new Date().toISOString(),
+          };
+        },
         idea: String(project.idea),
         mode: project.mode,
         count: Number(project.variant_count),
         sourcesText: sourcesText || undefined,
         presetHint: project.preset_hint ?? undefined,
-        durationSec: project.duration_sec ? Number(project.duration_sec) : undefined,
+        durationSec: project.duration_sec
+          ? Number(project.duration_sec)
+          : undefined,
         styleProfile: tpl?.profile,
         scriptPipeline: effectivePipeline,
         // Nguồn 'ai'/'combine' → bật google_search grounding để AI tự tìm tư liệu web
@@ -675,14 +799,11 @@ export const generateScripts = async (
         })),
       });
 
-      // Sinh lại = thay thế bộ kịch bản cũ chưa duyệt (job đã render giữ nguyên qua script cũ bị xoá? Không — xoá cascade).
-      // Chọn an toàn: chỉ xoá script chưa có render job 'done'.
-      await pool.query(
-        `DELETE s FROM scripts s
-          LEFT JOIN render_jobs j ON j.script_id = s.id AND j.status = 'done'
-         WHERE s.project_id = ? AND j.id IS NULL`,
-        [projectId]
-      );
+      // Keep prior scripts and their edit history so regeneration is reversible.
+      await pool.query("UPDATE projects SET research_json=? WHERE id=?", [
+        researchEvidence ? JSON.stringify(researchEvidence) : null,
+        projectId,
+      ]);
       const scriptIds: number[] = [];
       for (let i = 0; i < plans.length; i++) {
         const plan = plans[i];
@@ -690,8 +811,8 @@ export const generateScripts = async (
         // (model hay tự chọn midnight). Ghi đè cả plan_json để render đọc đúng.
         if (tpl?.profile) plan.preset = tpl.profile.preset;
         const [ins] = await pool.query<ResultSetHeader>(
-          `INSERT INTO scripts (project_id, variant_index, title, angle, slug, preset, plan_json, narration_md)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO scripts (project_id, variant_index, title, angle, slug, preset, plan_json, narration_md, research_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             projectId,
             i,
@@ -701,23 +822,29 @@ export const generateScripts = async (
             plan.preset,
             JSON.stringify(plan),
             planToNarrationMd(plan),
-          ]
+            JSON.stringify(researchEvidence),
+          ],
         );
         scriptIds.push(ins.insertId);
       }
-      await pool.query(`UPDATE projects SET status = 'ready' WHERE id = ?`, [projectId]);
+      await pool.query(`UPDATE projects SET status = 'ready' WHERE id = ?`, [
+        projectId,
+      ]);
 
       // Workflow template tắt gate duyệt → tự approve + render toàn bộ kịch bản
       if (tpl && tpl.workflow.approveGate === false) {
         for (const scriptId of scriptIds) {
-          await pool.query(`UPDATE scripts SET status = 'approved' WHERE id = ?`, [scriptId]);
+          await pool.query(
+            `UPDATE scripts SET status = 'approved' WHERE id = ?`,
+            [scriptId],
+          );
           await enqueueRender(scriptId);
         }
       }
     } catch (err) {
       await pool.query(
         `UPDATE projects SET status = 'failed', error_message = ? WHERE id = ?`,
-        [String((err as Error).message).slice(0, 2000), projectId]
+        [String((err as Error).message).slice(0, 2000), projectId],
       );
     }
   })();

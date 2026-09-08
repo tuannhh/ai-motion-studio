@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { forbidden, unauthorized } from "../http-error";
 import { resolveSession, type SessionUser } from "../services/auth.service";
 
-export const SESSION_COOKIE = "ams_session";
+export const SESSION_COOKIE = "ams_next_session";
 export const CSRF_HEADER = "x-csrf-token";
 
 declare global {
@@ -23,7 +23,7 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 export const requireAuth = async (
   req: Request,
   _res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const ctx = await resolveSession(req.cookies?.[SESSION_COOKIE]);
@@ -41,7 +41,7 @@ export const requireAuth = async (
 export const requireAdmin = (
   req: Request,
   _res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   if (req.user?.role !== "admin") {
     next(forbidden("Chức năng này chỉ dành cho quản trị viên."));

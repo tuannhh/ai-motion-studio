@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { FEATURE_ROUTES } from "../router";
 import { entityPath } from "../lib/slug";
+import ProfileEditor from "../studio/ProfileEditor.vue";
+import "../studio/studio.css";
 import MButton from "../components/mds/MButton.vue";
 import MDialog from "../components/mds/MDialog.vue";
 import MDrawer from "../components/mds/MDrawer.vue";
@@ -45,7 +47,11 @@ async function reload(): Promise<void> {
   try {
     templates.value = await api<TemplateRow[]>("/v1/templates");
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không tải được danh sách mẫu.");
+    toast.error(
+      cause instanceof ApiError
+        ? cause.message
+        : "Không tải được danh sách mẫu.",
+    );
   } finally {
     loading.value = false;
   }
@@ -67,7 +73,15 @@ onBeforeUnmount(() => {
 const createOpen = ref(false);
 const newName = ref("");
 const newFile = ref<File | null>(null);
-const uploadItems = ref<Array<{ id: string; name: string; size: number; status: "pending"; file: File }>>([]);
+const uploadItems = ref<
+  Array<{
+    id: string;
+    name: string;
+    size: number;
+    status: "pending";
+    file: File;
+  }>
+>([]);
 const nameError = ref("");
 const fileError = ref("");
 const creating = ref(false);
@@ -75,14 +89,25 @@ const creating = ref(false);
 function onPickFile(files: File[]): void {
   fileError.value = "";
   const file = files[0] ?? null;
-  if (file && file.size > 18 * 1024 * 1024) {
-    fileError.value = "Video nặng quá 18MB — hãy nén hoặc cắt đoạn tiêu biểu 30-60 giây.";
+  if (file && file.size > 128 * 1024 * 1024) {
+    fileError.value =
+      "Video tối đa 128 MB. Bạn có thể cắt đoạn tiêu biểu dưới 10 phút.";
     newFile.value = null;
     uploadItems.value = [];
     return;
   }
   newFile.value = file;
-  uploadItems.value = file ? [{ id: String(Date.now()), name: file.name, size: file.size, status: "pending", file }] : [];
+  uploadItems.value = file
+    ? [
+        {
+          id: String(Date.now()),
+          name: file.name,
+          size: file.size,
+          status: "pending",
+          file,
+        },
+      ]
+    : [];
 }
 
 async function createTemplate(): Promise<void> {
@@ -93,7 +118,7 @@ async function createTemplate(): Promise<void> {
     return;
   }
   if (!newFile.value) {
-    fileError.value = "Chọn video mẫu (mp4, mov, webm — ≤18MB).";
+    fileError.value = "Chọn video mẫu (mp4, mov, webm — ≤128MB).";
     return;
   }
   creating.value = true;
@@ -109,7 +134,9 @@ async function createTemplate(): Promise<void> {
     uploadItems.value = [];
     await reload();
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không tạo được mẫu.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không tạo được mẫu.",
+    );
   } finally {
     creating.value = false;
   }
@@ -121,14 +148,22 @@ const editing = ref<TemplateRow | null>(null);
 const editName = ref("");
 const wf = ref<TemplateWorkflow | null>(null);
 const saving = ref(false);
+const editProfile = ref<any>(null);
 
 /** Set state cho drawer sửa (không đụng URL — dùng khi route đã có :id, xem watcher dưới) */
 function applyEditState(t: TemplateRow): void {
   editing.value = t;
+  editProfile.value = t.profile ? JSON.parse(JSON.stringify(t.profile)) : null;
   editName.value = t.name;
-  wf.value = { ...t.workflow, scriptPipeline: [...(t.workflow.scriptPipeline ?? [])] };
+  wf.value = {
+    ...t.workflow,
+    scriptPipeline: [...(t.workflow.scriptPipeline ?? [])],
+  };
   // Chưa chỉnh tay lần nào → mồi bằng pipeline AI học từ video mẫu để creator sửa
-  if (wf.value.scriptPipeline.length === 0 && t.profile?.scriptPipeline?.length) {
+  if (
+    wf.value.scriptPipeline.length === 0 &&
+    t.profile?.scriptPipeline?.length
+  ) {
     wf.value.scriptPipeline = [...t.profile.scriptPipeline];
   }
   // Textarea giữ nguyên văn (KHÔNG trim/lọc theo từng phím) — chỉ chuẩn hoá lúc lưu.
@@ -158,12 +193,13 @@ watch(
     const t = (list as TemplateRow[]).find((row) => row.publicId === id);
     if (t) applyEditState(t);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /** Đóng drawer bằng bất kỳ cách nào (Hủy/X/overlay/lưu xong) → đồng bộ URL về danh sách. */
 watch(editOpen, (open) => {
-  if (!open && typeof route.params.id === "string") router.push(FEATURE_ROUTES.templates);
+  if (!open && typeof route.params.id === "string")
+    router.push(FEATURE_ROUTES.templates);
 });
 
 async function saveEdit(): Promise<void> {
@@ -177,7 +213,11 @@ async function saveEdit(): Promise<void> {
   try {
     await api(`/v1/templates/${editing.value.id}`, {
       method: "PUT",
-      body: JSON.stringify({ name: editName.value.trim(), workflow: wf.value }),
+      body: JSON.stringify({
+        name: editName.value.trim(),
+        workflow: wf.value,
+        profile: editProfile.value ?? undefined,
+      }),
     });
     toast.success("Đã lưu thiết lập mẫu.");
     editOpen.value = false;
@@ -195,7 +235,9 @@ async function reanalyze(t: TemplateRow): Promise<void> {
     toast.success("Đang phân tích lại video mẫu…");
     await reload();
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không phân tích lại được.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không phân tích lại được.",
+    );
   }
 }
 
@@ -235,7 +277,8 @@ const hasTemplates = computed(() => templates.value.length > 0);
       <div>
         <h1 class="m-0 text-xl font-semibold">Video Template</h1>
         <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
-          Đưa video bất kỳ — AI học phong cách (màu, nhịp, bố cục, giọng kể) thành mẫu dùng lại khi tạo video.
+          Đưa video bất kỳ — AI học phong cách (màu, nhịp, bố cục, giọng kể)
+          thành mẫu dùng lại khi tạo video.
         </p>
       </div>
       <MButton variant="primary" @click="createOpen = true">
@@ -243,14 +286,18 @@ const hasTemplates = computed(() => templates.value.length > 0);
       </MButton>
     </header>
 
-    <div v-if="loading" class="grid place-items-center py-16"><MSpinner :size="28" /></div>
+    <div v-if="loading" class="grid place-items-center py-16">
+      <MSpinner :size="28" />
+    </div>
 
     <MEmptyState
       v-else-if="!hasTemplates"
       title="Chưa có mẫu video nào"
       description="Tải lên một video có phong cách bạn thích — AI sẽ phân tích và tạo mẫu tương tự."
     >
-      <MButton variant="primary" @click="createOpen = true">Tạo mẫu đầu tiên</MButton>
+      <MButton variant="primary" @click="createOpen = true"
+        >Tạo mẫu đầu tiên</MButton
+      >
     </MEmptyState>
 
     <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -262,7 +309,9 @@ const hasTemplates = computed(() => templates.value.length > 0);
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <h2 class="m-0 truncate text-[15px] font-semibold">{{ t.name }}</h2>
-            <p class="m-0 mt-0.5 truncate text-xs text-[var(--mds-text-secondary)]">
+            <p
+              class="m-0 mt-0.5 truncate text-xs text-[var(--mds-text-secondary)]"
+            >
               {{ t.sourceVideoName ?? "—" }}
             </p>
           </div>
@@ -271,15 +320,25 @@ const hasTemplates = computed(() => templates.value.length > 0);
           </MTag>
         </div>
 
-        <div v-if="t.status === 'analyzing'" class="mt-3 flex items-center gap-2 text-[13px] text-[var(--mds-text-secondary)]">
+        <div
+          v-if="t.status === 'analyzing'"
+          class="mt-3 flex items-center gap-2 text-[13px] text-[var(--mds-text-secondary)]"
+        >
           <MSpinner :size="16" /> AI đang xem video và học phong cách…
         </div>
 
-        <p v-else-if="t.status === 'failed'" class="m-0 mt-3 text-[13px] text-[var(--mds-danger)]">
+        <p
+          v-else-if="t.status === 'failed'"
+          class="m-0 mt-3 text-[13px] text-[var(--mds-danger)]"
+        >
           {{ t.errorMessage ?? "Phân tích thất bại." }}
         </p>
 
         <template v-else-if="t.profile">
+          <MTag v-if="t.profile.motionBlueprint" color="success"
+            >{{ t.profile.motionBlueprint.nodes.length }} lớp chuyển động đã
+            học</MTag
+          >
           <div class="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
             <span
               v-if="t.profile.accent"
@@ -287,27 +346,37 @@ const hasTemplates = computed(() => templates.value.length > 0);
               :style="{ background: t.profile.accent }"
               :title="`Màu nhấn ${t.profile.accent}`"
             />
-            <span class="font-medium">{{ PRESET_LABEL[t.profile.preset] ?? t.profile.preset }}</span>
+            <span class="font-medium">{{
+              PRESET_LABEL[t.profile.preset] ?? t.profile.preset
+            }}</span>
           </div>
-          <p class="m-0 mt-2 line-clamp-2 text-[13px] text-[var(--mds-text-secondary)]">
+          <p
+            class="m-0 mt-2 line-clamp-2 text-[13px] text-[var(--mds-text-secondary)]"
+          >
             {{ t.profile.narrationTone }}
           </p>
           <p class="m-0 mt-2 text-xs text-[var(--mds-text-secondary)]">
-            Scene ưa dùng: {{ sceneMixText(t) }} · ≈{{ t.profile.pacing.avgSceneSec }}s/scene
+            Scene ưa dùng: {{ sceneMixText(t) }} · ≈{{
+              t.profile.pacing.avgSceneSec
+            }}s/scene
           </p>
           <p class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]">
-            Workflow: {{ t.workflow.mode === "series" ? "serie" : "đa chiều" }} ·
-            {{ t.workflow.variantCount }} kịch bản · {{ t.workflow.durationSec }}s ·
+            Workflow:
+            {{ t.workflow.mode === "series" ? "serie" : "đa chiều" }} ·
+            {{ t.workflow.variantCount }} kịch bản ·
+            {{ t.workflow.durationSec }}s ·
             {{ t.workflow.approveGate ? "có duyệt" : "tự render" }}
           </p>
         </template>
 
-        <div class="mt-3 flex justify-end gap-2 border-t border-[var(--mds-neutral-300,#E9EAEB)] pt-3">
-          <MButton @click="deleteTarget = t">Xoá</MButton>
-          <MButton
-            v-if="t.status === 'failed'"
-            @click="reanalyze(t)"
+        <div
+          class="mt-3 flex justify-end gap-2 border-t border-[var(--mds-neutral-300,#E9EAEB)] pt-3"
+        >
+          <MButton @click="router.push(`/tai-dung/${t.id}`)"
+            >Tái dựng VFX</MButton
           >
+          <MButton @click="deleteTarget = t">Xoá</MButton>
+          <MButton v-if="t.status === 'failed'" @click="reanalyze(t)">
             Phân tích lại
           </MButton>
           <MButton
@@ -335,15 +404,33 @@ const hasTemplates = computed(() => templates.value.length > 0);
         </label>
         <div class="text-[13px] font-medium">
           Video mẫu <span class="text-[var(--mds-danger)]">*</span>
-          <span class="font-normal text-[var(--mds-text-secondary)]"> — mp4, mov, webm ≤18MB</span>
-          <MUpload :model-value="uploadItems" accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" :multiple="false" :max-size-m-b="18" label="Chọn video mẫu" @select-files="onPickFile" @remove="onPickFile([])" />
-          <p v-if="fileError" class="m-0 mt-1 text-xs text-[var(--mds-danger)]">{{ fileError }}</p>
-          <p v-else-if="newFile" class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]">
+          <span class="font-normal text-[var(--mds-text-secondary)]">
+            — mp4, mov, webm ≤128MB</span
+          >
+          <MUpload
+            :model-value="uploadItems"
+            accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
+            :multiple="false"
+            :max-size-m-b="18"
+            label="Chọn video mẫu"
+            @select-files="onPickFile"
+            @remove="onPickFile([])"
+          />
+          <p v-if="fileError" class="m-0 mt-1 text-xs text-[var(--mds-danger)]">
+            {{ fileError }}
+          </p>
+          <p
+            v-else-if="newFile"
+            class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]"
+          >
             {{ newFile.name }} — {{ (newFile.size / 1e6).toFixed(1) }}MB
           </p>
         </div>
-        <p class="m-0 rounded-md bg-[var(--mds-bg-page)] p-3 text-xs text-[var(--mds-text-secondary)]">
-          AI chỉ học <b>phong cách</b> (màu sắc, nhịp dựng, bố cục, giọng kể) — không sao chép nội dung video mẫu.
+        <p
+          class="m-0 rounded-md bg-[var(--mds-bg-page)] p-3 text-xs text-[var(--mds-text-secondary)]"
+        >
+          AI chỉ học <b>phong cách</b> (màu sắc, nhịp dựng, bố cục, giọng kể) —
+          không sao chép nội dung video mẫu.
         </p>
       </div>
       <template #footer>
@@ -362,34 +449,20 @@ const hasTemplates = computed(() => templates.value.length > 0);
           <MInput v-model="editName" class="mt-1" />
         </label>
 
-        <div v-if="editing?.profile" class="rounded-md bg-[var(--mds-bg-page)] p-3 text-xs">
-          <p class="m-0 font-medium">Phong cách đã học (AI phân tích — không sửa tay)</p>
-          <p class="m-0 mt-1 text-[var(--mds-text-secondary)]">
-            {{ PRESET_LABEL[editing.profile.preset] }} · {{ editing.profile.paletteNotes }}
-          </p>
-          <p class="m-0 mt-1 text-[var(--mds-text-secondary)]">
-            Mở đầu: {{ editing.profile.hookStyle }}
-          </p>
-          <ul class="m-0 mt-1 list-inside list-disc text-[var(--mds-text-secondary)]">
-            <li v-for="s in editing.profile.visualSignatures" :key="s">{{ s }}</li>
-          </ul>
-          <p v-if="editing.profile.motion" class="m-0 mt-1 text-[var(--mds-text-secondary)]">
-            Chuyển động ({{ editing.profile.motion.intensity }}):
-            {{ editing.profile.motion.signatures.join("; ") || "theo mức tổng thể" }}
-          </p>
-          <p v-if="editing.profile.imageStyle" class="m-0 mt-1 text-[var(--mds-text-secondary)]">
-            Hình ảnh: {{ editing.profile.imageStyle.kind }} · nguồn
-            {{ editing.profile.imageStyle.sourcing }}
-          </p>
-        </div>
+        <ProfileEditor
+          v-if="editProfile && editing"
+          :profile="editProfile"
+          :template-id="editing.id"
+        />
 
         <div>
           <label class="block text-[13px] font-medium" for="tpl-pipeline">
             Pipeline / workflow kịch bản
           </label>
           <p class="m-0 mb-1 mt-0.5 text-xs text-[var(--mds-text-secondary)]">
-            Mỗi dòng là 1 nhịp kể chuyện theo thứ tự (AI bám đúng CẤU TRÚC này, chỉ mượn
-            phong cách — không chép nội dung mẫu). Để trống = dùng gợi ý AI học từ video.
+            Mỗi dòng là 1 nhịp kể chuyện theo thứ tự (AI bám đúng CẤU TRÚC này,
+            chỉ mượn phong cách — không chép nội dung mẫu). Để trống = dùng gợi
+            ý AI học từ video.
           </p>
           <MTextarea
             id="tpl-pipeline"
@@ -398,7 +471,9 @@ const hasTemplates = computed(() => templates.value.length > 0);
             placeholder="Mở đầu bằng câu hỏi gây sốc + số liệu&#10;Nêu vấn đề người xem đang gặp&#10;Đưa 3 giải pháp cụ thể&#10;So sánh trước / sau&#10;Chốt bằng lời kêu gọi hành động"
           />
         </div>
-        <div class="flex items-center justify-between rounded-md bg-[var(--mds-bg-page)] p-3">
+        <div
+          class="flex items-center justify-between rounded-md bg-[var(--mds-bg-page)] p-3"
+        >
           <div class="text-[13px]">
             <p class="m-0 font-medium">Gate duyệt kịch bản</p>
             <p class="m-0 mt-0.5 text-xs text-[var(--mds-text-secondary)]">
@@ -410,7 +485,9 @@ const hasTemplates = computed(() => templates.value.length > 0);
       </div>
       <template #footer>
         <MButton @click="editOpen = false">Hủy</MButton>
-        <MButton variant="primary" :loading="saving" @click="saveEdit">Lưu</MButton>
+        <MButton variant="primary" :loading="saving" @click="saveEdit"
+          >Lưu</MButton
+        >
       </template>
     </MDrawer>
 
@@ -421,11 +498,14 @@ const hasTemplates = computed(() => templates.value.length > 0);
       @update:model-value="deleteTarget = null"
     >
       <p class="m-0 text-[13px]">
-        Xoá mẫu "<b>{{ deleteTarget?.name }}</b>"? Project đã tạo từ mẫu này vẫn giữ nguyên.
+        Xoá mẫu "<b>{{ deleteTarget?.name }}</b
+        >"? Project đã tạo từ mẫu này vẫn giữ nguyên.
       </p>
       <template #footer>
         <MButton @click="deleteTarget = null">Hủy</MButton>
-        <MButton variant="danger" :loading="deleting" @click="confirmDelete">Xoá</MButton>
+        <MButton variant="danger" :loading="deleting" @click="confirmDelete"
+          >Xoá</MButton
+        >
       </template>
     </MDialog>
   </div>

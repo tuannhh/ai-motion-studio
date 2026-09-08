@@ -15,7 +15,12 @@ import MTextarea from "../components/mds/MTextarea.vue";
 import SceneContentEditor from "../components/SceneContentEditor.vue";
 import { useToast } from "../components/mds/toast.js";
 import { api, ApiError } from "../lib/api";
-import type { DriveExport, ProjectDetail, ProjectRow, ScriptRow } from "../lib/types";
+import type {
+  DriveExport,
+  ProjectDetail,
+  ProjectRow,
+  ScriptRow,
+} from "../lib/types";
 
 const emit = defineEmits<{ "edit-setup": [projectId: number] }>();
 const toast = useToast();
@@ -46,7 +51,7 @@ const sourceImages = computed(() =>
       src: `/v1/projects/${detail.value!.project.id}/sources/${s.id}/file`,
       name: s.file_name,
       alt: s.file_name,
-    }))
+    })),
 );
 function openSourceImage(sourceId: number): void {
   const idx = (detail.value?.sources ?? [])
@@ -76,15 +81,18 @@ async function loadDriveExport(jobId: number): Promise<void> {
 async function exportToDrive(jobId: number): Promise<void> {
   driveExporting.value = jobId;
   try {
-    const ex = await api<DriveExport>(`/v1/jobs/${jobId}/export/drive`, { method: "POST" });
+    const ex = await api<DriveExport>(`/v1/jobs/${jobId}/export/drive`, {
+      method: "POST",
+    });
     driveExports.value = { ...driveExports.value, [jobId]: ex };
     toast.success("Đã xuất video lên Google Drive.");
   } catch (cause) {
-    const msg = cause instanceof ApiError ? cause.message : "Không xuất được lên Drive.";
+    const msg =
+      cause instanceof ApiError ? cause.message : "Không xuất được lên Drive.";
     toast.error(
       msg.includes("Chưa kết nối")
         ? "Chưa kết nối Google Drive — mở menu tài khoản để kết nối."
-        : msg
+        : msg,
     );
   } finally {
     driveExporting.value = null;
@@ -154,7 +162,9 @@ async function loadList(): Promise<void> {
     projects.value = page.items;
     nextCursor.value = page.nextCursor;
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không tải được danh sách.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không tải được danh sách.",
+    );
   } finally {
     loading.value = false;
   }
@@ -164,11 +174,15 @@ async function loadMore(): Promise<void> {
   if (nextCursor.value == null || loadingMore.value) return;
   loadingMore.value = true;
   try {
-    const page = await api<ProjectPage>(`/v1/projects?limit=${pageSize.value}&cursor=${nextCursor.value}`);
+    const page = await api<ProjectPage>(
+      `/v1/projects?limit=${pageSize.value}&cursor=${nextCursor.value}`,
+    );
     projects.value = [...projects.value, ...page.items];
     nextCursor.value = page.nextCursor;
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không tải thêm được.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không tải thêm được.",
+    );
   } finally {
     loadingMore.value = false;
   }
@@ -199,7 +213,10 @@ async function openDetail(projectId: number, silent = false): Promise<void> {
   try {
     applyDetail(await api<ProjectDetail>(`/v1/projects/${projectId}`));
   } catch (cause) {
-    if (!silent) toast.error(cause instanceof ApiError ? cause.message : "Không tải được dự án.");
+    if (!silent)
+      toast.error(
+        cause instanceof ApiError ? cause.message : "Không tải được dự án.",
+      );
   } finally {
     detailLoading.value = false;
   }
@@ -211,7 +228,9 @@ async function openDetailByPublicId(publicId: string): Promise<void> {
   try {
     applyDetail(await api<ProjectDetail>(`/v1/projects/public/${publicId}`));
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không tải được dự án.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không tải được dự án.",
+    );
     router.replace(FEATURE_ROUTES.projects);
   } finally {
     detailLoading.value = false;
@@ -229,7 +248,9 @@ const isBusy = computed(() => {
   if (!d) return false;
   if (d.project.status === "generating") return true;
   if (d.sources.some((s) => s.status === "extracting")) return true;
-  return d.scripts.some((s) => s.job_status && !["done", "failed"].includes(s.job_status));
+  return d.scripts.some(
+    (s) => s.job_status && !["done", "failed"].includes(s.job_status),
+  );
 });
 
 watch([detail, isBusy], () => {
@@ -253,7 +274,9 @@ async function approve(script: ScriptRow): Promise<void> {
     toast.success("Đã duyệt — video sẽ được render tự động.");
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không duyệt được kịch bản.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không duyệt được kịch bản.",
+    );
   } finally {
     approvingId.value = null;
   }
@@ -267,13 +290,19 @@ async function saveNarration(script: ScriptRow): Promise<void> {
     await api(`/v1/scripts/${script.id}/narration`, {
       method: "PUT",
       body: JSON.stringify({
-        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration, content: s.content })),
+        scenes: script.scenes.map((s) => ({
+          id: s.id,
+          narration: s.narration,
+          content: s.content,
+        })),
       }),
     });
     toast.success("Đã lưu chỉnh sửa.");
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không lưu được lời thoại.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không lưu được lời thoại.",
+    );
   } finally {
     savingEditId.value = null;
   }
@@ -301,7 +330,11 @@ async function saveAndRerender(script: ScriptRow): Promise<void> {
     await api(`/v1/scripts/${script.id}/narration`, {
       method: "PUT",
       body: JSON.stringify({
-        scenes: script.scenes.map((s) => ({ id: s.id, narration: s.narration, content: s.content })),
+        scenes: script.scenes.map((s) => ({
+          id: s.id,
+          narration: s.narration,
+          content: s.content,
+        })),
       }),
     });
     await api(`/v1/scripts/${script.id}/approve`, { method: "POST" });
@@ -311,7 +344,9 @@ async function saveAndRerender(script: ScriptRow): Promise<void> {
     toast.success("Đã lưu chỉnh sửa — đang render lại video.");
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không render lại được.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không render lại được.",
+    );
   } finally {
     savingEditId.value = null;
   }
@@ -322,7 +357,9 @@ async function reject(script: ScriptRow): Promise<void> {
     await api(`/v1/scripts/${script.id}/reject`, { method: "POST" });
     if (detail.value) await openDetail(detail.value.project.id, true);
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không cập nhật được.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không cập nhật được.",
+    );
   }
 }
 
@@ -332,7 +369,8 @@ function backToList(): void {
 
 onMounted(async () => {
   await loadList();
-  if (typeof route.params.id === "string") await openDetailByPublicId(route.params.id);
+  if (typeof route.params.id === "string")
+    await openDetailByPublicId(route.params.id);
 });
 
 /** URL thay đổi (mở project khác / bấm back về danh sách) → đồng bộ lại view. */
@@ -346,7 +384,7 @@ watch(
       playingJobId.value = null;
       await loadList();
     }
-  }
+  },
 );
 </script>
 
@@ -355,17 +393,30 @@ watch(
   <div v-if="detail" class="p-6">
     <div class="mb-4 flex items-start justify-between gap-3">
       <div class="flex items-start gap-2">
-        <MButton variant="icon" @click="backToList"><MIcon name="arrow-left" /></MButton>
+        <MButton variant="icon" @click="backToList"
+          ><MIcon name="arrow-left"
+        /></MButton>
         <div>
-          <h1 class="m-0 text-lg font-semibold leading-6">{{ detail.project.idea }}</h1>
-          <p class="m-0 mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[var(--mds-text-secondary)]">
-            <MTag :color="PROJECT_STATUS[detail.project.status]?.color" size="sm">
+          <h1 class="m-0 text-lg font-semibold leading-6">
+            {{ detail.project.idea }}
+          </h1>
+          <p
+            class="m-0 mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[var(--mds-text-secondary)]"
+          >
+            <MTag
+              :color="PROJECT_STATUS[detail.project.status]?.color"
+              size="sm"
+            >
               {{ PROJECT_STATUS[detail.project.status]?.label }}
             </MTag>
-            <span>{{ detail.project.mode === "series" ? "Serie nối tập" : "Đa chiều" }}</span>
+            <span>{{
+              detail.project.mode === "series" ? "Serie nối tập" : "Đa chiều"
+            }}</span>
             <span>·</span>
             <span>{{ voiceSummary }}</span>
-            <span v-if="detail.project.duration_sec">· ≈{{ detail.project.duration_sec }}s</span>
+            <span v-if="detail.project.duration_sec"
+              >· ≈{{ detail.project.duration_sec }}s</span
+            >
           </p>
         </div>
       </div>
@@ -393,7 +444,9 @@ watch(
       v-if="detail.sources.length"
       class="mb-4 rounded-lg bg-[var(--mds-bg)] p-4 shadow-[var(--mds-shadow-card)]"
     >
-      <h2 class="m-0 mb-2 text-[15px] font-semibold">Tư liệu ({{ detail.sources.length }})</h2>
+      <h2 class="m-0 mb-2 text-[15px] font-semibold">
+        Tư liệu ({{ detail.sources.length }})
+      </h2>
       <ul class="m-0 list-none p-0">
         <li
           v-for="s in detail.sources"
@@ -413,13 +466,30 @@ watch(
               class="h-full w-full object-cover"
             />
           </button>
-          <MIcon v-else name="file-text" :size="16" class="shrink-0 text-[var(--mds-text-secondary)]" />
+          <MIcon
+            v-else
+            name="file-text"
+            :size="16"
+            class="shrink-0 text-[var(--mds-text-secondary)]"
+          />
           <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
           <MTag
-            :color="s.status === 'ready' ? 'success' : s.status === 'failed' ? 'danger' : 'info'"
+            :color="
+              s.status === 'ready'
+                ? 'success'
+                : s.status === 'failed'
+                  ? 'danger'
+                  : 'info'
+            "
             size="sm"
           >
-            {{ s.status === "ready" ? "Đã trích xuất" : s.status === "failed" ? "Lỗi" : "Đang trích xuất" }}
+            {{
+              s.status === "ready"
+                ? "Đã trích xuất"
+                : s.status === "failed"
+                  ? "Lỗi"
+                  : "Đang trích xuất"
+            }}
           </MTag>
         </li>
       </ul>
@@ -432,7 +502,10 @@ watch(
     />
 
     <!-- Kịch bản chờ duyệt -->
-    <div v-if="detail.project.status === 'generating'" class="rounded-lg bg-[var(--mds-bg)] p-8 text-center shadow-[var(--mds-shadow-card)]">
+    <div
+      v-if="detail.project.status === 'generating'"
+      class="rounded-lg bg-[var(--mds-bg)] p-8 text-center shadow-[var(--mds-shadow-card)]"
+    >
       <MSpinner :size="28" />
       <p class="m-0 mt-3 text-[13px] text-[var(--mds-text-secondary)]">
         AI đang viết kịch bản — thường mất dưới 1 phút…
@@ -446,63 +519,97 @@ watch(
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="min-w-0">
-          <h3 class="m-0 truncate text-[15px] font-semibold">{{ script.title }}</h3>
+          <h3 class="m-0 truncate text-[15px] font-semibold">
+            {{ script.title }}
+          </h3>
           <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
             {{ script.angle }} · preset {{ script.preset }}
           </p>
         </div>
         <div class="flex items-center gap-2">
+          <MButton @click="router.push(`/ban-dung/${script.id}`)"
+            ><MIcon name="edit" /> Mở bàn dựng</MButton
+          >
           <MTag :color="SCRIPT_STATUS[script.status]?.color" size="sm">
             {{ SCRIPT_STATUS[script.status]?.label }}
           </MTag>
           <template v-if="!script.job_id || script.job_status === 'failed'">
-            <MButton v-if="script.status !== 'rejected'" @click="reject(script)">Từ chối</MButton>
+            <MButton v-if="script.status !== 'rejected'" @click="reject(script)"
+              >Từ chối</MButton
+            >
             <MButton
               variant="primary"
               :loading="approvingId === script.id"
               @click="approve(script)"
             >
-              {{ script.job_status === "failed" ? "Render lại" : "Duyệt & render" }}
+              {{
+                script.job_status === "failed" ? "Render lại" : "Duyệt & render"
+              }}
             </MButton>
           </template>
         </div>
       </div>
 
       <!-- Kịch bản: chữ trên hình + lời đọc voice-off từng scene để duyệt -->
-      <details class="mt-3" :open="script.status === 'pending' || editingIds.has(script.id)">
-        <summary class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]">
-          {{ isEditing(script) && script.scenes?.length ? "Xem kịch bản & sửa từng scene" : "Xem kịch bản & lời đọc từng scene" }}
+      <details
+        class="mt-3"
+        :open="script.status === 'pending' || editingIds.has(script.id)"
+      >
+        <summary
+          class="cursor-pointer text-[13px] font-medium text-[var(--mds-brand-600)]"
+        >
+          {{
+            isEditing(script) && script.scenes?.length
+              ? "Xem kịch bản & sửa từng scene"
+              : "Xem kịch bản & lời đọc từng scene"
+          }}
         </summary>
 
         <div v-if="script.scenes?.length" class="mt-2 space-y-3">
           <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-            Mỗi scene gồm <b>chữ trên hình</b> (nhìn thấy) và <b>lời đọc voice-off</b> (nghe thấy) — hai phần
-            cố ý KHÁC nhau để lời đọc bổ sung chứ không lặp lại chữ trên hình.
+            Mỗi scene gồm <b>chữ trên hình</b> (nhìn thấy) và
+            <b>lời đọc voice-off</b> (nghe thấy) — hai phần cố ý KHÁC nhau để
+            lời đọc bổ sung chứ không lặp lại chữ trên hình.
           </p>
           <div
             v-for="(sc, i) in script.scenes"
             :key="sc.id"
             class="rounded-lg border border-[var(--mds-border)] p-2.5"
           >
-            <p class="m-0 mb-1.5 text-[12px] font-semibold text-[var(--mds-text-secondary)]">
+            <p
+              class="m-0 mb-1.5 text-[12px] font-semibold text-[var(--mds-text-secondary)]"
+            >
               Scene {{ i + 1 }} — {{ sc.type }}
             </p>
             <!-- Chữ trên hình -->
             <div v-if="isEditing(script)" class="mb-2">
-              <p class="m-0 mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]">
+              <p
+                class="m-0 mb-1 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]"
+              >
                 Chữ trên hình
               </p>
-              <SceneContentEditor :scene-type="sc.type" :content="sc.content!" />
+              <SceneContentEditor
+                :scene-type="sc.type"
+                :content="sc.content!"
+              />
             </div>
             <div v-else-if="sc.display" class="mb-2">
-              <p class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]">
+              <p
+                class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-text-tertiary,#98A2B3)]"
+              >
                 Chữ trên hình
               </p>
-              <p class="m-0 whitespace-pre-wrap rounded-md bg-[var(--mds-bg-page)] p-2 text-[13px] leading-5">{{ sc.display }}</p>
+              <p
+                class="m-0 whitespace-pre-wrap rounded-md bg-[var(--mds-bg-page)] p-2 text-[13px] leading-5"
+              >
+                {{ sc.display }}
+              </p>
             </div>
             <!-- Lời đọc voice-off -->
             <div>
-              <p class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-brand-600)]">
+              <p
+                class="m-0 mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--mds-brand-600)]"
+              >
                 Lời đọc (voice-off)
               </p>
               <MTextarea
@@ -514,34 +621,53 @@ watch(
               <p
                 v-else
                 class="m-0 whitespace-pre-wrap rounded-md bg-[var(--mds-bg-page)] p-2 text-[13px] leading-5"
-              >{{ sc.narration }}</p>
+              >
+                {{ sc.narration }}
+              </p>
             </div>
           </div>
           <!-- Kịch bản CHƯA duyệt: lưu rồi duyệt & render riêng -->
           <template v-if="script.status === 'pending'">
-            <MButton :loading="savingEditId === script.id" @click="saveNarration(script)">
+            <MButton
+              :loading="savingEditId === script.id"
+              @click="saveNarration(script)"
+            >
               <MIcon name="device-floppy" :size="16" /> Lưu chỉnh sửa
             </MButton>
             <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-              Sửa được cả <b>chữ trên hình</b> lẫn <b>lời đọc</b>. Sửa xong bấm "Lưu chỉnh sửa", rồi "Duyệt & render".
-              Số/năm/ngày sẽ được đọc thành chữ tiếng Việt khi lồng tiếng.
+              Sửa được cả <b>chữ trên hình</b> lẫn <b>lời đọc</b>. Sửa xong bấm
+              "Lưu chỉnh sửa", rồi "Duyệt & render". Số/năm/ngày sẽ được đọc
+              thành chữ tiếng Việt khi lồng tiếng.
             </p>
           </template>
           <!-- Kịch bản ĐÃ render, đang mở lại để sửa: lưu & render lại luôn -->
           <template v-else-if="editingIds.has(script.id)">
             <div class="flex flex-wrap items-center gap-2">
-              <MButton variant="primary" :loading="savingEditId === script.id" @click="saveAndRerender(script)">
+              <MButton
+                variant="primary"
+                :loading="savingEditId === script.id"
+                @click="saveAndRerender(script)"
+              >
                 <MIcon name="refresh" :size="16" /> Lưu &amp; render lại
               </MButton>
-              <MButton :disabled="savingEditId === script.id" @click="cancelEdit(script)">Huỷ</MButton>
+              <MButton
+                :disabled="savingEditId === script.id"
+                @click="cancelEdit(script)"
+                >Huỷ</MButton
+              >
             </div>
             <p class="m-0 text-[12px] text-[var(--mds-text-secondary)]">
-              Sửa <b>chữ trên hình</b> và/hoặc <b>lời đọc</b> rồi bấm "Lưu &amp; render lại" — hệ thống dựng lại
-              video mới từ nội dung đã sửa (video cũ vẫn giữ tới khi bản mới xong).
+              Sửa <b>chữ trên hình</b> và/hoặc <b>lời đọc</b> rồi bấm "Lưu &amp;
+              render lại" — hệ thống dựng lại video mới từ nội dung đã sửa
+              (video cũ vẫn giữ tới khi bản mới xong).
             </p>
           </template>
           <!-- Kịch bản đã render, chưa vào chế độ sửa: nút mở sửa lại -->
-          <template v-else-if="script.job_status === 'done' || script.job_status === 'failed'">
+          <template
+            v-else-if="
+              script.job_status === 'done' || script.job_status === 'failed'
+            "
+          >
             <MButton @click="startEdit(script)">
               <MIcon name="edit" :size="16" /> Sửa lời thoại &amp; render lại
             </MButton>
@@ -552,12 +678,16 @@ watch(
         <pre
           v-else
           class="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--mds-bg-page)] p-3 text-[13px] leading-5"
-        >{{ script.narration_md }}</pre>
+          >{{ script.narration_md }}</pre
+        >
       </details>
 
       <!-- Tiến độ render -->
       <div v-if="script.job_id && script.job_status !== 'done'" class="mt-3">
-        <p v-if="script.job_status === 'failed'" class="m-0 text-[13px] text-[var(--mds-danger,#F04438)]">
+        <p
+          v-if="script.job_status === 'failed'"
+          class="m-0 text-[13px] text-[var(--mds-danger,#F04438)]"
+        >
           Render lỗi: {{ script.job_error }}
         </p>
         <MProgress
@@ -577,7 +707,11 @@ watch(
           :src="`/v1/jobs/${script.job_id}/video`"
         />
         <div class="flex items-center gap-2">
-          <MButton v-if="playingJobId !== script.job_id" variant="primary" @click="playingJobId = script.job_id">
+          <MButton
+            v-if="playingJobId !== script.job_id"
+            variant="primary"
+            @click="playingJobId = script.job_id"
+          >
             Xem video
           </MButton>
           <MButton v-if="!editingIds.has(script.id)" @click="startEdit(script)">

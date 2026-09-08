@@ -27,7 +27,7 @@ import { planSchema } from "@ams/pipeline/src/prompts";
 export const enqueueRender = async (scriptId: number): Promise<number> => {
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO render_jobs (script_id) VALUES (?)`,
-    [scriptId]
+    [scriptId],
   );
   void kick();
   return result.insertId;
@@ -45,7 +45,7 @@ const runLane = async (): Promise<void> => {
       console.error(`[worker] Job ${jobId} lỗi:`, err);
       await pool.query(
         `UPDATE render_jobs SET status = 'failed', error_message = ?, finished_at = NOW() WHERE id = ?`,
-        [String((err as Error).message).slice(0, 2000), jobId]
+        [String((err as Error).message).slice(0, 2000), jobId],
       );
     });
   }
@@ -70,7 +70,7 @@ const claimNextJob = async (): Promise<number | null> => {
   try {
     await conn.beginTransaction();
     const [rows] = await conn.query<RowDataPacket[]>(
-      `SELECT id FROM render_jobs WHERE status = 'queued' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`
+      `SELECT id FROM render_jobs WHERE status = 'queued' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`,
     );
     if (!rows[0]) {
       await conn.rollback();
@@ -79,7 +79,7 @@ const claimNextJob = async (): Promise<number | null> => {
     const jobId = Number(rows[0].id);
     await conn.query(
       `UPDATE render_jobs SET status = 'images', started_at = NOW(), progress = 5 WHERE id = ?`,
-      [jobId]
+      [jobId],
     );
     await conn.commit();
     return jobId;
@@ -92,12 +92,15 @@ const claimNextJob = async (): Promise<number | null> => {
 };
 
 const setProgress = (jobId: number, progress: number) =>
-  pool.query(`UPDATE render_jobs SET progress = ? WHERE id = ?`, [progress, jobId]);
+  pool.query(`UPDATE render_jobs SET progress = ? WHERE id = ?`, [
+    progress,
+    jobId,
+  ]);
 
 const processJob = async (jobId: number): Promise<void> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT j.id, s.plan_json, s.slug, s.project_id, p.user_id, p.watermark_preset_id,
-            p.voice_gender, p.voice_region, p.voice_style, p.voice_speed,
+            p.voice_gender, p.voice_region, p.voice_style, p.voice_mood, p.voice_age, p.voice_speed,
             t.profile_json AS template_profile,
             m.stored_path AS music_path
        FROM render_jobs j
@@ -106,7 +109,7 @@ const processJob = async (jobId: number): Promise<void> => {
        LEFT JOIN templates t ON t.id = p.template_id
        LEFT JOIN music_tracks m ON m.id = p.music_track_id
       WHERE j.id = ? LIMIT 1`,
-    [jobId]
+    [jobId],
   );
   const row = rows[0];
   if (!row) throw new Error(`Job ${jobId} không còn script/project tương ứng.`);
@@ -125,7 +128,11 @@ const processJob = async (jobId: number): Promise<void> => {
   if (row.template_profile) {
     try {
       const accent = JSON.parse(String(row.template_profile))?.accent;
-      if (typeof accent === "string" && /^#[0-9a-fA-F]{6}$/.test(accent)) {
+      if (
+        !plan.studio?.accent &&
+        typeof accent === "string" &&
+        /^#[0-9a-fA-F]{6}$/.test(accent)
+      ) {
         spec.style.accent = accent;
       }
     } catch {
@@ -136,54 +143,95 @@ const processJob = async (jobId: number): Promise<void> => {
   // Watermark: preset creator chọn cho video (thư viện) → ưu tiên; nếu không
   // chọn thì dùng watermark hiệu lực cũ (riêng creator hoặc mặc định hệ thống).
   const wm = row.watermark_preset_id
-    ? await getPresetForRender(Number(row.user_id), Number(row.watermark_preset_id)).catch(
-        () => getEffectiveWatermark(Number(row.user_id))
-      )
+    ? await getPresetForRender(
+        Number(row.user_id),
+        Number(row.watermark_preset_id),
+      ).catch(() => getEffectiveWatermark(Number(row.user_id)))
     : await getEffectiveWatermark(Number(row.user_id));
   if (wm.kind === "text" && wm.text) {
     spec.style.watermark = {
-      kind: "text", text: wm.text,
-      x: wm.x, y: wm.y, opacity: wm.opacity, scale: wm.scale,
+      kind: "text",
+      text: wm.text,
+      x: wm.x,
+      y: wm.y,
+      opacity: wm.opacity,
+      scale: wm.scale,
     };
-  } else if (wm.kind === "image" && wm.imagePath && fs.existsSync(wm.imagePath)) {
+  } else if (
+    wm.kind === "image" &&
+    wm.imagePath &&
+    fs.existsSync(wm.imagePath)
+  ) {
     spec.style.watermark = {
-      kind: "image", image: wm.imagePath,
-      x: wm.x, y: wm.y, opacity: wm.opacity, scale: wm.scale,
+      kind: "image",
+      image: wm.imagePath,
+      x: wm.x,
+      y: wm.y,
+      opacity: wm.opacity,
+      scale: wm.scale,
     };
   }
 
   const jobDir = path.join(storagePaths.privateRenders, `job-${jobId}`);
   fs.mkdirSync(jobDir, { recursive: true });
+  fs.writeFileSync(path.join(jobDir, "plan.json"), JSON.stringify(plan));
+  const archiveAsset = (file: string, name: string) => {
+    const target = path.join(jobDir, name + path.extname(file));
+    fs.copyFileSync(file, target);
+    return target;
+  };
+  if (spec.audio.music)
+    spec.audio.music = archiveAsset(spec.audio.music, "music");
+  if (spec.style.watermark?.kind === "image" && spec.style.watermark.image)
+    spec.style.watermark.image = archiveAsset(
+      spec.style.watermark.image,
+      "watermark",
+    );
 
   // Pha sinh ảnh minh họa (Gemini image) — 5→30%
-  await pool.query(`UPDATE render_jobs SET status = 'images' WHERE id = ?`, [jobId]);
+  await pool.query(`UPDATE render_jobs SET status = 'images' WHERE id = ?`, [
+    jobId,
+  ]);
   // Ảnh thật người dùng đã tải lên (để giải các token 'userimg:N' trong plan)
   const userImages = await getProjectImageSources(Number(row.project_id));
   const imgWarnings = await generateSpecImages(
     plan,
     spec,
     jobDir,
-    (done, total) => void setProgress(jobId, 5 + Math.round((done / Math.max(1, total)) * 25)),
-    userImages
+    (done, total) =>
+      void setProgress(jobId, 5 + Math.round((done / Math.max(1, total)) * 25)),
+    userImages,
   );
   if (imgWarnings.length) {
-    console.log(`[worker] Job ${jobId} ảnh nền bị bỏ: ${imgWarnings.join(" | ")}`);
+    console.log(
+      `[worker] Job ${jobId} ảnh nền bị bỏ: ${imgWarnings.join(" | ")}`,
+    );
   }
 
-  await pool.query(`UPDATE render_jobs SET status = 'tts', progress = 30 WHERE id = ?`, [jobId]);
+  await pool.query(
+    `UPDATE render_jobs SET status = 'tts', progress = 30 WHERE id = ?`,
+    [jobId],
+  );
   const profile = voiceProfileOf(row);
   const warnings = await synthesizeSpecAudio(
-    spec, narrations, jobDir, profile,
-    (done, total) => void setProgress(jobId, 30 + Math.round((done / total) * 25))
+    spec,
+    narrations,
+    jobDir,
+    profile,
+    (done, total) =>
+      void setProgress(jobId, 30 + Math.round((done / total) * 25)),
   );
-  if (warnings.length) console.log(`[worker] Job ${jobId} TTS cần review: ${warnings.join(" | ")}`);
+  if (warnings.length)
+    console.log(
+      `[worker] Job ${jobId} TTS cần review: ${warnings.join(" | ")}`,
+    );
 
   const specPath = path.join(jobDir, "spec.json");
   fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
 
   await pool.query(
     `UPDATE render_jobs SET status = 'rendering', progress = 55 WHERE id = ?`,
-    [jobId]
+    [jobId],
   );
   const outMp4 = path.join(jobDir, "video.mp4");
   // Render ra ĐĨA CỤC BỘ trước rồi copy nguyên file vào jobDir (có thể là GCS FUSE
@@ -191,21 +239,24 @@ const processJob = async (jobId: number): Promise<void> => {
   // ghi xong mdat — FUSE streaming-write chỉ chấp nhận ghi tuần tự, seek-back giữa
   // chừng làm gcsfuse lỗi "BufferedWriteHandler.OutOfOrderError" và rơi về đường
   // chậm. Ghi cục bộ (luôn hỗ trợ seek) rồi copy 1 lần tránh hẳn vấn đề này.
-  const localTmpMp4 = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ams-render-")), "video.mp4");
+  const localTmpMp4 = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), "ams-render-")),
+    "video.mp4",
+  );
   await renderSpecFile(specPath, localTmpMp4);
   fs.copyFileSync(localTmpMp4, outMp4);
   fs.rmSync(path.dirname(localTmpMp4), { recursive: true, force: true });
 
   await pool.query(
     `UPDATE render_jobs SET status = 'done', progress = 100, output_path = ?, finished_at = NOW() WHERE id = ?`,
-    [outMp4, jobId]
+    [outMp4, jobId],
   );
 };
 
 /** Khởi động: job kẹt giữa chừng (server restart) → trả về queued */
 export const recoverStaleJobs = async (): Promise<void> => {
   await pool.query(
-    `UPDATE render_jobs SET status = 'queued', progress = 0 WHERE status IN ('images', 'tts', 'rendering')`
+    `UPDATE render_jobs SET status = 'queued', progress = 0 WHERE status IN ('images', 'tts', 'rendering')`,
   );
 };
 

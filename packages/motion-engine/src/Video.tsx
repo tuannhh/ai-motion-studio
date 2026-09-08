@@ -1,4 +1,5 @@
 import React from "react";
+import { MotionCanvas } from "./motion/MotionCanvas";
 import { AbsoluteFill, Audio, Sequence, staticFile } from "remotion";
 import {
   TransitionSeries,
@@ -54,20 +55,37 @@ const SceneRenderer: React.FC<{
   scene: Scene;
   theme: Theme;
   channelHandle?: string;
-}> = ({ scene, theme, channelHandle }) => {
+  motionVolume?: number;
+}> = ({ scene, theme, channelHandle, motionVolume }) => {
   // Thời lượng scene (frame) để rải reveal item theo nhịp đọc ("nói tới đâu hiện tới đó")
   const sceneFrames = sceneDurationInFrames(scene);
   switch (scene.type) {
+    case "motion":
+      return (
+        <MotionCanvas
+          document={scene.document}
+          volume={motionVolume}
+          durationInFrames={sceneFrames}
+        />
+      );
     case "hook":
       return <HookScene scene={scene} theme={theme} />;
     case "points":
-      return <PointsScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+      return (
+        <PointsScene scene={scene} theme={theme} sceneFrames={sceneFrames} />
+      );
     case "flow":
-      return <FlowScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+      return (
+        <FlowScene scene={scene} theme={theme} sceneFrames={sceneFrames} />
+      );
     case "diagram":
-      return <DiagramScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+      return (
+        <DiagramScene scene={scene} theme={theme} sceneFrames={sceneFrames} />
+      );
     case "timeline":
-      return <TimelineScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+      return (
+        <TimelineScene scene={scene} theme={theme} sceneFrames={sceneFrames} />
+      );
     case "compare":
       return <CompareScene scene={scene} theme={theme} />;
     case "versus":
@@ -77,7 +95,9 @@ const SceneRenderer: React.FC<{
     case "quote":
       return <QuoteScene scene={scene} theme={theme} />;
     case "rank":
-      return <RankScene scene={scene} theme={theme} sceneFrames={sceneFrames} />;
+      return (
+        <RankScene scene={scene} theme={theme} sceneFrames={sceneFrames} />
+      );
     case "chart":
       return <ChartScene scene={scene} theme={theme} />;
     case "media":
@@ -91,7 +111,9 @@ const SceneRenderer: React.FC<{
     case "screenshot":
       return <ScreenshotScene scene={scene} theme={theme} />;
     case "outro":
-      return <OutroScene scene={scene} theme={theme} channelHandle={channelHandle} />;
+      return (
+        <OutroScene scene={scene} theme={theme} channelHandle={channelHandle} />
+      );
   }
 };
 
@@ -115,7 +137,7 @@ const TEXT_HEAVY_TYPES = new Set(["hook", "bigword", "quote", "outro"]);
  * để cả chữ lớn + caption cùng hiện gây cảm giác "đọc/hiện đôi". (outro có
  * headline/CTA riêng, quote là câu trích, bigword là cụm chữ theo beat.)
  */
-const NO_CAPTION_TYPES = new Set(["outro", "quote", "bigword"]);
+const NO_CAPTION_TYPES = new Set(["outro", "quote", "bigword", "motion"]);
 
 /**
  * SFX nhấn theo NHỊP REVEAL của từng loại scene — đa dạng hoá âm thanh thay vì
@@ -132,7 +154,7 @@ const autoRevealCues = (
   scene: Scene,
   sfxVol: number,
   theme: Theme,
-  isTechPreset: boolean
+  isTechPreset: boolean,
 ): { file: string; from: number; volume: number }[] => {
   const cues: { file: string; from: number; volume: number }[] = [];
   let seq = 0;
@@ -140,11 +162,23 @@ const autoRevealCues = (
   const popPool = theme.flat ? SFX.paper : SFX.listReveal;
   const dingPool = theme.flat ? SFX.paper : SFX.positive;
   const tick = (from: number, v = 0.5) =>
-    cues.push({ file: pick(tickPool, `${scene.id}-tick-${seq++}`), from, volume: sfxVol * v });
+    cues.push({
+      file: pick(tickPool, `${scene.id}-tick-${seq++}`),
+      from,
+      volume: sfxVol * v,
+    });
   const pop = (from: number, v = 0.7) =>
-    cues.push({ file: pick(popPool, `${scene.id}-pop-${seq++}`), from, volume: sfxVol * v });
+    cues.push({
+      file: pick(popPool, `${scene.id}-pop-${seq++}`),
+      from,
+      volume: sfxVol * v,
+    });
   const ding = (from: number, v = 0.85) =>
-    cues.push({ file: pick(dingPool, `${scene.id}-ding-${seq++}`), from, volume: sfxVol * v });
+    cues.push({
+      file: pick(dingPool, `${scene.id}-ding-${seq++}`),
+      from,
+      volume: sfxVol * v,
+    });
   switch (scene.type) {
     case "points":
       scene.items.forEach((_, i) => tick(ENTRY + i * 10));
@@ -153,23 +187,41 @@ const autoRevealCues = (
       scene.steps.forEach((_, i) => tick(ENTRY + i * 11));
       break;
     case "rank":
-      scene.items.forEach((it, i) => (it.highlight ? ding(ENTRY + i * 10) : tick(ENTRY + i * 10)));
+      scene.items.forEach((it, i) =>
+        it.highlight ? ding(ENTRY + i * 10) : tick(ENTRY + i * 10),
+      );
       break;
     case "flow":
-      scene.nodes.forEach((node, i) => (node.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12)));
+      scene.nodes.forEach((node, i) =>
+        node.emphasis ? pop(ENTRY + i * 12, 0.5) : tick(ENTRY + i * 12),
+      );
       break;
     case "diagram":
-      scene.nodes.forEach((node, i) => (node.emphasis ? pop(ENTRY + i * 11, 0.5) : tick(ENTRY + i * 11)));
+      scene.nodes.forEach((node, i) =>
+        node.emphasis ? pop(ENTRY + i * 11, 0.5) : tick(ENTRY + i * 11),
+      );
       break;
     case "compare": {
       const pool = theme.flat ? SFX.paper : SFX.compare;
-      cues.push({ file: pick(pool, `${scene.id}-cmp-${seq++}`), from: ENTRY, volume: sfxVol * 0.55 });
-      cues.push({ file: pick(pool, `${scene.id}-cmp-${seq++}`), from: ENTRY + 12, volume: sfxVol * 0.55 });
+      cues.push({
+        file: pick(pool, `${scene.id}-cmp-${seq++}`),
+        from: ENTRY,
+        volume: sfxVol * 0.55,
+      });
+      cues.push({
+        file: pick(pool, `${scene.id}-cmp-${seq++}`),
+        from: ENTRY + 12,
+        volume: sfxVol * 0.55,
+      });
       break;
     }
     case "versus": {
       const pool = theme.flat ? SFX.paper : SFX.compare;
-      cues.push({ file: pick(pool, `${scene.id}-versus-${seq++}`), from: ENTRY + 14, volume: sfxVol * 0.7 });
+      cues.push({
+        file: pick(pool, `${scene.id}-versus-${seq++}`),
+        from: ENTRY + 14,
+        volume: sfxVol * 0.7,
+      });
       break;
     }
     case "terminal": {
@@ -183,26 +235,48 @@ const autoRevealCues = (
       break;
     }
     case "screenshot": {
-      const pool = theme.flat ? SFX.paper : isTechPreset ? SFX.uiScreenTech : SFX.uiScreen;
+      const pool = theme.flat
+        ? SFX.paper
+        : isTechPreset
+          ? SFX.uiScreenTech
+          : SFX.uiScreen;
       if (scene.markers.length) {
         scene.markers.forEach((_, i) =>
-          cues.push({ file: pick(pool, `${scene.id}-ui-${seq++}`), from: ENTRY + i * 14, volume: sfxVol * 0.5 })
+          cues.push({
+            file: pick(pool, `${scene.id}-ui-${seq++}`),
+            from: ENTRY + i * 14,
+            volume: sfxVol * 0.5,
+          }),
         );
       } else {
-        cues.push({ file: pick(pool, `${scene.id}-ui-${seq++}`), from: ENTRY, volume: sfxVol * 0.6 });
+        cues.push({
+          file: pick(pool, `${scene.id}-ui-${seq++}`),
+          from: ENTRY,
+          volume: sfxVol * 0.6,
+        });
       }
       break;
     }
     case "stat": {
-      const pool = theme.flat ? SFX.paper : isMoneyUnit(scene.unit) ? SFX.moneyGrowth : SFX.positive;
-      cues.push({ file: pick(pool, `${scene.id}-ding-${seq++}`), from: ENTRY + 8, volume: sfxVol * 0.85 });
+      const pool = theme.flat
+        ? SFX.paper
+        : isMoneyUnit(scene.unit)
+          ? SFX.moneyGrowth
+          : SFX.positive;
+      cues.push({
+        file: pick(pool, `${scene.id}-ding-${seq++}`),
+        from: ENTRY + 8,
+        volume: sfxVol * 0.85,
+      });
       break;
     }
     case "chart":
       ding(ENTRY + 10);
       break;
     case "bigword":
-      scene.phrases.forEach((p, i) => (p.accent ? ding(ENTRY + i * 18) : pop(ENTRY + i * 18, 0.55)));
+      scene.phrases.forEach((p, i) =>
+        p.accent ? ding(ENTRY + i * 18) : pop(ENTRY + i * 18, 0.55),
+      );
       break;
     case "quote":
       pop(ENTRY, 0.5);
@@ -222,38 +296,51 @@ const sceneStartFrames = (spec: VideoSpec): number[] => {
   let cursor = 0;
   spec.scenes.forEach((scene, i) => {
     starts.push(cursor);
-    cursor += sceneDurationInFrames(scene) - (i < spec.scenes.length - 1 ? TRANSITION_FRAMES : 0);
+    cursor +=
+      sceneDurationInFrames(scene) -
+      (i < spec.scenes.length - 1 ? TRANSITION_FRAMES : 0);
   });
   return starts;
 };
 
 /**
  * Sidechain ducking: nhạc nền tự nhún xuống khi voiceover đang nói
- * (ramp 10 frame vào/ra, giữ ~28% mức gốc trong lúc nói).
+ * (ramp 10 frame vào/ra, giữ ~42% mức gốc trong lúc nói).
  * + Fade in/out toàn cục 1s đầu/cuối video (phản hồi 2026-09-03: nhạc cắt cụt lúc
  * mở/kết thúc nghe hụt) — nhân thêm vào cùng envelope, không ảnh hưởng ducking.
  */
 const MUSIC_FADE_FRAMES = FPS; // 1 giây
-export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) => {
+export const buildMusicVolume = (
+  spec: VideoSpec,
+): ((frame: number) => number) => {
   const starts = sceneStartFrames(spec);
   const ranges = spec.scenes.flatMap((scene, i) =>
     scene.voiceover
-      ? [{ from: starts[i], to: starts[i] + Math.round((scene.voiceover.durationMs / 1000) * FPS) }]
-      : []
+      ? [
+          {
+            from: starts[i],
+            to:
+              starts[i] + Math.round((scene.voiceover.durationMs / 1000) * FPS),
+          },
+        ]
+      : [],
   );
   const RAMP = 10;
-  const DUCK = 0.28;
+  const DUCK = 0.42;
   const total = totalDurationInFrames(spec);
   return (frame: number) => {
     let env = 0;
     for (const r of ranges) {
       if (frame < r.from - RAMP || frame > r.to + RAMP) continue;
       const rise = Math.min(1, Math.max(0, (frame - (r.from - RAMP)) / RAMP));
-      const fall = Math.min(1, Math.max(0, ((r.to + RAMP) - frame) / RAMP));
+      const fall = Math.min(1, Math.max(0, (r.to + RAMP - frame) / RAMP));
       env = Math.max(env, Math.min(rise, fall));
     }
     const fadeIn = Math.min(1, Math.max(0, frame / MUSIC_FADE_FRAMES));
-    const fadeOut = Math.min(1, Math.max(0, (total - frame) / MUSIC_FADE_FRAMES));
+    const fadeOut = Math.min(
+      1,
+      Math.max(0, (total - frame) / MUSIC_FADE_FRAMES),
+    );
     const fade = Math.min(fadeIn, fadeOut);
     return spec.audio.musicVolume * (1 - (1 - DUCK) * env) * fade;
   };
@@ -265,19 +352,25 @@ export const buildMusicVolume = (spec: VideoSpec): ((frame: number) => number) =
  * transition tự dựng theo remotion-skill (whip pan, scale-through, mask wipe).
  */
 /** Bảng chuyển cảnh (11 kiểu) — mỗi phần tử nhận theme để đổi màu accent nếu cần */
-const TRANSITIONS: Array<(slug: string, index: number, theme: Theme) => TransitionPresentation<any>> = [
+const TRANSITIONS: Array<
+  (slug: string, index: number, theme: Theme) => TransitionPresentation<any>
+> = [
   () => slide({ direction: "from-bottom" }),
   () => slide({ direction: "from-right" }),
   () => fadeThroughBg(),
   () => wipe({ direction: "from-left" }),
-  (slug, index) => whipPan({ direction: seedOf(`${slug}-whip-${index}`) > 0.5 ? 1 : -1 }),
+  (slug, index) =>
+    whipPan({ direction: seedOf(`${slug}-whip-${index}`) > 0.5 ? 1 : -1 }),
   () => scaleThrough(),
   (_slug, _index, theme) => maskWipe({ accent: theme.accent }),
   () => slide({ direction: "from-left" }),
   () => blurZoom(),
   () => iris(),
   (slug, index) =>
-    pushDiagonal({ dx: 1120, dy: seedOf(`${slug}-push-${index}`) > 0.5 ? 380 : -380 }),
+    pushDiagonal({
+      dx: 1120,
+      dy: seedOf(`${slug}-push-${index}`) > 0.5 ? 380 : -380,
+    }),
 ];
 
 /**
@@ -295,7 +388,7 @@ const VOX_TRANSITION_IDX: number[] = [4, 5, 6, 8, 9, 10];
 const transitionFor = (
   slug: string,
   index: number,
-  theme: Theme
+  theme: Theme,
 ): TransitionPresentation<any> => {
   const pool: number[] =
     theme.flavor === "vox" ? VOX_TRANSITION_IDX : TRANSITIONS.map((_, i) => i);
@@ -308,8 +401,32 @@ const transitionFor = (
   return TRANSITIONS[pick](slug, index, theme);
 };
 
+const explicitTransition = (
+  name: string,
+  theme: Theme,
+): TransitionPresentation<any> => {
+  switch (name) {
+    case "fade":
+      return fadeThroughBg();
+    case "whip":
+      return whipPan({ direction: 1 });
+    case "zoom":
+      return scaleThrough();
+    case "wipe":
+      return maskWipe({ accent: theme.accent });
+    case "iris":
+      return iris();
+    default:
+      return slide({ direction: "from-right" });
+  }
+};
+
 export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
-  const theme = resolveTheme(spec.style.preset, spec.style.accent, spec.style.flavor);
+  const theme = resolveTheme(
+    spec.style.preset,
+    spec.style.accent,
+    spec.style.flavor,
+  );
   const total = spec.scenes.length;
   const isTechPreset = TECH_PRESETS.has(spec.style.preset);
 
@@ -331,42 +448,87 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
               {scene.voiceover ? (
                 <Audio src={asSrc(scene.voiceover.file)} />
               ) : null}
+              {spec.audio.autoSfx &&
+              scene.soundDesign &&
+              !["auto", "none"].includes(scene.soundDesign) ? (
+                <Sequence from={TRANSITION_FRAMES}>
+                  <Audio
+                    src={staticFile(
+                      pick(
+                        scene.soundDesign === "ding"
+                          ? SFX.positive
+                          : scene.soundDesign === "pop"
+                            ? SFX.listReveal
+                            : scene.soundDesign === "impact"
+                              ? SFX.statImpact
+                              : scene.soundDesign === "paper"
+                                ? SFX.paper
+                                : SFX.transition,
+                        scene.id,
+                      ),
+                    )}
+                    volume={spec.audio.sfxVolume}
+                  />
+                </Sequence>
+              ) : null}
               {scene.sfx.map((cue, ci) => (
                 <Sequence key={ci} from={cue.atFrame}>
                   <Audio src={asSrc(cue.file)} volume={cue.volume} />
                 </Sequence>
               ))}
-              {spec.audio.autoSfx && i > 0 ? (
+              {spec.audio.autoSfx &&
+              (!scene.soundDesign || scene.soundDesign === "auto") &&
+              i > 0 ? (
                 <Audio
-                  src={staticFile(pick(SFX.transition, `${spec.meta.slug}-sfx-${i}`))}
+                  src={staticFile(
+                    pick(SFX.transition, `${spec.meta.slug}-sfx-${i}`),
+                  )}
                   volume={spec.audio.sfxVolume}
                 />
               ) : null}
-              {spec.audio.autoSfx && THUMP_TYPES.has(scene.type) ? (
+              {spec.audio.autoSfx &&
+              (!scene.soundDesign || scene.soundDesign === "auto") &&
+              THUMP_TYPES.has(scene.type) ? (
                 <Sequence from={TRANSITION_FRAMES}>
                   <Audio
                     src={staticFile(
                       pick(
-                        isMoneyUnit(scene.type === "stat" ? scene.unit : undefined)
+                        isMoneyUnit(
+                          scene.type === "stat" ? scene.unit : undefined,
+                        )
                           ? SFX.moneyGrowth
                           : SFX.statImpact,
-                        `${scene.id}-thump`
-                      )
+                        `${scene.id}-thump`,
+                      ),
                     )}
                     volume={spec.audio.sfxVolume * 0.9}
                   />
                 </Sequence>
               ) : null}
-              {spec.audio.autoSfx && i < total - 1 && THUMP_TYPES.has(spec.scenes[i + 1].type) ? (
-                <Sequence from={Math.max(0, sceneDurationInFrames(scene) - BUILD_UP_LEAD)}>
+              {spec.audio.autoSfx &&
+              (!scene.soundDesign || scene.soundDesign === "auto") &&
+              i < total - 1 &&
+              THUMP_TYPES.has(spec.scenes[i + 1].type) ? (
+                <Sequence
+                  from={Math.max(
+                    0,
+                    sceneDurationInFrames(scene) - BUILD_UP_LEAD,
+                  )}
+                >
                   <Audio
                     src={staticFile(pick(SFX.buildUp, `${scene.id}-buildup`))}
                     volume={spec.audio.sfxVolume * 0.6}
                   />
                 </Sequence>
               ) : null}
-              {spec.audio.autoSfx
-                ? autoRevealCues(scene, spec.audio.sfxVolume, theme, isTechPreset).map((c, ci) => (
+              {spec.audio.autoSfx &&
+              (!scene.soundDesign || scene.soundDesign === "auto")
+                ? autoRevealCues(
+                    scene,
+                    spec.audio.sfxVolume,
+                    theme,
+                    isTechPreset,
+                  ).map((c, ci) => (
                     <Sequence key={`rev-${ci}`} from={c.from}>
                       <Audio src={staticFile(c.file)} volume={c.volume} />
                     </Sequence>
@@ -383,6 +545,7 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                 />
               ) : null}
               <SceneRenderer
+                motionVolume={spec.audio.sfxVolume}
                 scene={scene}
                 theme={theme}
                 channelHandle={
@@ -391,7 +554,9 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
                     : undefined
                 }
               />
-              {spec.style.progress && scene.type !== "hook" && scene.type !== "outro" ? (
+              {spec.style.progress &&
+              scene.type !== "hook" &&
+              scene.type !== "outro" ? (
                 <ProgressChip
                   theme={theme}
                   index={i}
@@ -411,9 +576,13 @@ export const Video: React.FC<{ spec: VideoSpec }> = ({ spec }) => {
             elements.push(
               <TransitionSeries.Transition
                 key={`t-${scene.id}`}
-                presentation={transitionFor(spec.meta.slug, i, theme)}
+                presentation={
+                  scene.transition && scene.transition !== "auto"
+                    ? explicitTransition(scene.transition, theme)
+                    : transitionFor(spec.meta.slug, i, theme)
+                }
                 timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-              />
+              />,
             );
           }
           return elements;

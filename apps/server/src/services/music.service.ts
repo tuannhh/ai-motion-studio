@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
@@ -23,7 +24,9 @@ const looksLikeAudio = (filePath: string, ext: string): boolean => {
     const ascii4 = head.subarray(0, 4).toString("ascii");
     switch (ext) {
       case ".wav":
-        return ascii4 === "RIFF" && head.subarray(8, 12).toString("ascii") === "WAVE";
+        return (
+          ascii4 === "RIFF" && head.subarray(8, 12).toString("ascii") === "WAVE"
+        );
       case ".ogg":
         return ascii4 === "OggS";
       case ".m4a":
@@ -42,20 +45,27 @@ const looksLikeAudio = (filePath: string, ext: string): boolean => {
   }
 };
 
-export const listMusic = async () => {
+export const listMusic = async (userId: number) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT id, name, credit, mime, size_bytes, created_at
-       FROM music_tracks ORDER BY id DESC LIMIT 200`
+       FROM music_tracks WHERE is_shared=1 OR created_by=? ORDER BY id DESC LIMIT 200`,
+    [userId],
   );
   return rows;
 };
 
-export const getMusicTrack = async (trackId: number) => {
+export const getMusicTrack = async (trackId: number, userId?: number) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM music_tracks WHERE id = ? LIMIT 1`,
-    [trackId]
+    [trackId],
   );
-  if (!rows[0]) throw notFound("Không tìm thấy bản nhạc.");
+  if (
+    !rows[0] ||
+    (userId !== undefined &&
+      !rows[0].is_shared &&
+      Number(rows[0].created_by) !== userId)
+  )
+    throw notFound("Không tìm thấy bản nhạc.");
   return rows[0];
 };
 
@@ -63,12 +73,15 @@ export const createMusic = async (
   userId: number,
   name: string,
   credit: string | undefined,
-  file: { originalname: string; path: string; size: number; mimetype: string }
+  file: { originalname: string; path: string; size: number; mimetype: string },
+  shared = false,
 ): Promise<number> => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!/\.(mp3|wav|m4a|aac|ogg)$/.test(ext)) {
     fs.rmSync(file.path, { force: true });
-    throw badRequest("Định dạng nhạc chưa hỗ trợ — dùng mp3, wav, m4a, aac hoặc ogg.");
+    throw badRequest(
+      "Định dạng nhạc chưa hỗ trợ — dùng mp3, wav, m4a, aac hoặc ogg.",
+    );
   }
   if (file.size > MAX_MUSIC_BYTES) {
     fs.rmSync(file.path, { force: true });
@@ -80,13 +93,24 @@ export const createMusic = async (
   }
 
   fs.mkdirSync(storagePaths.privateMusic, { recursive: true });
-  const storedPath = path.join(storagePaths.privateMusic, `track-${Date.now()}${ext}`);
+  const storedPath = path.join(
+    storagePaths.privateMusic,
+    `track-${crypto.randomUUID()}${ext}`,
+  );
   fs.renameSync(file.path, storedPath);
 
   const [result] = await pool.query<ResultSetHeader>(
-    `INSERT INTO music_tracks (name, stored_path, mime, size_bytes, credit, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name.slice(0, 80), storedPath, file.mimetype.slice(0, 60), file.size, credit?.slice(0, 120) ?? null, userId]
+    `INSERT INTO music_tracks (name, stored_path, mime, size_bytes, credit, created_by, is_shared)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      name.slice(0, 80),
+      storedPath,
+      file.mimetype.slice(0, 60),
+      file.size,
+      credit?.slice(0, 120) ?? null,
+      userId,
+      shared ? 1 : 0,
+    ],
   );
   return result.insertId;
 };
@@ -98,6 +122,9 @@ export const deleteMusic = async (trackId: number): Promise<void> => {
 };
 
 /** Kiểm tra track tồn tại (dùng khi tạo project) — trả path hoặc ném notFound */
-export const assertMusicExists = async (trackId: number): Promise<void> => {
-  await getMusicTrack(trackId);
+export const assertMusicExists = async (
+  trackId: number,
+  userId: number,
+): Promise<void> => {
+  await getMusicTrack(trackId, userId);
 };

@@ -117,3 +117,17 @@ CREATE TABLE IF NOT EXISTS watermark_config (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO watermark_config (id, kind) VALUES (1, 'none');
+CREATE TABLE IF NOT EXISTS script_versions (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  script_id INT UNSIGNED NOT NULL,
+  plan_json JSON NOT NULL,
+  label VARCHAR(120) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_script_versions_script (script_id, id),
+  CONSTRAINT fk_script_versions_script FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SET @music_shared_exists = (SELECT COUNT(*) FROM information_schema.columns WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='music_tracks' AND COLUMN_NAME='is_shared');
+SET @music_shared_sql = IF(@music_shared_exists = 0, 'ALTER TABLE music_tracks ADD COLUMN is_shared TINYINT(1) NOT NULL DEFAULT 1', 'SELECT 1');
+PREPARE music_shared_stmt FROM @music_shared_sql;
+EXECUTE music_shared_stmt;
+DEALLOCATE PREPARE music_shared_stmt;

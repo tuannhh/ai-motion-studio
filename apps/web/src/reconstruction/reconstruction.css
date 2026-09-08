@@ -1,0 +1,423 @@
+.motion-lab,
+.motion-native {
+  color: var(--mds-text);
+  background: var(--mds-bg-page);
+  font-size: 13px;
+  min-width: 0;
+}
+.motion-lab {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+.motion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--mds-bg);
+  gap: 16px;
+  border-bottom: 1px solid var(--mds-border-light);
+}
+.motion-header h1 {
+  font-size: 22px;
+  margin: 4px 0;
+}
+.motion-header h1 span {
+  font-size: 12px;
+  font-weight: 400;
+  display: block;
+  color: var(--mds-text-secondary);
+  margin-top: 4px;
+}
+.motion-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.motion-inline.wrap {
+  flex-wrap: wrap;
+}
+.motion-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(320px, 1fr) 290px;
+  flex: 1;
+  min-height: 0;
+}
+.motion-sidebar,
+.motion-review {
+  padding: 16px;
+  overflow: auto;
+  background: var(--mds-bg);
+  min-width: 0;
+}
+.motion-sidebar {
+  border-right: 1px solid var(--mds-border-light);
+}
+.motion-review {
+  border-left: 1px solid var(--mds-border-light);
+}
+.motion-review h2 {
+  font-size: 15px;
+  margin: 0 0 16px;
+}
+.motion-stage {
+  padding: 20px;
+  overflow: auto;
+  min-width: 0;
+}
+.motion-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  max-width: 740px;
+  margin: auto;
+}
+.motion-pair figure,
+.motion-single figure {
+  margin: 0;
+  min-width: 0;
+}
+.motion-pair figcaption,
+.motion-single figcaption {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin: 0 0 12px;
+}
+.motion-pair figcaption span,
+.motion-single figcaption span {
+  display: block;
+  font-weight: 400;
+  color: var(--mds-text-secondary);
+  letter-spacing: 0;
+  margin-top: 6px;
+}
+.motion-screen {
+  aspect-ratio: 9/16;
+  background: var(--mds-base-neutral-900);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--mds-shadow-card);
+}
+.motion-screen video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.motion-wait {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px;
+  height: 100%;
+  color: var(--mds-bg);
+  text-align: center;
+}
+.motion-wait b {
+  font-size: 20px;
+  line-height: 1.4;
+}
+.motion-wait p {
+  opacity: 0.6;
+  line-height: 1.6;
+}
+.motion-caption {
+  text-align: center;
+  margin: 24px 0;
+  line-height: 1.7;
+}
+.motion-caption span {
+  display: block;
+  color: var(--mds-text-secondary);
+  font-size: 12px;
+}
+.motion-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.motion-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 500;
+}
+.motion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+.motion-grid label {
+  min-width: 0;
+}
+.motion-muted {
+  color: var(--mds-text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 0;
+}
+.motion-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--mds-border-light);
+  margin-bottom: 16px;
+}
+.motion-tabs button {
+  flex: 1;
+  padding: 12px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--mds-text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.motion-tabs button.chosen {
+  color: var(--mds-primary);
+  box-shadow: inset 0 -2px var(--mds-primary);
+}
+.layer-list {
+  max-height: 210px;
+  overflow: auto;
+  margin: 10px 0 18px;
+}
+.layer-list button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--mds-text);
+}
+.layer-list button small {
+  color: var(--mds-text-secondary);
+}
+.layer-list button.chosen {
+  background: var(--mds-bg-hover-soft);
+  box-shadow: inset 3px 0 var(--mds-primary);
+}
+.keyframe {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--mds-border-light);
+}
+.keyframe summary,
+details summary {
+  cursor: pointer;
+  line-height: 1.6;
+}
+.keyframe .motion-grid {
+  margin: 12px 0;
+}
+.motion-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px auto;
+  max-width: 740px;
+}
+.motion-scrubber input {
+  flex: 1;
+  min-width: 40px;
+  accent-color: var(--mds-primary);
+}
+.motion-scrubber output {
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+}
+.motion-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--mds-bg);
+  border-bottom: 1px solid var(--mds-border-light);
+}
+.motion-progress progress {
+  flex: 1;
+  height: 6px;
+  accent-color: var(--mds-primary);
+}
+.motion-error {
+  padding: 12px 20px;
+  color: var(--mds-danger);
+  background: var(--mds-bg);
+  line-height: 1.6;
+}
+.motion-history,
+.motion-code {
+  margin-top: 24px;
+  border-top: 1px solid var(--mds-border-light);
+  padding-top: 16px;
+}
+.motion-history button {
+  display: block;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.motion-code a,
+.motion-header a {
+  margin: 0 8px;
+  color: var(--mds-primary);
+}
+.motion-code p {
+  line-height: 1.6;
+}
+.motion-code textarea {
+  font-family: monospace;
+}
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.review-metrics div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: center;
+}
+.review-metrics strong {
+  font-size: 23px;
+  font-weight: 600;
+}
+.review-metrics span {
+  font-size: 10px;
+  color: var(--mds-text-secondary);
+}
+.motion-issue {
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--mds-border-light);
+  line-height: 1.6;
+}
+.motion-issue button {
+  align-self: flex-start;
+  border: 0;
+  background: var(--mds-bg-hover-soft);
+  color: var(--mds-primary);
+  border-radius: 4px;
+  padding: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.motion-issue p {
+  margin: 6px 0;
+  color: var(--mds-text-secondary);
+  font-size: 12px;
+}
+.motion-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--mds-bg);
+  border-top: 1px solid var(--mds-border-light);
+}
+.motion-footer span {
+  margin-right: auto;
+  color: var(--mds-text-secondary);
+}
+.motion-native {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.motion-native > .motion-tabs {
+  background: var(--mds-bg);
+  margin: 0;
+}
+.motion-native > .motion-tabs button {
+  min-height: 48px;
+}
+.motion-native > main {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px;
+  max-width: 840px;
+  width: 100%;
+  margin: 0 auto;
+}
+.motion-native > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--mds-bg);
+  border-top: 1px solid var(--mds-border-light);
+}
+.motion-native .motion-single {
+  max-width: 360px;
+  margin: 16px auto;
+}
+.motion-native .motion-screen {
+  max-height: 56dvh;
+  aspect-ratio: 9/16;
+  width: auto;
+  margin: auto;
+}
+.motion-native .motion-scrubber {
+  flex-wrap: wrap;
+}
+.motion-native .layer-list {
+  max-height: 180px;
+}
+.motion-native .layer-list button,
+.motion-native .motion-issue button {
+  min-height: 48px;
+}
+.motion-mobile-video {
+  max-height: 48dvh;
+  width: 100%;
+  background: var(--mds-base-neutral-900);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.motion-native .motion-fields a {
+  padding: 12px;
+  color: var(--mds-primary);
+}
+.motion-native .review-metrics {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.motion-native .review-metrics span {
+  font-size: 12px;
+}
+.motion-sidebar > .motion-tabs {
+  position: sticky;
+  top: -16px;
+  background: var(--mds-bg);
+  z-index: 2;
+}
+.motion-native {
+  height: 100vh;
+  height: 100dvh;
+}
+.motion-native .motion-tabs button {
+  white-space: nowrap;
+}
+.motion-native .motion-issue div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.motion-native > .motion-progress {
+  flex-wrap: wrap;
+}
+.motion-native > .motion-progress span {
+  width: 100%;
+}

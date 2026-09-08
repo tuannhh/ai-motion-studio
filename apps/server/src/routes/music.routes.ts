@@ -14,9 +14,8 @@ import {
 } from "../services/music.service";
 
 /**
- * Thư viện nhạc nền dùng chung — /v1/music. Ai đăng nhập cũng LIST được (để
- * chọn khi tạo video); chỉ ADMIN được tải lên / xoá (nội dung license phải do
- * tổ chức kiểm duyệt).
+ * Nhạc nền: admin tải vào thư viện chung; creator tải nhạc riêng.
+ * Chỉ chủ sở hữu hoặc người dùng thư viện chung được nghe/chọn nhạc.
  */
 const upload = multer({
   dest: storagePaths.temp,
@@ -39,40 +38,43 @@ export const musicRoutes = Router();
 musicRoutes.get(
   "/",
   asyncHandler(async (req, res) => {
-    res.json({ data: await listMusic() });
-  })
+    res.json({ data: await listMusic(req.user!.id) });
+  }),
 );
 
 musicRoutes.post(
   "/",
-  requireAdmin,
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) throw badRequest("Thiếu file nhạc (field 'file').");
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.");
+      fs.rmSync(req.file.path, { force: true });
+      throw badRequest(
+        parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ.",
+      );
     }
     const id = await createMusic(
       req.user!.id,
       parsed.data.name,
       parsed.data.credit,
-      req.file
+      req.file,
+      req.user!.role === "admin",
     );
     res.status(201).json({ data: { id } });
-  })
+  }),
 );
 
 /** Nghe thử bản nhạc (mọi user đăng nhập) — sendFile hỗ trợ Range cho <audio> */
 musicRoutes.get(
   "/:id/audio",
   asyncHandler(async (req, res) => {
-    const track = await getMusicTrack(idParam(req.params.id));
+    const track = await getMusicTrack(idParam(req.params.id), req.user!.id);
     if (!fs.existsSync(String(track.stored_path))) {
       throw notFound("File nhạc không còn.");
     }
     res.sendFile(String(track.stored_path));
-  })
+  }),
 );
 
 musicRoutes.delete(
@@ -81,5 +83,5 @@ musicRoutes.delete(
   asyncHandler(async (req, res) => {
     await deleteMusic(idParam(req.params.id));
     res.json({ data: { ok: true } });
-  })
+  }),
 );

@@ -8,6 +8,7 @@ import MTextarea from "../components/mds/MTextarea.vue";
 import MUpload from "../components/mds/MUpload.vue";
 import RangeField from "../components/RangeField.vue";
 import { useToast } from "../components/mds/toast.js";
+import MusicUpload from "../studio/MusicUpload.vue";
 import { api, apiForm, ApiError } from "../lib/api";
 import MInput from "../components/mds/MInput.vue";
 import MTag from "../components/mds/MTag.vue";
@@ -22,17 +23,24 @@ import type {
 
 /** editProjectId = đang sửa thiết lập & làm lại 1 project đã có (từ "Video đã tạo");
  * null = tạo mới bình thường. Video đã render trước đó KHÔNG bị mất khi làm lại. */
-const props = defineProps<{ editProjectId?: number | null }>();
+const props = defineProps<{
+  editProjectId?: number | null;
+  initialIdea?: string;
+  initialPreset?: string;
+  initialSourceMode?: "user" | "ai" | "combine";
+}>();
 const emit = defineEmits<{ created: [projectId: number] }>();
 const toast = useToast();
 
-const idea = ref("");
-const sourceMode = ref<"user" | "ai" | "combine">("user");
+const idea = ref(props.initialIdea ?? "");
+const sourceMode = ref<"user" | "ai" | "combine">(
+  props.initialSourceMode ?? "user",
+);
 /** Link tư liệu người dùng dán vào (mặc định 1 ô rỗng, bấm "Thêm link" để có thêm) */
 const linkInputs = ref<string[]>([""]);
 const mode = ref<"angles" | "series">("angles");
 const variantCount = ref(1);
-const presetHint = ref("");
+const presetHint = ref(props.initialPreset ?? "");
 const durationSec = ref(45);
 const voiceGender = ref<"male" | "female">("female");
 const voiceRegion = ref<"bac" | "nam">("bac");
@@ -50,6 +58,8 @@ onMounted(async () => {
   try {
     const all = await api<TemplateRow[]>("/v1/templates");
     templates.value = all.filter((t) => t.status === "ready");
+    const requestedTemplate = Number(new URLSearchParams(window.location.search).get("template"));
+    if (templates.value.some(t=>t.id===requestedTemplate)) templateId.value=requestedTemplate;
   } catch {
     // không có template không chặn màn tạo video
   }
@@ -84,6 +94,10 @@ onMounted(async () => {
     // không có nhạc không chặn màn tạo video
   }
 });
+async function onMusicUploaded(id: number) {
+  musicTracks.value = await api<MusicTrack[]>("/v1/music");
+  musicTrackId.value = id;
+}
 const musicOptions = computed(() => [
   { label: "Không dùng nhạc nền", value: "" as const },
   ...musicTracks.value.map((m) => ({ label: m.name, value: m.id })),
@@ -94,7 +108,9 @@ const watermarkPresets = ref<WatermarkPreset[]>([]);
 const watermarkPresetId = ref<number | "">("");
 onMounted(async () => {
   try {
-    watermarkPresets.value = await api<WatermarkPreset[]>("/v1/watermark-presets");
+    watermarkPresets.value = await api<WatermarkPreset[]>(
+      "/v1/watermark-presets",
+    );
   } catch {
     // không có watermark không chặn màn tạo video
   }
@@ -109,7 +125,7 @@ const templateOptions = computed(() => [
   ...templates.value.map((t) => ({ label: t.name, value: t.id })),
 ]);
 const selectedTemplate = computed(
-  () => templates.value.find((t) => t.id === templateId.value) ?? null
+  () => templates.value.find((t) => t.id === templateId.value) ?? null,
 );
 watch(selectedTemplate, (t) => {
   if (!t) {
@@ -131,7 +147,8 @@ type UploadItem = {
 };
 const uploadItems = ref<UploadItem[]>([]);
 
-const ACCEPT = ".txt,.md,.docx,.pdf,.mp3,.wav,.m4a,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp";
+const ACCEPT =
+  ".txt,.md,.docx,.pdf,.mp3,.wav,.m4a,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp";
 
 function onSelectFiles(files: File[]): void {
   for (const file of files) {
@@ -162,7 +179,7 @@ const variantOptions = computed(() =>
   [1, 2, 3, 4, 5].map((n) => ({
     label: mode.value === "series" ? `${n} tập` : `${n} kịch bản`,
     value: n,
-  }))
+  })),
 );
 const presetOptions = [
   { label: "AI tự chọn theo nội dung", value: "" },
@@ -172,7 +189,9 @@ const presetOptions = [
   { label: "Aurora — sáng tạo, tím", value: "aurora" },
 ];
 
-const canSubmit = computed(() => idea.value.trim().length >= 10 && !submitting.value);
+const canSubmit = computed(
+  () => idea.value.trim().length >= 10 && !submitting.value,
+);
 
 /** Reset form về trạng thái trống (gọi sau khi tạo xong) */
 function resetForm(): void {
@@ -201,7 +220,9 @@ const removingSourceId = ref<number | null>(null);
 async function loadForEdit(projectId: number): Promise<void> {
   editLoading.value = true;
   try {
-    const { project, sources } = await api<ProjectDetail>(`/v1/projects/${projectId}`);
+    const { project, sources } = await api<ProjectDetail>(
+      `/v1/projects/${projectId}`,
+    );
     idea.value = project.idea;
     sourceMode.value = project.source_mode;
     mode.value = project.mode;
@@ -223,7 +244,11 @@ async function loadForEdit(projectId: number): Promise<void> {
     linkInputs.value = [""];
     uploadItems.value = [];
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không nạp được thiết lập project.");
+    toast.error(
+      cause instanceof ApiError
+        ? cause.message
+        : "Không nạp được thiết lập project.",
+    );
   } finally {
     editLoading.value = false;
   }
@@ -233,10 +258,16 @@ async function removeExistingSource(sourceId: number): Promise<void> {
   if (!props.editProjectId) return;
   removingSourceId.value = sourceId;
   try {
-    await api(`/v1/projects/${props.editProjectId}/sources/${sourceId}`, { method: "DELETE" });
-    existingSources.value = existingSources.value.filter((s) => s.id !== sourceId);
+    await api(`/v1/projects/${props.editProjectId}/sources/${sourceId}`, {
+      method: "DELETE",
+    });
+    existingSources.value = existingSources.value.filter(
+      (s) => s.id !== sourceId,
+    );
   } catch (cause) {
-    toast.error(cause instanceof ApiError ? cause.message : "Không xoá được tư liệu.");
+    toast.error(
+      cause instanceof ApiError ? cause.message : "Không xoá được tư liệu.",
+    );
   } finally {
     removingSourceId.value = null;
   }
@@ -246,9 +277,14 @@ watch(
   () => props.editProjectId,
   (id) => {
     if (id) void loadForEdit(id);
-    else resetForm();
+    else {
+      resetForm();
+      idea.value = props.initialIdea ?? "";
+      sourceMode.value = props.initialSourceMode ?? "user";
+      presetHint.value = props.initialPreset ?? "";
+    }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /** KeepAlive: mỗi lần quay lại màn, nạp lại các danh sách chọn (template/serie/nhạc/watermark mới tạo) */
@@ -261,6 +297,8 @@ onActivated(async () => {
       api<WatermarkPreset[]>("/v1/watermark-presets"),
     ]);
     templates.value = tpls.filter((t) => t.status === "ready");
+    const requestedTemplate = Number(new URLSearchParams(window.location.search).get("template"));
+    if (!props.editProjectId && templates.value.some(t=>t.id===requestedTemplate)) templateId.value=requestedTemplate;
     seriesList.value = series;
     musicTracks.value = music;
     watermarkPresets.value = wms;
@@ -275,7 +313,7 @@ async function waitForExtraction(projectId: number): Promise<boolean> {
     await new Promise((r) => setTimeout(r, 2000));
     try {
       const detail = await api<{ sources: Array<{ status: string }> }>(
-        `/v1/projects/${projectId}`
+        `/v1/projects/${projectId}`,
       );
       if (!detail.sources.some((s) => s.status === "extracting")) return true;
     } catch {
@@ -304,9 +342,13 @@ function buildSettingsPayload() {
     watermarkPresetId:
       watermarkPresetId.value === "" ? undefined : watermarkPresetId.value,
     seriesId:
-      mode.value === "series" && seriesId.value !== "" ? seriesId.value : undefined,
+      mode.value === "series" && seriesId.value !== ""
+        ? seriesId.value
+        : undefined,
     newSeriesName:
-      mode.value === "series" && seriesId.value === "" && newSeriesName.value.trim()
+      mode.value === "series" &&
+      seriesId.value === "" &&
+      newSeriesName.value.trim()
         ? newSeriesName.value.trim()
         : undefined,
   };
@@ -348,8 +390,11 @@ async function submit(): Promise<void> {
           hasSources = true;
         } catch (cause) {
           item.status = "error";
-          item.errorMessage = cause instanceof ApiError ? cause.message : "Tải lên thất bại.";
-          toast.warning(`Tư liệu "${item.name}" tải lên thất bại — vẫn tiếp tục với các tư liệu còn lại.`);
+          item.errorMessage =
+            cause instanceof ApiError ? cause.message : "Tải lên thất bại.";
+          toast.warning(
+            `Tư liệu "${item.name}" tải lên thất bại — vẫn tiếp tục với các tư liệu còn lại.`,
+          );
         }
       }
       for (const raw of linkInputs.value) {
@@ -363,7 +408,7 @@ async function submit(): Promise<void> {
           hasSources = true;
         } catch (cause) {
           toast.warning(
-            `Link "${url.slice(0, 40)}" lỗi: ${cause instanceof ApiError ? cause.message : "không thêm được"} — vẫn tiếp tục.`
+            `Link "${url.slice(0, 40)}" lỗi: ${cause instanceof ApiError ? cause.message : "không thêm được"} — vẫn tiếp tục.`,
           );
         }
       }
@@ -374,7 +419,9 @@ async function submit(): Promise<void> {
       toast.info("Đang trích xuất tư liệu…");
       const ok = await waitForExtraction(projectId);
       if (!ok) {
-        toast.warning("Tư liệu trích xuất chậm — vẫn tiếp tục sinh kịch bản với phần đã sẵn sàng.");
+        toast.warning(
+          "Tư liệu trích xuất chậm — vẫn tiếp tục sinh kịch bản với phần đã sẵn sàng.",
+        );
       }
     }
 
@@ -382,7 +429,7 @@ async function submit(): Promise<void> {
     toast.success(
       props.editProjectId
         ? "Đã lưu thiết lập mới — đang sinh lại kịch bản (video cũ vẫn giữ nguyên)."
-        : "Đã bắt đầu sinh kịch bản — duyệt kịch bản khi AI hoàn tất."
+        : "Đã bắt đầu sinh kịch bản — duyệt kịch bản khi AI hoàn tất.",
     );
     if (!props.editProjectId) resetForm();
     emit("created", projectId);
@@ -392,7 +439,7 @@ async function submit(): Promise<void> {
         ? cause.message
         : props.editProjectId
           ? "Không lưu được thiết lập."
-          : "Không thể tạo dự án."
+          : "Không thể tạo dự án.",
     );
   } finally {
     submitting.value = false;
@@ -404,294 +451,387 @@ async function submit(): Promise<void> {
   <div class="flex min-h-0 flex-1 flex-col">
     <div class="min-h-0 flex-1 overflow-auto">
       <div class="mx-auto w-full max-w-[760px] p-6">
-    <header class="mb-4">
-      <h1 class="m-0 text-xl font-semibold">
-        {{ editProjectId ? "Sửa thiết lập & làm lại" : "Tạo video mới" }}
-      </h1>
-      <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
-        {{
-          editProjectId
-            ? "Đổi thời lượng, tư liệu, giọng đọc… rồi sinh lại kịch bản. Video đã render trước đó vẫn giữ nguyên."
-            : "Nhập ý tưởng, đính kèm tư liệu (nếu có) — AI sinh kịch bản để bạn duyệt trước khi render."
-        }}
-      </p>
-    </header>
+        <header class="mb-4">
+          <h1 class="m-0 text-xl font-semibold">
+            {{ editProjectId ? "Sửa thiết lập & làm lại" : "Tạo video mới" }}
+          </h1>
+          <p class="m-0 mt-1 text-[13px] text-[var(--mds-text-secondary)]">
+            {{
+              editProjectId
+                ? "Đổi thời lượng, tư liệu, giọng đọc… rồi sinh lại kịch bản. Video đã render trước đó vẫn giữ nguyên."
+                : "Nhập ý tưởng, đính kèm tư liệu (nếu có) — AI sinh kịch bản để bạn duyệt trước khi render."
+            }}
+          </p>
+        </header>
 
-    <section class="rounded-lg bg-[var(--mds-bg)] p-5 shadow-[var(--mds-shadow-card)]">
-      <label class="block text-[13px] font-medium">
-        Ý tưởng video <span class="text-[var(--mds-danger)]">*</span>
-        <MTextarea
-          v-model="idea"
-          class="mt-1"
-          :rows="3"
-          :maxlength="2000"
-          placeholder="Ví dụ: 5 cách dùng AI tăng năng suất cho dân văn phòng, tập trung ví dụ thực tế..."
-          :error="ideaError"
-        />
-      </label>
-
-      <label v-if="templates.length" class="mt-4 block text-[13px] font-medium">
-        Video Template (phong cách + pipeline đã học từ video mẫu)
-        <MSelect v-model="templateId" class="mt-1" :options="templateOptions" />
-        <span
-          v-if="selectedTemplate?.profile && selectedTemplate.workflow.approveGate"
-          class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
+        <section
+          class="rounded-lg bg-[var(--mds-bg)] p-5 shadow-[var(--mds-shadow-card)]"
         >
-          Preset khoá theo mẫu: {{ selectedTemplate.profile.preset }} · có bước duyệt kịch bản
-        </span>
-        <span
-          v-else-if="selectedTemplate?.profile"
-          class="mt-1 flex items-start gap-1.5 rounded-md bg-[var(--mds-warning-bg,#FFF7E6)] p-2 font-normal text-[var(--mds-warning-text,#8A5A00)]"
-        >
-          <MIcon name="alert-triangle" :size="16" class="mt-0.5 shrink-0" aria-hidden="true" />
-          <span>
-            Mẫu này <strong>tự render ngay, KHÔNG chờ bạn duyệt</strong> kịch bản (preset
-            {{ selectedTemplate.profile.preset }}). Muốn xem/sửa kịch bản trước khi render thì bật
-            "Gate duyệt kịch bản" trong Video Template, hoặc bỏ chọn mẫu này.
-          </span>
-        </span>
-      </label>
-
-      <div class="mt-4">
-        <p class="m-0 mb-1 text-[13px] font-medium">Nguồn tư liệu sinh kịch bản</p>
-        <MRadioGroup
-          v-model="sourceMode"
-          :options="[
-            { label: 'Chỉ dùng tư liệu tôi cung cấp (file + link)', value: 'user' },
-            { label: 'Để AI tự tìm tài liệu trên web theo ý tưởng', value: 'ai' },
-            { label: 'Kết hợp — tư liệu của tôi + AI tự tìm thêm', value: 'combine' },
-          ]"
-          direction="vertical"
-        />
-        <p
-          v-if="sourceMode !== 'user'"
-          class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]"
-        >
-          AI dùng Google Search để tra cứu — thông tin có thể chưa được kiểm chứng, hãy duyệt kịch bản kỹ.
-        </p>
-      </div>
-
-      <div v-if="showUserSources" class="mt-4">
-        <div v-if="editProjectId && existingSources.length" class="mb-3">
-          <p class="m-0 mb-1 text-[13px] font-medium">Tư liệu hiện có ({{ existingSources.length }})</p>
-          <ul class="m-0 list-none space-y-1 p-0">
-            <li
-              v-for="s in existingSources"
-              :key="s.id"
-              class="flex items-center gap-2 rounded-md bg-[var(--mds-bg-page)] px-2 py-1.5 text-[13px]"
-            >
-              <MIcon name="file-text" :size="16" class="shrink-0 text-[var(--mds-text-secondary)]" />
-              <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
-              <MTag :color="s.status === 'ready' ? 'success' : s.status === 'failed' ? 'danger' : 'info'" size="sm">
-                {{ s.status === "ready" ? "Đã trích xuất" : s.status === "failed" ? "Lỗi" : "Đang trích xuất" }}
-              </MTag>
-              <MButton
-                :loading="removingSourceId === s.id"
-                title="Xoá tư liệu"
-                @click="removeExistingSource(s.id)"
-              >
-                <MIcon name="trash" :size="16" />
-              </MButton>
-            </li>
-          </ul>
-        </div>
-        <p class="m-0 mb-1 text-[13px] font-medium">
-          {{ editProjectId ? "Thêm tư liệu mới" : "Tư liệu tham khảo" }}
-          <span class="font-normal text-[var(--mds-text-secondary)]">
-            — txt, docx, pdf, âm thanh, video, ảnh (jpg/png/webp) (≤18MB/file). Ảnh thật của bạn sẽ được AI ưu tiên dùng làm minh hoạ.</span>
-        </p>
-        <MUpload
-          v-model="uploadItems"
-          :accept="ACCEPT"
-          :max-size-m-b="18"
-          label="Đính kèm tư liệu"
-          @select-files="onSelectFiles"
-          @remove="onRemove"
-        />
-
-        <p class="m-0 mb-1 mt-4 text-[13px] font-medium">
-          Link tư liệu
-          <span class="font-normal text-[var(--mds-text-secondary)]">
-            — dán đường dẫn bài viết/trang web (http/https)</span>
-        </p>
-        <div class="space-y-2">
-          <div v-for="(_, i) in linkInputs" :key="i" class="flex items-center gap-2">
-            <MInput
-              v-model="linkInputs[i]"
-              class="flex-1"
-              :maxlength="2000"
-              placeholder="https://vd.com/bai-viet"
-            />
-            <MButton
-              v-if="linkInputs.length > 1"
-              class="shrink-0"
-              title="Xoá link"
-              @click="removeLink(i)"
-            >
-              Xoá
-            </MButton>
-          </div>
-        </div>
-        <MButton class="mt-2" @click="addLink">+ Thêm link</MButton>
-      </div>
-
-      <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-[13px] font-medium">
-          Chế độ kịch bản
-          <MRadioGroup
-            v-model="mode"
-            class="mt-1"
-            :options="[
-              { label: 'Đa chiều — nhiều góc nhìn', value: 'angles' },
-              { label: 'Serie — các tập nối tiếp', value: 'series' },
-            ]"
-            direction="vertical"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Số kịch bản
-          <MSelect v-model="variantCount" class="mt-1" :options="variantOptions" />
-        </label>
-        <template v-if="mode === 'series'">
           <label class="block text-[13px] font-medium">
-            Serie
-            <MSelect v-model="seriesId" class="mt-1" :options="seriesOptions" />
-            <span class="mt-1 block font-normal text-[var(--mds-text-secondary)]">
-              Chọn serie có sẵn — AI nhớ nội dung các tập trước để nối tiếp, không lặp lại.
+            Ý tưởng video <span class="text-[var(--mds-danger)]">*</span>
+            <MTextarea
+              v-model="idea"
+              class="mt-1"
+              :rows="3"
+              :maxlength="2000"
+              placeholder="Ví dụ: 5 cách dùng AI tăng năng suất cho dân văn phòng, tập trung ví dụ thực tế..."
+              :error="ideaError"
+            />
+          </label>
+
+          <label
+            v-if="templates.length"
+            class="mt-4 block text-[13px] font-medium"
+          >
+            Video Template (phong cách + pipeline đã học từ video mẫu)
+            <MSelect
+              v-model="templateId"
+              class="mt-1"
+              :options="templateOptions"
+            />
+            <span
+              v-if="
+                selectedTemplate?.profile &&
+                selectedTemplate.workflow.approveGate
+              "
+              class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
+            >
+              Preset khoá theo mẫu: {{ selectedTemplate.profile.preset }} · có
+              bước duyệt kịch bản
+            </span>
+            <span
+              v-else-if="selectedTemplate?.profile"
+              class="mt-1 flex items-start gap-1.5 rounded-md bg-[var(--mds-warning-bg,#FFF7E6)] p-2 font-normal text-[var(--mds-warning-text,#8A5A00)]"
+            >
+              <MIcon
+                name="alert-triangle"
+                :size="16"
+                class="mt-0.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span>
+                Mẫu này
+                <strong>tự render ngay, KHÔNG chờ bạn duyệt</strong> kịch bản
+                (preset {{ selectedTemplate.profile.preset }}). Muốn xem/sửa
+                kịch bản trước khi render thì bật "Gate duyệt kịch bản" trong
+                Video Template, hoặc bỏ chọn mẫu này.
+              </span>
             </span>
           </label>
-          <label v-if="seriesId === ''" class="block text-[13px] font-medium">
-            Tên serie mới
-            <MInput
-              v-model="newSeriesName"
-              class="mt-1"
-              :maxlength="40"
-              placeholder="Ví dụ: AI 101"
+
+          <div class="mt-4">
+            <p class="m-0 mb-1 text-[13px] font-medium">
+              Nguồn tư liệu sinh kịch bản
+            </p>
+            <MRadioGroup
+              v-model="sourceMode"
+              :options="[
+                {
+                  label: 'Chỉ dùng tư liệu tôi cung cấp (file + link)',
+                  value: 'user',
+                },
+                {
+                  label: 'Để AI tự tìm tài liệu trên web theo ý tưởng',
+                  value: 'ai',
+                },
+                {
+                  label: 'Kết hợp — tư liệu của tôi + AI tự tìm thêm',
+                  value: 'combine',
+                },
+              ]"
+              direction="vertical"
             />
+            <p
+              v-if="sourceMode !== 'user'"
+              class="m-0 mt-1 text-xs text-[var(--mds-text-secondary)]"
+            >
+              AI dùng Google Search để tra cứu — thông tin có thể chưa được kiểm
+              chứng, hãy duyệt kịch bản kỹ.
+            </p>
+          </div>
+
+          <div v-if="showUserSources" class="mt-4">
+            <div v-if="editProjectId && existingSources.length" class="mb-3">
+              <p class="m-0 mb-1 text-[13px] font-medium">
+                Tư liệu hiện có ({{ existingSources.length }})
+              </p>
+              <ul class="m-0 list-none space-y-1 p-0">
+                <li
+                  v-for="s in existingSources"
+                  :key="s.id"
+                  class="flex items-center gap-2 rounded-md bg-[var(--mds-bg-page)] px-2 py-1.5 text-[13px]"
+                >
+                  <MIcon
+                    name="file-text"
+                    :size="16"
+                    class="shrink-0 text-[var(--mds-text-secondary)]"
+                  />
+                  <span class="min-w-0 flex-1 truncate">{{ s.file_name }}</span>
+                  <MTag
+                    :color="
+                      s.status === 'ready'
+                        ? 'success'
+                        : s.status === 'failed'
+                          ? 'danger'
+                          : 'info'
+                    "
+                    size="sm"
+                  >
+                    {{
+                      s.status === "ready"
+                        ? "Đã trích xuất"
+                        : s.status === "failed"
+                          ? "Lỗi"
+                          : "Đang trích xuất"
+                    }}
+                  </MTag>
+                  <MButton
+                    :loading="removingSourceId === s.id"
+                    title="Xoá tư liệu"
+                    @click="removeExistingSource(s.id)"
+                  >
+                    <MIcon name="trash" :size="16" />
+                  </MButton>
+                </li>
+              </ul>
+            </div>
+            <p class="m-0 mb-1 text-[13px] font-medium">
+              {{ editProjectId ? "Thêm tư liệu mới" : "Tư liệu tham khảo" }}
+              <span class="font-normal text-[var(--mds-text-secondary)]">
+                — txt, docx, pdf, âm thanh, video, ảnh (jpg/png/webp)
+                (≤18MB/file). Ảnh thật của bạn sẽ được AI ưu tiên dùng làm minh
+                hoạ.</span
+              >
+            </p>
+            <MUpload
+              v-model="uploadItems"
+              :accept="ACCEPT"
+              :max-size-m-b="18"
+              label="Đính kèm tư liệu"
+              @select-files="onSelectFiles"
+              @remove="onRemove"
+            />
+
+            <p class="m-0 mb-1 mt-4 text-[13px] font-medium">
+              Link tư liệu
+              <span class="font-normal text-[var(--mds-text-secondary)]">
+                — dán đường dẫn bài viết/trang web (http/https)</span
+              >
+            </p>
+            <div class="space-y-2">
+              <div
+                v-for="(_, i) in linkInputs"
+                :key="i"
+                class="flex items-center gap-2"
+              >
+                <MInput
+                  v-model="linkInputs[i]"
+                  class="flex-1"
+                  :maxlength="2000"
+                  placeholder="https://vd.com/bai-viet"
+                />
+                <MButton
+                  v-if="linkInputs.length > 1"
+                  class="shrink-0"
+                  title="Xoá link"
+                  @click="removeLink(i)"
+                >
+                  Xoá
+                </MButton>
+              </div>
+            </div>
+            <MButton class="mt-2" @click="addLink">+ Thêm link</MButton>
+          </div>
+
+          <div class="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="block text-[13px] font-medium">
+              Chế độ kịch bản
+              <MRadioGroup
+                v-model="mode"
+                class="mt-1"
+                :options="[
+                  { label: 'Đa chiều — nhiều góc nhìn', value: 'angles' },
+                  { label: 'Serie — các tập nối tiếp', value: 'series' },
+                ]"
+                direction="vertical"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Số kịch bản
+              <MSelect
+                v-model="variantCount"
+                class="mt-1"
+                :options="variantOptions"
+              />
+            </label>
+            <template v-if="mode === 'series'">
+              <label class="block text-[13px] font-medium">
+                Serie
+                <MSelect
+                  v-model="seriesId"
+                  class="mt-1"
+                  :options="seriesOptions"
+                />
+                <span
+                  class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
+                >
+                  Chọn serie có sẵn — AI nhớ nội dung các tập trước để nối tiếp,
+                  không lặp lại.
+                </span>
+              </label>
+              <label
+                v-if="seriesId === ''"
+                class="block text-[13px] font-medium"
+              >
+                Tên serie mới
+                <MInput
+                  v-model="newSeriesName"
+                  class="mt-1"
+                  :maxlength="40"
+                  placeholder="Ví dụ: AI 101"
+                />
+              </label>
+            </template>
+            <label class="block text-[13px] font-medium md:col-span-2">
+              Tông màu (preset)
+              <MSelect
+                v-model="presetHint"
+                class="mt-1"
+                :options="presetOptions"
+                :disabled="!!selectedTemplate"
+              />
+            </label>
+          </div>
+
+          <div class="mt-5">
+            <p class="m-0 mb-1 text-[13px] font-medium">
+              Thời lượng video mục tiêu
+            </p>
+            <RangeField
+              v-model="durationSec"
+              :min="20"
+              :max="120"
+              :step="5"
+              :format="(v) => `${v}s`"
+            />
+          </div>
+
+          <label class="mt-5 block text-[13px] font-medium">
+            Nhạc nền
+            <MSelect
+              v-model="musicTrackId"
+              class="mt-1"
+              :options="musicOptions"
+            /><MusicUpload @uploaded="onMusicUploaded" />
+            <span
+              class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
+            >
+              Nhạc tự nhỏ lại khi có lời đọc (sidechain ducking) — chọn "Không
+              dùng" nếu muốn chỉ giọng đọc.
+            </span>
           </label>
-        </template>
-        <label class="block text-[13px] font-medium md:col-span-2">
-          Tông màu (preset)
-          <MSelect
-            v-model="presetHint"
-            class="mt-1"
-            :options="presetOptions"
-            :disabled="!!selectedTemplate"
-          />
-        </label>
-      </div>
 
-      <div class="mt-5">
-        <p class="m-0 mb-1 text-[13px] font-medium">Thời lượng video mục tiêu</p>
-        <RangeField
-          v-model="durationSec"
-          :min="20"
-          :max="120"
-          :step="5"
-          :format="(v) => `${v}s`"
-        />
-      </div>
+          <label class="mt-5 block text-[13px] font-medium">
+            Watermark
+            <MSelect
+              v-model="watermarkPresetId"
+              class="mt-1"
+              :options="watermarkOptions"
+            />
+            <span
+              class="mt-1 block font-normal text-[var(--mds-text-secondary)]"
+            >
+              Chọn từ thư viện Watermark của bạn — không chọn thì dùng watermark
+              mặc định hệ thống.
+            </span>
+          </label>
+        </section>
 
-      <label v-if="musicTracks.length" class="mt-5 block text-[13px] font-medium">
-        Nhạc nền
-        <MSelect v-model="musicTrackId" class="mt-1" :options="musicOptions" />
-        <span class="mt-1 block font-normal text-[var(--mds-text-secondary)]">
-          Nhạc tự nhỏ lại khi có lời đọc (sidechain ducking) — chọn "Không dùng" nếu muốn chỉ giọng đọc.
-        </span>
-      </label>
-
-      <label class="mt-5 block text-[13px] font-medium">
-        Watermark
-        <MSelect v-model="watermarkPresetId" class="mt-1" :options="watermarkOptions" />
-        <span class="mt-1 block font-normal text-[var(--mds-text-secondary)]">
-          Chọn từ thư viện Watermark của bạn — không chọn thì dùng watermark mặc định hệ thống.
-        </span>
-      </label>
-    </section>
-
-    <section class="mt-4 rounded-lg bg-[var(--mds-bg)] p-5 shadow-[var(--mds-shadow-card)]">
-      <h2 class="m-0 text-[15px] font-semibold">Giọng đọc</h2>
-      <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
-        Mỗi video dùng đúng một giọng thống nhất từ đầu đến cuối.
-      </p>
-      <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <label class="block text-[13px] font-medium">
-          Giọng
-          <MRadioGroup
-            v-model="voiceGender"
-            class="mt-1"
-            :options="[
-              { label: 'Nữ', value: 'female' },
-              { label: 'Nam', value: 'male' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Miền
-          <MRadioGroup
-            v-model="voiceRegion"
-            class="mt-1"
-            :options="[
-              { label: 'Miền Bắc', value: 'bac' },
-              { label: 'Miền Nam', value: 'nam' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Phong cách đọc
-          <MRadioGroup
-            v-model="voiceStyle"
-            class="mt-1"
-            :options="[
-              { label: 'Tin tức — gọn, dứt khoát', value: 'tintuc' },
-              { label: 'Thời sự — trang trọng', value: 'thoisu' },
-              { label: 'Quảng cáo — TVC sôi nổi', value: 'tvc' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Tâm trạng
-          <MRadioGroup
-            v-model="voiceMood"
-            class="mt-1"
-            :options="[
-              { label: 'Trung tính', value: 'neutral' },
-              { label: 'Vui vẻ', value: 'cheerful' },
-              { label: 'Năng động', value: 'energetic' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Độ tuổi giọng đọc
-          <MRadioGroup
-            v-model="voiceAge"
-            class="mt-1"
-            :options="[
-              { label: 'Thanh niên', value: 'thanhnien' },
-              { label: 'Trung niên', value: 'trungnien' },
-              { label: 'Người đi làm', value: 'nguoidilam' },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-        <label class="block text-[13px] font-medium">
-          Tốc độ đọc
-          <MRadioGroup
-            v-model="voiceSpeed"
-            class="mt-1"
-            :options="[
-              { label: 'Bình thường', value: 1 },
-              { label: 'Nhanh (1,2x)', value: 1.2 },
-            ]"
-            direction="horizontal"
-          />
-        </label>
-      </div>
-      </section>
+        <section
+          class="mt-4 rounded-lg bg-[var(--mds-bg)] p-5 shadow-[var(--mds-shadow-card)]"
+        >
+          <h2 class="m-0 text-[15px] font-semibold">Giọng đọc</h2>
+          <p class="m-0 mt-0.5 text-[13px] text-[var(--mds-text-secondary)]">
+            Mỗi video dùng đúng một giọng thống nhất từ đầu đến cuối.
+          </p>
+          <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label class="block text-[13px] font-medium">
+              Giọng
+              <MRadioGroup
+                v-model="voiceGender"
+                class="mt-1"
+                :options="[
+                  { label: 'Nữ', value: 'female' },
+                  { label: 'Nam', value: 'male' },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Miền
+              <MRadioGroup
+                v-model="voiceRegion"
+                class="mt-1"
+                :options="[
+                  { label: 'Miền Bắc', value: 'bac' },
+                  { label: 'Miền Nam', value: 'nam' },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Phong cách đọc
+              <MRadioGroup
+                v-model="voiceStyle"
+                class="mt-1"
+                :options="[
+                  { label: 'Tin tức — gọn, dứt khoát', value: 'tintuc' },
+                  { label: 'Thời sự — trang trọng', value: 'thoisu' },
+                  { label: 'Quảng cáo — TVC sôi nổi', value: 'tvc' },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Tâm trạng
+              <MRadioGroup
+                v-model="voiceMood"
+                class="mt-1"
+                :options="[
+                  { label: 'Trung tính', value: 'neutral' },
+                  { label: 'Vui vẻ', value: 'cheerful' },
+                  { label: 'Năng động', value: 'energetic' },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Độ tuổi giọng đọc
+              <MRadioGroup
+                v-model="voiceAge"
+                class="mt-1"
+                :options="[
+                  { label: 'Thanh niên', value: 'thanhnien' },
+                  { label: 'Trung niên', value: 'trungnien' },
+                  { label: 'Người đi làm', value: 'nguoidilam' },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+            <label class="block text-[13px] font-medium">
+              Tốc độ đọc
+              <MRadioGroup
+                v-model="voiceSpeed"
+                class="mt-1"
+                :options="[
+                  { label: 'Bình thường', value: 1 },
+                  { label: 'Nhanh (1,2x)', value: 1.2 },
+                ]"
+                direction="horizontal"
+              />
+            </label>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -702,7 +842,12 @@ async function submit(): Promise<void> {
       class="shrink-0 border-t border-[var(--mds-neutral-300,#E9EAEB)] bg-[var(--mds-bg)] px-6 py-3"
     >
       <div class="mx-auto flex w-full max-w-[760px] justify-end gap-2">
-        <MButton variant="primary" :loading="submitting" :disabled="!canSubmit || editLoading" @click="submit">
+        <MButton
+          variant="primary"
+          :loading="submitting"
+          :disabled="!canSubmit || editLoading"
+          @click="submit"
+        >
           {{ editProjectId ? "Lưu & làm lại" : "Tạo kịch bản" }}
         </MButton>
       </div>

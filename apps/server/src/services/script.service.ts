@@ -1,7 +1,9 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { pool } from "../db";
 import { badRequest, notFound } from "../http-error";
-import { enqueueRender } from "./render-worker";
+import { kick } from "./render-worker";
+import type { ResultSetHeader } from "mysql2/promise";
+import { getStudio, saveStudio } from "./studio.service";
 import { planSchema } from "@ams/pipeline/src/prompts";
 import { planToNarrationMd } from "@ams/pipeline/src/api";
 import { mergeSceneContent } from "@ams/pipeline/src/scene-content";
@@ -17,7 +19,7 @@ const getScriptOwned = async (userId: number, scriptId: number) => {
        FROM scripts s
        JOIN projects p ON p.id = s.project_id AND p.user_id = ?
       WHERE s.id = ? LIMIT 1`,
-    [userId, scriptId]
+    [userId, scriptId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy kịch bản.");
   return rows[0];
@@ -43,7 +45,7 @@ const ACTIVE_JOB_STATUSES = ["queued", "images", "tts", "rendering"] as const;
 const hasActiveJob = async (scriptId: number): Promise<boolean> => {
   const [jobs] = await pool.query<RowDataPacket[]>(
     `SELECT id FROM render_jobs WHERE script_id = ? AND status IN (?) LIMIT 1`,
-    [scriptId, ACTIVE_JOB_STATUSES as unknown as string[]]
+    [scriptId, ACTIVE_JOB_STATUSES as unknown as string[]],
   );
   return Boolean(jobs[0]);
 };
@@ -62,59 +64,92 @@ const hasActiveJob = async (scriptId: number): Promise<boolean> => {
 export const updateScriptScenes = async (
   userId: number,
   scriptId: number,
-  edits: Array<{ id: string; narration?: string; content?: Record<string, unknown> }>
+  edits: Array<{
+    id: string;
+    narration?: string;
+    content?: Record<string, unknown>;
+  }>,
 ): Promise<void> => {
-  const script = await getScriptOwned(userId, scriptId);
-  if (script.status === "rejected") {
-    throw badRequest("Kịch bản đã bị từ chối — không sửa được.");
-  }
-  if (await hasActiveJob(scriptId)) {
-    throw badRequest("Kịch bản đang render — đợi render xong rồi hãy sửa.");
-  }
-  const plan = JSON.parse(String(script.plan_json));
-  const byId = new Map(edits.map((e) => [e.id, e]));
-  for (const scene of plan.scenes as Array<Record<string, unknown>>) {
-    const edit = byId.get(scene.id as string);
-    if (!edit) continue;
+  const current = await getStudio(userId, scriptId);
+  const plan = structuredClone(current.plan);
+  for (const edit of edits) {
+    const scene = plan.scenes.find((s: any) => s.id === edit.id);
+    if (!scene) throw badRequest("Không tìm thấy cảnh cần sửa.");
     if (edit.narration !== undefined) scene.narration = edit.narration.trim();
     mergeSceneContent(scene, edit.content);
   }
-  const parsed = planSchema.safeParse(plan);
-  if (!parsed.success) {
-    throw badRequest(
-      `Nội dung không hợp lệ: ${parsed.error.issues
-        .slice(0, 5)
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join("; ")}`
-    );
-  }
-  await pool.query(
-    `UPDATE scripts SET plan_json = ?, narration_md = ? WHERE id = ?`,
-    [JSON.stringify(parsed.data), planToNarrationMd(parsed.data), scriptId]
-  );
+  await saveStudio(userId, scriptId, plan, current.revision);
 };
 
 /** Duyệt kịch bản → tạo render job (checkpoint Human-AI bắt buộc trước render) */
 export const approveScript = async (
   userId: number,
-  scriptId: number
+  scriptId: number,
 ): Promise<number> => {
-  const script = await getScriptOwned(userId, scriptId);
-  if (await hasActiveJob(scriptId)) {
-    throw badRequest("Kịch bản này đang có job render chạy dở.");
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT s.status FROM scripts s JOIN projects p ON p.id=s.project_id WHERE s.id=? AND p.user_id=? FOR UPDATE",
+      [scriptId, userId],
+    );
+    if (!rows[0]) throw notFound("Không tìm thấy kịch bản.");
+    if (rows[0].status === "rejected")
+      throw badRequest("Kịch bản đã bị từ chối.");
+    const [active] = await conn.query<RowDataPacket[]>(
+      "SELECT id FROM render_jobs WHERE script_id=? AND status IN ('queued','images','tts','rendering') LIMIT 1",
+      [scriptId],
+    );
+    if (active.length)
+      throw badRequest("Kịch bản này đang có job render chạy dở.");
+    await conn.query("UPDATE scripts SET status='approved' WHERE id=?", [
+      scriptId,
+    ]);
+    const [job] = await conn.query<ResultSetHeader>(
+      "INSERT INTO render_jobs (script_id) VALUES (?)",
+      [scriptId],
+    );
+    await conn.commit();
+    void kick();
+    return job.insertId;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
   }
-  if (script.status !== "approved") {
-    await pool.query(`UPDATE scripts SET status = 'approved' WHERE id = ?`, [scriptId]);
-  }
-  return enqueueRender(scriptId);
 };
 
 export const rejectScript = async (
   userId: number,
-  scriptId: number
+  scriptId: number,
 ): Promise<void> => {
-  await getScriptOwned(userId, scriptId);
-  await pool.query(`UPDATE scripts SET status = 'rejected' WHERE id = ?`, [scriptId]);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT s.id FROM scripts s JOIN projects p ON p.id=s.project_id WHERE s.id=? AND p.user_id=? FOR UPDATE",
+      [scriptId, userId],
+    );
+    if (!rows.length) throw notFound();
+    const [active] = await conn.query<RowDataPacket[]>(
+      "SELECT id FROM render_jobs WHERE script_id=? AND status IN ('queued','images','tts','rendering') LIMIT 1",
+      [scriptId],
+    );
+    if (active.length)
+      throw badRequest(
+        "Video đang dựng. Đợi hoàn tất trước khi từ chối kịch bản.",
+      );
+    await conn.query("UPDATE scripts SET status='rejected' WHERE id=?", [
+      scriptId,
+    ]);
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
 };
 
 /** Job render kèm kiểm tra sở hữu qua chuỗi job→script→project */
@@ -126,7 +161,7 @@ export const getJobOwned = async (userId: number, jobId: number) => {
        JOIN scripts s ON s.id = j.script_id
        JOIN projects p ON p.id = s.project_id AND p.user_id = ?
       WHERE j.id = ? LIMIT 1`,
-    [userId, jobId]
+    [userId, jobId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy job render.");
   return rows[0];
@@ -140,7 +175,7 @@ export const listFinishedJobs = async (userId: number) => {
        JOIN scripts s ON s.id = j.script_id
        JOIN projects p ON p.id = s.project_id AND p.user_id = ?
       ORDER BY j.id DESC LIMIT 100`,
-    [userId]
+    [userId],
   );
   return rows;
 };

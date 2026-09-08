@@ -19,6 +19,7 @@ export type SceneContentSpec = {
 };
 
 export const SCENE_CONTENT_FIELDS: Record<SceneType, SceneContentSpec> = {
+  motion: { plainKeys: ["title"] },
   hook: { plainKeys: ["badge", "headline", "sub"] },
   points: { plainKeys: ["title", "sub"], arrays: [{ key: "items", itemKeys: ["text"] }] },
   flow: {

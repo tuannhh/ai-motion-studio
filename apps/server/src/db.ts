@@ -11,6 +11,7 @@ export const pool = mysql.createPool({
   user: appConfig.DB_USER,
   password: appConfig.DB_PASSWORD,
   database: appConfig.DB_NAME,
+  timezone: "Z",
   connectionLimit: 10,
   namedPlaceholders: false,
   charset: "utf8mb4_unicode_ci",
@@ -22,10 +23,12 @@ const REQUIRED_TABLES = [
   "projects",
   "project_sources",
   "scripts",
+  "script_versions",
   "render_jobs",
   "watermark_config",
   "user_watermarks",
   "templates",
+  "motion_runs",
   "series",
   "music_tracks",
   "gdrive_accounts",
@@ -41,14 +44,32 @@ const REQUIRED_TABLES = [
 export const verifyTables = async (): Promise<void> => {
   const [rows] = await pool.query<mysql.RowDataPacket[]>(
     `SELECT table_name AS t FROM information_schema.tables WHERE table_schema = ?`,
-    [appConfig.DB_NAME]
+    [appConfig.DB_NAME],
   );
   const existing = new Set(rows.map((r) => String(r.t)));
   const missing = REQUIRED_TABLES.filter((t) => !existing.has(t));
+  const [columns] = await pool.query<mysql.RowDataPacket[]>(
+    "SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=? AND table_name IN ('scripts','projects','music_tracks')",
+    [appConfig.DB_NAME],
+  );
+  for (const [table, column] of [
+    ["scripts", "research_json"],
+    ["projects", "research_json"],
+    ["music_tracks", "is_shared"],
+  ]) {
+    if (
+      !columns.some(
+        (r) =>
+          (r.TABLE_NAME === table && r.COLUMN_NAME === column) ||
+          (r.table_name === table && r.column_name === column),
+      )
+    )
+      missing.push(`${table}.${column}`);
+  }
   if (missing.length) {
     throw new Error(
       `Thiếu bảng: ${missing.join(", ")}. Áp schema trước:\n` +
-        `  docker compose exec -T mysql mysql -h127.0.0.1 -uams -p... ams < apps/server/startup/database/schema.sql`
+        `  docker compose exec -T mysql mysql -h127.0.0.1 -uams -p... ams < apps/server/startup/database/schema.sql`,
     );
   }
 };

@@ -8,7 +8,9 @@ import MSidebar from "../components/mds/MSidebar.vue";
 import MButton from "../components/mds/MButton.vue";
 import AccountDialogs from "../components/AccountDialogs.vue";
 import misaLogo from "../assets/brand/misa-logo.png";
-import CreateView from "./CreateView.vue";
+import ReconstructionView from "../reconstruction/ReconstructionView.vue";
+import StudioView from "../studio/StudioView.vue";
+import CreateStudio from "../studio/CreateStudio.vue";
 import ProjectsView from "./ProjectsView.vue";
 import WatermarkLibraryView from "./WatermarkLibraryView.vue";
 import TemplatesView from "./TemplatesView.vue";
@@ -33,6 +35,8 @@ const editProjectId = ref<number | null>(null);
  * đúng mục cha trên sidebar. */
 const active = computed(() => {
   const p = route.path;
+  if (p.startsWith("/tai-dung/")) return "reconstruction";
+  if (p.startsWith(FEATURE_ROUTES.studio)) return "studio";
   if (p.startsWith(FEATURE_ROUTES.projects)) return "projects";
   if (p.startsWith(FEATURE_ROUTES.templates)) return "templates";
   if (p.startsWith(FEATURE_ROUTES.series)) return "series";
@@ -45,7 +49,8 @@ const active = computed(() => {
 /** Bấm menu bên trái: tự tay chọn "Tạo video" luôn quay về form trống (không kẹt ở chế độ sửa cũ) */
 function onSidebarNav(key: string): void {
   if (key === "create") editProjectId.value = null;
-  const path = FEATURE_ROUTES[key as keyof typeof FEATURE_ROUTES] ?? FEATURE_ROUTES.create;
+  const path =
+    FEATURE_ROUTES[key as keyof typeof FEATURE_ROUTES] ?? FEATURE_ROUTES.create;
   router.push(path);
 }
 
@@ -60,7 +65,7 @@ const items = computed(() => {
   if (props.user.role === "admin") {
     base.push(
       { key: "music", label: "Nhạc nền", icon: "speakerphone" },
-      { key: "users", label: "Người dùng", icon: "users" }
+      { key: "users", label: "Người dùng", icon: "users" },
     );
   }
   return base;
@@ -71,9 +76,9 @@ const items = computed(() => {
 async function onProjectCreated(projectId: number): Promise<void> {
   editProjectId.value = null;
   try {
-    const { project } = await api<{ project: { public_id: string; idea: string } }>(
-      `/v1/projects/${projectId}`
-    );
+    const { project } = await api<{
+      project: { public_id: string; idea: string };
+    }>(`/v1/projects/${projectId}`);
     router.push(entityPath("video-da-tao", project.idea, project.public_id));
   } catch {
     router.push(FEATURE_ROUTES.projects);
@@ -109,7 +114,11 @@ function openDriveDialog(): void {
     >
       <template #logo>
         <span class="flex h-9 items-center rounded bg-white px-1.5">
-          <img :src="misaLogo" alt="MISA - Tin cậy - Tiện ích - Tận tình" class="h-full w-auto object-contain" />
+          <img
+            :src="misaLogo"
+            alt="MISA - Tin cậy - Tiện ích - Tận tình"
+            class="h-full w-auto object-contain"
+          />
         </span>
       </template>
     </MHeaderBar>
@@ -118,9 +127,15 @@ function openDriveDialog(): void {
       class="absolute right-4 top-[52px] z-50 w-56 rounded-lg bg-[var(--mds-bg)] p-3 shadow-[var(--mds-shadow-lg,0_8px_24px_rgba(0,0,0,0.16))]"
     >
       <p class="m-0 text-[13px] font-semibold">{{ user.displayName }}</p>
-      <p class="m-0 mt-0.5 text-xs text-[var(--mds-text-secondary)]">{{ user.email }}</p>
-      <MButton class="mt-3 [&]:w-full" @click="openDriveDialog">Google Drive</MButton>
-      <MButton class="mt-2 [&]:w-full" @click="openPasswordDialog">Đổi mật khẩu</MButton>
+      <p class="m-0 mt-0.5 text-xs text-[var(--mds-text-secondary)]">
+        {{ user.email }}
+      </p>
+      <MButton class="mt-3 [&]:w-full" @click="openDriveDialog"
+        >Google Drive</MButton
+      >
+      <MButton class="mt-2 [&]:w-full" @click="openPasswordDialog"
+        >Đổi mật khẩu</MButton
+      >
       <MButton class="mt-2 [&]:w-full" @click="logout">Đăng xuất</MButton>
     </div>
     <div class="flex min-h-0 flex-1" @click="userMenuOpen = false">
@@ -131,19 +146,25 @@ function openDriveDialog(): void {
         :items="items"
       />
       <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+        <ReconstructionView v-if="active === 'reconstruction'" :key="String(route.params.templateId)" :template-id="Number(route.params.templateId)" :user-id="user.id" />
+        <StudioView
+          v-else-if="active === 'studio'"
+          :key="String(route.params.scriptId)"
+          :script-id="Number(route.params.scriptId)"
+          :user-id="user.id"
+          @back="router.push(FEATURE_ROUTES.projects)"
+          @setup="onEditSetup"
+        />
         <!-- KeepAlive: giữ nội dung form Tạo video khi chuyển sang menu khác rồi
              quay lại (không mất dữ liệu đang nhập; form tự reset sau khi tạo xong) -->
         <KeepAlive>
-          <CreateView
+          <CreateStudio
             v-if="active === 'create'"
             :edit-project-id="editProjectId"
             @created="onProjectCreated"
           />
         </KeepAlive>
-        <ProjectsView
-          v-if="active === 'projects'"
-          @edit-setup="onEditSetup"
-        />
+        <ProjectsView v-if="active === 'projects'" @edit-setup="onEditSetup" />
         <SeriesView v-else-if="active === 'series'" />
         <TemplatesView v-else-if="active === 'templates'" />
         <WatermarkLibraryView

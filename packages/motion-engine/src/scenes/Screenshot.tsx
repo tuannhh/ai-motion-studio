@@ -38,16 +38,20 @@ export const ScreenshotScene: React.FC<{
   // ~1490px, còn phải chừa dưới 260px cho caption/tên kênh của TikTok/Reels/Shorts).
   // 500 + canh giữa 0.5 giữ đáy khung ~1457px, luôn dưới ngưỡng 1490px an toàn (phản
   // hồi thiết kế 2026-09-03: phụ đề dính vào ảnh điện thoại to).
-  const frameW = isPhone ? 500 : WIDTH - SAFE_X * 2;
-  const screenAspect = isPhone ? 600 / 1180 : 4 / 3; // w/h nội dung ảnh (tỉ lệ cố định, không đổi theo frameW)
-  const pad = isPhone ? 16 : 14;
+  const screenAspect = scene.real ? (scene.imageAspectRatio ?? 4 / 3) : isPhone ? 600 / 1180 : 4 / 3;
+  const pad = scene.real ? 12 : isPhone ? 16 : 14;
+  // Fit the card to the source, not a phone-shaped letterbox. Keep the entire
+  // source visible and reserve space for both the headline and captions.
+  const frameW = scene.real
+    ? Math.min(WIDTH - SAFE_X * 2, 940 * screenAspect + pad * 2)
+    : isPhone ? 500 : WIDTH - SAFE_X * 2;
   const screenW = frameW - pad * 2;
   const screenH = screenW / screenAspect;
-  const centerY = isPhone ? HEIGHT * 0.5 : hasHeader ? HEIGHT * 0.56 : HEIGHT * 0.5;
+  const centerY = scene.real ? HEIGHT * 0.5 : isPhone ? HEIGHT * 0.5 : hasHeader ? HEIGHT * 0.56 : HEIGHT * 0.5;
 
   // Ảnh chụp THẬT (scene.real, từ userimg:N) không có chrome giả — thẻ viền trắng,
-  // bo góc nhẹ, object-fit:contain giữ nguyên khung hình đã crop (không cắt thêm),
-  // không vẽ marker (toạ độ fraction không khớp khi ảnh letterbox bên trong contain).
+  // bo góc nhẹ; khung khớp tỷ lệ ảnh đã crop, giữ nguyên toàn bộ nội dung.
+  // Không vẽ marker vì model không xác định tọa độ trên ảnh tư liệu thật.
   const shell = scene.real ? "#FFFFFF" : theme.isDark ? "#0E1220" : "#FFFFFF";
   const chromeBorder = scene.real ? "rgba(0,0,0,0.08)" : theme.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
 

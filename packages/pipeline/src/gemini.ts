@@ -5,13 +5,19 @@ import { config } from "./env";
  * ai-video-studio): generateContent cho text/JSON và TTS trả PCM 24kHz.
  */
 
+export type GroundingEvidence = {
+  queries: string[];
+  sources: { uri: string; title: string }[];
+  searched: boolean;
+};
+
 const BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 const post = async (model: string, body: unknown): Promise<any> => {
   const { geminiApiKey } = config();
   if (!geminiApiKey) {
     throw new Error(
-      "Thiếu GEMINI_API_KEY — thêm vào file .env ở repo root (xem .env.example)."
+      "Thiếu GEMINI_API_KEY — thêm vào file .env ở repo root (xem .env.example).",
     );
   }
   const res = await fetch(`${BASE}/models/${model}:generateContent`, {
@@ -21,10 +27,13 @@ const post = async (model: string, body: unknown): Promise<any> => {
       "x-goog-api-key": geminiApiKey,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(180_000),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Gemini ${model} HTTP ${res.status}: ${text.slice(0, 500)}`);
+    throw new Error(
+      `Gemini ${model} HTTP ${res.status}: ${text.slice(0, 500)}`,
+    );
   }
   return res.json();
 };
@@ -35,7 +44,10 @@ const post = async (model: string, body: unknown): Promise<any> => {
  * nên ta bỏ ép JSON và dựa vào prompt + hàm bóc JSON của lớp trên (api.ts) để parse. */
 export const generateJson = async (
   prompt: string,
-  opts: { webSearch?: boolean } = {}
+  opts: {
+    webSearch?: boolean;
+    onGrounding?: (e: GroundingEvidence) => void;
+  } = {},
 ): Promise<string> => {
   const { contentModel } = config();
   const body: Record<string, unknown> = {
@@ -55,7 +67,7 @@ export const generateJson = async (
     .join("");
   if (!text) {
     throw new Error(
-      `Gemini không trả nội dung (finishReason: ${data?.candidates?.[0]?.finishReason ?? "?"}).`
+      `Gemini không trả nội dung (finishReason: ${data?.candidates?.[0]?.finishReason ?? "?"}).`,
     );
   }
   // Quan sát để XÁC MINH search thật sự chạy (không phải model bịa dựa kiến thức
@@ -64,14 +76,28 @@ export const generateJson = async (
   if (opts.webSearch) {
     const gm = data?.candidates?.[0]?.groundingMetadata;
     const queries: string[] = gm?.webSearchQueries ?? [];
+    opts.onGrounding?.({
+      queries,
+      sources: (gm?.groundingChunks ?? [])
+        .filter((c: any) => /^https?:\/\//.test(c.web?.uri ?? ""))
+        .slice(0, 30)
+        .map((c: any) => ({
+          uri: c.web.uri,
+          title: c.web.title || "Nguồn tra cứu",
+        })),
+      searched: queries.length > 0,
+    });
     const sourceUris: string[] = (gm?.groundingChunks ?? [])
       .map((c: any) => c?.web?.uri)
       .filter(Boolean);
     if (queries.length) {
       console.log(`   🔎 Gemini đã search: ${queries.join(" | ")}`);
-      if (sourceUris.length) console.log(`   🔗 Nguồn: ${sourceUris.slice(0, 5).join(", ")}`);
+      if (sourceUris.length)
+        console.log(`   🔗 Nguồn: ${sourceUris.slice(0, 5).join(", ")}`);
     } else {
-      console.log("   ⚠️  webSearch bật nhưng Gemini KHÔNG gọi google_search lần này (dùng kiến thức nền).");
+      console.log(
+        "   ⚠️  webSearch bật nhưng Gemini KHÔNG gọi google_search lần này (dùng kiến thức nền).",
+      );
     }
   }
   return text;
@@ -140,7 +166,7 @@ export const buildVoiceInstruction = (profile: VoiceProfile): string => {
 /** TTS tiếng Việt: trả Buffer WAV (PCM 24kHz mono 16-bit được đóng gói) */
 export const synthesizeSpeech = async (
   text: string,
-  profile: VoiceProfile
+  profile: VoiceProfile,
 ): Promise<Buffer> => {
   const cfg = config();
   const voiceName =
@@ -161,7 +187,7 @@ export const synthesizeSpeech = async (
     },
   });
   const part = data?.candidates?.[0]?.content?.parts?.find(
-    (p: any) => p.inlineData?.data
+    (p: any) => p.inlineData?.data,
   );
   if (!part) throw new Error("Gemini TTS không trả audio.");
   const pcm = Buffer.from(part.inlineData.data, "base64");
@@ -173,7 +199,7 @@ export const pcmToWav = (
   pcm: Buffer,
   sampleRate: number,
   channels: number,
-  bitsPerSample: number
+  bitsPerSample: number,
 ): Buffer => {
   const byteRate = (sampleRate * channels * bitsPerSample) / 8;
   const blockAlign = (channels * bitsPerSample) / 8;
@@ -203,7 +229,7 @@ export const pcmToWav = (
  */
 export const alignWordsToAudio = async (
   wav: Buffer,
-  tokens: string[]
+  tokens: string[],
 ): Promise<Array<{ startMs: number; endMs: number }>> => {
   const { contentModel } = config();
   const prompt = [
@@ -220,7 +246,9 @@ export const alignWordsToAudio = async (
       {
         role: "user",
         parts: [
-          { inlineData: { mimeType: "audio/wav", data: wav.toString("base64") } },
+          {
+            inlineData: { mimeType: "audio/wav", data: wav.toString("base64") },
+          },
           { text: prompt },
         ],
       },
@@ -231,12 +259,17 @@ export const alignWordsToAudio = async (
     ?.map((p: any) => p.text ?? "")
     .join("");
   if (!text) throw new Error("Forced alignment: Gemini không trả nội dung.");
-  const parsed = JSON.parse(text) as { words?: Array<{ startMs: number; endMs: number }> };
+  const parsed = JSON.parse(text) as {
+    words?: Array<{ startMs: number; endMs: number }>;
+  };
   const words = parsed?.words;
   if (!Array.isArray(words) || words.length !== tokens.length) {
     throw new Error(
-      `Forced alignment: số từ trả về (${words?.length ?? 0}) khác số từ hiển thị (${tokens.length}).`
+      `Forced alignment: số từ trả về (${words?.length ?? 0}) khác số từ hiển thị (${tokens.length}).`,
     );
   }
-  return words.map((w) => ({ startMs: Math.round(w.startMs), endMs: Math.round(w.endMs) }));
+  return words.map((w) => ({
+    startMs: Math.round(w.startMs),
+    endMs: Math.round(w.endMs),
+  }));
 };

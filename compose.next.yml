@@ -1,0 +1,43 @@
+name: ai-motion-studio-next
+services:
+  studio:
+    image: ai-motion-studio-next-renderer:local
+    container_name: ams-next-studio
+    init: true
+    restart: unless-stopped
+    entrypoint: ["pnpm"]
+    command: ["--filter", "@ams/server", "start"]
+    working_dir: /app
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "4621"
+      COOKIE_SECURE: "0"
+      DB_HOST: host.docker.internal
+      DB_PORT: "3319"
+      WEB_BASE_URL: http://localhost:4621
+      RENDER_DOCKER_IMAGE: ""
+      RENDER_CONCURRENCY: "1"
+      RENDER_FRAME_CONCURRENCY: "3"
+      STORAGE_ROOT: /Users/tuanbui/Documents/Codex/2026-09-07/hi-n-nay-tr-n-facebook/outputs/ai-motion-studio-next/apps/server/storage
+    ports:
+      - "127.0.0.1:4621:4621"
+      - "127.0.0.1:4620:4621"
+    cpus: 4
+    mem_limit: 5g
+    stop_grace_period: 30s
+    volumes:
+      - ./apps/server/src:/app/apps/server/src:ro
+      - ./apps/web/dist:/app/apps/web/dist:ro
+      - ./packages/pipeline/src:/app/packages/pipeline/src:ro
+      - ./packages/motion-engine/src:/app/packages/motion-engine/src:ro
+      - ./packages/motion-engine/scripts:/app/packages/motion-engine/scripts:ro
+      - ./assets:/app/assets:ro
+      - ./apps/server/storage:/Users/tuanbui/Documents/Codex/2026-09-07/hi-n-nay-tr-n-facebook/outputs/ai-motion-studio-next/apps/server/storage
+      - ./assets:/Users/tuanbui/Documents/Codex/2026-09-07/hi-n-nay-tr-n-facebook/outputs/ai-motion-studio-next/assets:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4621/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

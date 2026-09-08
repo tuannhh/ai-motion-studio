@@ -1,4 +1,8 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
+import {
+  createRouter,
+  createWebHistory,
+  type RouteRecordRaw,
+} from "vue-router";
 
 /**
  * Router "địa chỉ" thuần — không có <router-view> nào mount route.component.
@@ -11,6 +15,7 @@ const stub = { render: () => null };
 
 export const FEATURE_ROUTES = {
   create: "/tao-video",
+  studio: "/ban-dung",
   projects: "/video-da-tao",
   series: "/serie",
   templates: "/video-template",
@@ -25,12 +30,22 @@ export const MOBILE_MORE_ROUTE = "/them";
 
 const routes: RouteRecordRaw[] = [
   { path: "/", redirect: FEATURE_ROUTES.create },
+  { path: "/tai-dung/:templateId", name: "reconstruction", component: stub },
+  { path: "/ban-dung/:scriptId", name: "studio", component: stub },
   { path: FEATURE_ROUTES.create, name: "create", component: stub },
   { path: FEATURE_ROUTES.projects, name: "projects", component: stub },
-  { path: `${FEATURE_ROUTES.projects}/:slug/:id`, name: "project-detail", component: stub },
+  {
+    path: `${FEATURE_ROUTES.projects}/:slug/:id`,
+    name: "project-detail",
+    component: stub,
+  },
   { path: FEATURE_ROUTES.series, name: "series", component: stub },
   { path: FEATURE_ROUTES.templates, name: "templates", component: stub },
-  { path: `${FEATURE_ROUTES.templates}/:slug/:id`, name: "template-detail", component: stub },
+  {
+    path: `${FEATURE_ROUTES.templates}/:slug/:id`,
+    name: "template-detail",
+    component: stub,
+  },
   { path: FEATURE_ROUTES.watermark, name: "watermark", component: stub },
   { path: FEATURE_ROUTES.music, name: "music", component: stub },
   { path: FEATURE_ROUTES.users, name: "users", component: stub },

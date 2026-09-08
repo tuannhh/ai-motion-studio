@@ -10,3 +10,6 @@ apps/server/storage/
 *.log
 .DS_Store
 packages/motion-engine/.bundle-cache/
+
+# Generated preview sound library (pnpm prepare:preview)
+apps/web/public/sfx/

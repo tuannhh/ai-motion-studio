@@ -28,7 +28,9 @@ export const workflowSchema = z.object({
   voiceRegion: z.enum(["bac", "nam"]).default("bac"),
   voiceStyle: z.enum(["thoisu", "tintuc", "tvc"]).default("tintuc"),
   voiceMood: z.enum(["neutral", "cheerful", "energetic"]).default("neutral"),
-  voiceAge: z.enum(["thanhnien", "trungnien", "nguoidilam"]).default("nguoidilam"),
+  voiceAge: z
+    .enum(["thanhnien", "trungnien", "nguoidilam"])
+    .default("nguoidilam"),
   voiceSpeed: z.union([z.literal(1), z.literal(1.2)]).default(1),
   /**
    * true (mặc định) = giữ gate người duyệt kịch bản trước khi render;
@@ -59,7 +61,7 @@ const rowToDto = (row: RowDataPacket) => ({
 export const listTemplates = async (userId: number) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM templates WHERE user_id = ? ORDER BY id DESC LIMIT 100`,
-    [userId]
+    [userId],
   );
   return rows.map(rowToDto);
 };
@@ -67,7 +69,7 @@ export const listTemplates = async (userId: number) => {
 export const getTemplateOwned = async (userId: number, templateId: number) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM templates WHERE id = ? AND user_id = ? LIMIT 1`,
-    [templateId, userId]
+    [templateId, userId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy template.");
   return rows[0];
@@ -79,11 +81,11 @@ export const getTemplateDetail = async (userId: number, templateId: number) =>
 /** Tra id số từ public_id (URL sub-path) — chống IDOR bằng điều kiện user_id. */
 export const resolveTemplateIdByPublicId = async (
   userId: number,
-  publicId: string
+  publicId: string,
 ): Promise<number> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT id FROM templates WHERE public_id = ? AND user_id = ? LIMIT 1`,
-    [publicId, userId]
+    [publicId, userId],
   );
   if (!rows[0]) throw notFound("Không tìm thấy template.");
   return Number(rows[0].id);
@@ -92,7 +94,7 @@ export const resolveTemplateIdByPublicId = async (
 /** Profile đã ready của template (dùng khi sinh kịch bản) — fail-closed */
 export const getReadyProfile = async (
   userId: number,
-  templateId: number
+  templateId: number,
 ): Promise<{ profile: StyleProfile; workflow: TemplateWorkflow }> => {
   const row = await getTemplateOwned(userId, templateId);
   if (row.status !== "ready" || !row.profile_json) {
@@ -112,7 +114,7 @@ export const getReadyProfile = async (
 export const createTemplate = async (
   userId: number,
   name: string,
-  file: { originalname: string; path: string; size: number }
+  file: { originalname: string; path: string; size: number },
 ): Promise<number> => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!videoMimeOf(file.originalname)) {
@@ -139,7 +141,7 @@ export const createTemplate = async (
       file.originalname.slice(0, 255),
       storedPath,
       JSON.stringify(workflowSchema.parse({})),
-    ]
+    ],
   );
   const templateId = result.insertId;
 
@@ -147,13 +149,13 @@ export const createTemplate = async (
     .then(async (profile) => {
       await pool.query(
         `UPDATE templates SET status = 'ready', profile_json = ?, error_message = NULL WHERE id = ?`,
-        [JSON.stringify(profile), templateId]
+        [JSON.stringify(profile), templateId],
       );
     })
     .catch(async (err) => {
       await pool.query(
         `UPDATE templates SET status = 'failed', error_message = ? WHERE id = ?`,
-        [String((err as Error).message).slice(0, 1000), templateId]
+        [String((err as Error).message).slice(0, 1000), templateId],
       );
     });
   return templateId;
@@ -162,7 +164,7 @@ export const createTemplate = async (
 /** Phân tích lại (sau lỗi hoặc muốn refresh profile) */
 export const reanalyzeTemplate = async (
   userId: number,
-  templateId: number
+  templateId: number,
 ): Promise<void> => {
   const row = await getTemplateOwned(userId, templateId);
   if (row.status === "analyzing") {
@@ -174,19 +176,26 @@ export const reanalyzeTemplate = async (
   }
   await pool.query(
     `UPDATE templates SET status = 'analyzing', error_message = NULL WHERE id = ?`,
-    [templateId]
+    [templateId],
   );
   void analyzeVideoStyle(videoPath)
     .then(async (profile) => {
+      const previous = row.profile_json
+        ? JSON.parse(String(row.profile_json))
+        : {};
+      if (previous.motionBlueprint) {
+        profile.motionBlueprint = previous.motionBlueprint;
+        profile.motionEnabled = previous.motionEnabled !== false;
+      }
       await pool.query(
         `UPDATE templates SET status = 'ready', profile_json = ? WHERE id = ?`,
-        [JSON.stringify(profile), templateId]
+        [JSON.stringify(profile), templateId],
       );
     })
     .catch(async (err) => {
       await pool.query(
         `UPDATE templates SET status = 'failed', error_message = ? WHERE id = ?`,
-        [String((err as Error).message).slice(0, 1000), templateId]
+        [String((err as Error).message).slice(0, 1000), templateId],
       );
     });
 };
@@ -195,9 +204,15 @@ export const reanalyzeTemplate = async (
 export const updateTemplate = async (
   userId: number,
   templateId: number,
-  input: { name?: string; workflow?: TemplateWorkflow }
+  input: { name?: string; workflow?: TemplateWorkflow; profile?: StyleProfile },
 ): Promise<void> => {
   await getTemplateOwned(userId, templateId);
+  if (input.profile !== undefined) {
+    await pool.query("UPDATE templates SET profile_json=? WHERE id=?", [
+      JSON.stringify(styleProfileSchema.parse(input.profile)),
+      templateId,
+    ]);
+  }
   if (input.name !== undefined) {
     await pool.query(`UPDATE templates SET name = ? WHERE id = ?`, [
       input.name,
@@ -214,13 +229,44 @@ export const updateTemplate = async (
 
 export const deleteTemplate = async (
   userId: number,
-  templateId: number
+  templateId: number,
 ): Promise<void> => {
-  const row = await getTemplateOwned(userId, templateId);
-  await pool.query(`DELETE FROM templates WHERE id = ?`, [templateId]);
-  if (row.source_video_path) {
-    fs.rmSync(String(row.source_video_path), { force: true });
+  const conn = await pool.getConnection();
+  let videoPath: string | null = null;
+  let runIds: number[] = [];
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query<RowDataPacket[]>(
+      "SELECT source_video_path FROM templates WHERE id=? AND user_id=? FOR UPDATE",
+      [templateId, userId],
+    );
+    if (!rows[0]) throw notFound();
+    const [runs] = await conn.query<RowDataPacket[]>(
+      "SELECT id,status FROM motion_runs WHERE template_id=?",
+      [templateId],
+    );
+    if (runs.some((r) => r.status === "queued" || r.status === "running"))
+      throw badRequest(
+        "Mẫu đang tái dựng chuyển động. Đợi hoàn tất trước khi xoá.",
+      );
+    videoPath = rows[0].source_video_path
+      ? String(rows[0].source_video_path)
+      : null;
+    runIds = runs.map((r) => Number(r.id));
+    await conn.query("DELETE FROM templates WHERE id=?", [templateId]);
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
   }
+  if (videoPath) fs.rmSync(videoPath, { force: true });
+  for (const runId of runIds)
+    fs.rmSync(
+      path.join(storagePaths.privateTemplates, "motion-runs", String(runId)),
+      { recursive: true, force: true },
+    );
 };
 
 /**
@@ -233,7 +279,12 @@ const looksLikeVideo = (filePath: string, ext: string): boolean => {
     const head = Buffer.alloc(12);
     fs.readSync(fd, head, 0, 12, 0);
     if (ext === ".webm") {
-      return head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3;
+      return (
+        head[0] === 0x1a &&
+        head[1] === 0x45 &&
+        head[2] === 0xdf &&
+        head[3] === 0xa3
+      );
     }
     return head.subarray(4, 8).toString("ascii") === "ftyp";
   } finally {

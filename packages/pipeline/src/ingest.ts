@@ -43,19 +43,23 @@ const EXTRACT_PROMPT = `Bạn là trợ lý nghiên cứu. Trích xuất TOÀN B
 4. Nếu tài liệu có chữ trong ảnh/scan: OCR đầy đủ phần chữ đó.
 Trả về text thuần tiếng Việt, có đề mục rõ ràng. KHÔNG bịa thông tin không có trong tài liệu.`;
 
-const geminiExtract = async (filePath: string, mimeType: string): Promise<string> => {
+const geminiExtract = async (
+  filePath: string,
+  mimeType: string,
+): Promise<string> => {
   const { geminiApiKey, contentModel } = config();
   if (!geminiApiKey) throw new Error("Thiếu GEMINI_API_KEY.");
   const bytes = fs.readFileSync(filePath);
   if (bytes.length > MAX_INLINE_BYTES) {
     throw new Error(
-      `File ${path.basename(filePath)} nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén/cắt ngắn trước khi nạp.`
+      `File ${path.basename(filePath)} nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén/cắt ngắn trước khi nạp.`,
     );
   }
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${contentModel}:generateContent`,
     {
       method: "POST",
+      signal: AbortSignal.timeout(180_000),
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": geminiApiKey,
@@ -72,16 +76,19 @@ const geminiExtract = async (filePath: string, mimeType: string): Promise<string
         ],
         generationConfig: { temperature: 0.2, maxOutputTokens: 16384 },
       }),
-    }
+    },
   );
   if (!res.ok) {
-    throw new Error(`Gemini extract HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    throw new Error(
+      `Gemini extract HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`,
+    );
   }
   const data: any = await res.json();
   const text = data?.candidates?.[0]?.content?.parts
     ?.map((p: any) => p.text ?? "")
     .join("");
-  if (!text) throw new Error(`Gemini không trích xuất được ${path.basename(filePath)}.`);
+  if (!text)
+    throw new Error(`Gemini không trích xuất được ${path.basename(filePath)}.`);
   return text;
 };
 
@@ -91,20 +98,27 @@ const IMAGE_CAPTION_PROMPT = `Bạn là biên tập ảnh cho video. Mô tả �
 Trả về text thuần tiếng Việt. KHÔNG bịa chi tiết không có trong ảnh.`;
 
 /** Sinh chú thích + mô tả cho 1 ảnh (dòng đầu là caption ngắn để hiển thị) */
-const geminiCaptionImage = async (filePath: string, mimeType: string): Promise<string> => {
+const geminiCaptionImage = async (
+  filePath: string,
+  mimeType: string,
+): Promise<string> => {
   const { geminiApiKey, contentModel } = config();
   if (!geminiApiKey) throw new Error("Thiếu GEMINI_API_KEY.");
   const bytes = fs.readFileSync(filePath);
   if (bytes.length > MAX_INLINE_BYTES) {
     throw new Error(
-      `Ảnh ${path.basename(filePath)} nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén nhỏ hơn.`
+      `Ảnh ${path.basename(filePath)} nặng ${(bytes.length / 1e6).toFixed(1)}MB > 18MB — hãy nén nhỏ hơn.`,
     );
   }
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${contentModel}:generateContent`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": geminiApiKey },
+      signal: AbortSignal.timeout(180_000),
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey,
+      },
       body: JSON.stringify({
         contents: [
           {
@@ -117,14 +131,19 @@ const geminiCaptionImage = async (filePath: string, mimeType: string): Promise<s
         ],
         generationConfig: { temperature: 0.2, maxOutputTokens: 1024 },
       }),
-    }
+    },
   );
   if (!res.ok) {
-    throw new Error(`Gemini caption ảnh HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    throw new Error(
+      `Gemini caption ảnh HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`,
+    );
   }
   const data: any = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("");
-  if (!text?.trim()) throw new Error(`Gemini không mô tả được ảnh ${path.basename(filePath)}.`);
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p.text ?? "")
+    .join("");
+  if (!text?.trim())
+    throw new Error(`Gemini không mô tả được ảnh ${path.basename(filePath)}.`);
   return text.trim();
 };
 
@@ -159,19 +178,31 @@ export const ingestFile = async (filePath: string): Promise<IngestedSource> => {
     return { name, text: extractDocx(abs), method: "docx-local" };
   }
   if (ext === ".doc") {
-    throw new Error(`${name}: định dạng .doc cũ chưa hỗ trợ — hãy lưu lại thành .docx hoặc .pdf.`);
+    throw new Error(
+      `${name}: định dạng .doc cũ chưa hỗ trợ — hãy lưu lại thành .docx hoặc .pdf.`,
+    );
   }
   const imageMime = IMAGE_MIME_BY_EXT[ext];
   if (imageMime) {
     // Ảnh THẬT người dùng tải lên: giữ nguyên file trên đĩa (dùng làm asset khi
     // render), extracted_text = chú thích để AI biết nội dung ảnh khi viết kịch bản.
-    return { name, text: await geminiCaptionImage(abs, imageMime), method: `image:${imageMime}` };
+    return {
+      name,
+      text: await geminiCaptionImage(abs, imageMime),
+      method: `image:${imageMime}`,
+    };
   }
   const mime = MIME_BY_EXT[ext];
   if (!mime) {
-    throw new Error(`${name}: chưa hỗ trợ định dạng ${ext} (hỗ trợ: txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm).`);
+    throw new Error(
+      `${name}: chưa hỗ trợ định dạng ${ext} (hỗ trợ: txt, md, docx, pdf, mp3, wav, m4a, mp4, mov, webm).`,
+    );
   }
-  return { name, text: await geminiExtract(abs, mime), method: `gemini:${mime}` };
+  return {
+    name,
+    text: await geminiExtract(abs, mime),
+    method: `gemini:${mime}`,
+  };
 };
 
 // ===== Trích ẢNH NHÚNG trong tài liệu (docx/pdf) =====
@@ -194,7 +225,7 @@ const MAX_EMBEDDED_IMAGES = 8;
 export const extractEmbeddedImages = async (
   filePath: string,
   destDir: string,
-  baseName: string
+  baseName: string,
 ): Promise<{ file: string; mime: string }[]> => {
   const abs = path.resolve(filePath);
   const ext = path.extname(abs).toLowerCase();
@@ -235,8 +266,16 @@ export const extractEmbeddedImages = async (
     const out: { file: string; mime: string }[] = [];
     picked.forEach((src, i) => {
       const e = path.extname(src).toLowerCase();
-      const mime = e === ".png" ? "image/png" : e === ".webp" ? "image/webp" : "image/jpeg";
-      const dest = path.join(destDir, `${baseName}-img${i + 1}${e === ".jpeg" ? ".jpg" : e}`);
+      const mime =
+        e === ".png"
+          ? "image/png"
+          : e === ".webp"
+            ? "image/webp"
+            : "image/jpeg";
+      const dest = path.join(
+        destDir,
+        `${baseName}-img${i + 1}${e === ".jpeg" ? ".jpg" : e}`,
+      );
       fs.copyFileSync(src, dest);
       out.push({ file: dest, mime });
     });
@@ -265,7 +304,7 @@ const PDF_PAGE_RENDER_DPI = 144;
 export const renderPdfPages = async (
   filePath: string,
   destDir: string,
-  baseName: string
+  baseName: string,
 ): Promise<{ file: string; page: number }[]> => {
   const abs = path.resolve(filePath);
   if (path.extname(abs).toLowerCase() !== ".pdf") return [];
@@ -278,8 +317,16 @@ export const renderPdfPages = async (
   try {
     spawnSync(
       "pdftoppm",
-      ["-png", "-r", String(PDF_PAGE_RENDER_DPI), "-l", String(MAX_PDF_PAGES_TO_RENDER), abs, path.join(tmp, "page")],
-      { maxBuffer: 32 * 1024 * 1024 }
+      [
+        "-png",
+        "-r",
+        String(PDF_PAGE_RENDER_DPI),
+        "-l",
+        String(MAX_PDF_PAGES_TO_RENDER),
+        abs,
+        path.join(tmp, "page"),
+      ],
+      { maxBuffer: 32 * 1024 * 1024 },
     );
     // pdftoppm tự đặt tên "page-<N>.png" (đệm số theo tổng số trang thật của file) —
     // đọc lại thư mục thay vì đoán tên để không phụ thuộc độ đệm.
@@ -334,15 +381,21 @@ const isPrivateIp = (ip: string): boolean => {
 export const assertPublicHost = async (hostname: string): Promise<void> => {
   const host = hostname.replace(/^\[|\]$/g, "");
   if (isIP(host)) {
-    if (isPrivateIp(host)) throw new Error("Link trỏ tới địa chỉ nội bộ — từ chối.");
+    if (isPrivateIp(host))
+      throw new Error("Link trỏ tới địa chỉ nội bộ — từ chối.");
     return;
   }
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) {
+  if (
+    host === "localhost" ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
     throw new Error("Link trỏ tới host nội bộ — từ chối.");
   }
   const records = await dns.lookup(host, { all: true });
   for (const r of records) {
-    if (isPrivateIp(r.address)) throw new Error("Link phân giải ra địa chỉ nội bộ — từ chối.");
+    if (isPrivateIp(r.address))
+      throw new Error("Link phân giải ra địa chỉ nội bộ — từ chối.");
   }
 };
 
@@ -350,7 +403,10 @@ const MAX_URL_BYTES = 3 * 1024 * 1024;
 
 /** fetch 1 URL qua cổng SSRF (assertPublicHost), tự đi theo tối đa 3 redirect,
  * kiểm IP lại ở MỖI chặng (redirect có thể trỏ sang host khác host gốc). */
-const safeFetch = async (rawUrl: string, accept: string): Promise<{ res: Response; finalUrl: URL }> => {
+const safeFetch = async (
+  rawUrl: string,
+  accept: string,
+): Promise<{ res: Response; finalUrl: URL }> => {
   let current: URL;
   try {
     current = new URL(rawUrl.trim());
@@ -365,7 +421,10 @@ const safeFetch = async (rawUrl: string, accept: string): Promise<{ res: Respons
     const r = await fetch(current.toString(), {
       redirect: "manual",
       signal: AbortSignal.timeout(15000),
-      headers: { "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)", Accept: accept },
+      headers: {
+        "User-Agent": "AI-Motion-Studio/1.0 (+source-ingest)",
+        Accept: accept,
+      },
     });
     if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
       current = new URL(r.headers.get("location")!, current); // giải tương đối, vòng sau kiểm IP lại
@@ -381,11 +440,15 @@ const safeFetch = async (rawUrl: string, accept: string): Promise<{ res: Respons
  * 3 redirect (kiểm tra IP từng chặng), giới hạn dung lượng + timeout, strip HTML.
  */
 export const ingestUrl = async (rawUrl: string): Promise<IngestedSource> => {
-  const { res, finalUrl: current } = await safeFetch(rawUrl, "text/html,text/plain,*/*");
+  const { res, finalUrl: current } = await safeFetch(
+    rawUrl,
+    "text/html,text/plain,*/*",
+  );
   if (!res.ok) throw new Error(`Không tải được link (HTTP ${res.status}).`);
 
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > MAX_URL_BYTES) throw new Error("Nội dung link quá lớn (>3MB).");
+  if (buf.length > MAX_URL_BYTES)
+    throw new Error("Nội dung link quá lớn (>3MB).");
   const ctype = res.headers.get("content-type") ?? "";
   let text = buf.toString("utf8");
   if (ctype.includes("html") || /<html[\s>]/i.test(text)) {
@@ -430,7 +493,7 @@ const MAX_URL_IMAGES = 6;
 export const extractUrlImages = async (
   rawUrl: string,
   destDir: string,
-  baseName: string
+  baseName: string,
 ): Promise<{ file: string; mime: string }[]> => {
   let html: string;
   let pageUrl: URL;
@@ -489,8 +552,14 @@ export const extractUrlImages = async (
             : null;
       if (!ext) continue; // chỉ nhận raster thật (bỏ svg/gif/loại không rõ)
       const buf = Buffer.from(await r.arrayBuffer());
-      if (buf.length < MIN_URL_IMAGE_BYTES || buf.length > MAX_URL_IMAGE_BYTES) continue;
-      const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+      if (buf.length < MIN_URL_IMAGE_BYTES || buf.length > MAX_URL_IMAGE_BYTES)
+        continue;
+      const mime =
+        ext === ".png"
+          ? "image/png"
+          : ext === ".webp"
+            ? "image/webp"
+            : "image/jpeg";
       const dest = path.join(destDir, `${baseName}-img${out.length + 1}${ext}`);
       fs.writeFileSync(dest, buf);
       out.push({ file: dest, mime });

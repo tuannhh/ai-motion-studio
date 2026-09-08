@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { motionDocumentSchema } from "../motion/schema";
 
 /**
  * Scene-spec v1 — hợp đồng giữa tầng AI (sinh kịch bản) và tầng render (Remotion).
@@ -16,9 +17,9 @@ export const SAFE_BOTTOM = 320;
 
 export const stylePresetSchema = z.enum([
   "midnight", // nền tối xanh đêm + electric blue (mặc định, video công nghệ/AI)
-  "aurora",   // tối tím-teal, blob cực quang
-  "paper",    // editorial kem + mực + cam đất, FLAT — chuẩn "AI Agents 101"
-  "noir",     // gần đen + đỏ báo chí — chuẩn "AI News dark evidence"
+  "aurora", // tối tím-teal, blob cực quang
+  "paper", // editorial kem + mực + cam đất, FLAT — chuẩn "AI Agents 101"
+  "noir", // gần đen + đỏ báo chí — chuẩn "AI News dark evidence"
 ]);
 export type StylePreset = z.infer<typeof stylePresetSchema>;
 
@@ -45,7 +46,20 @@ const sfxCueSchema = z.object({
 });
 
 const sceneBase = {
-  id: z.string().min(1),
+  id: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      "Scene id chỉ gồm chữ, số, gạch ngang hoặc gạch dưới",
+    ),
+  transition: z
+    .enum(["auto", "fade", "whip", "zoom", "wipe", "iris", "slide"])
+    .default("auto"),
+  soundDesign: z
+    .enum(["auto", "none", "whoosh", "ding", "pop", "impact", "paper"])
+    .default("auto"),
   /** Nếu bỏ trống: engine tự tính từ voiceover hoặc default theo loại scene */
   durationInFrames: z.number().int().positive().optional(),
   voiceover: voiceoverSchema.optional(),
@@ -89,7 +103,7 @@ export const pointsSceneSchema = z.object({
         /** tên icon lucide (PascalCase), ví dụ "Zap", "ShieldCheck" */
         icon: z.string().optional(),
         text: z.string().min(1).max(90),
-      })
+      }),
     )
     .min(2)
     .max(5),
@@ -99,7 +113,15 @@ export const pointsSceneSchema = z.object({
    * chỉnh tay/debug khi cần.
    */
   layout: z
-    .enum(["auto", "cards", "bignum", "grid", "checklist", "zigzag", "numbered-rail"])
+    .enum([
+      "auto",
+      "cards",
+      "bignum",
+      "grid",
+      "checklist",
+      "zigzag",
+      "numbered-rail",
+    ])
     .default("auto"),
 });
 
@@ -115,7 +137,7 @@ export const flowSceneSchema = z.object({
         label: z.string().min(1).max(48),
         icon: z.string().optional(),
         emphasis: z.boolean().default(false),
-      })
+      }),
     )
     .min(2)
     .max(6),
@@ -125,7 +147,7 @@ export const flowSceneSchema = z.object({
         from: z.string(),
         to: z.string(),
         label: z.string().max(24).optional(),
-      })
+      }),
     )
     .max(6),
 });
@@ -150,7 +172,7 @@ export const diagramSceneSchema = z.object({
         /** box (mặc định), pill (bo tròn), hub (nút tròn trung tâm) */
         kind: z.enum(["box", "pill", "hub"]).default("box"),
         emphasis: z.boolean().default(false),
-      })
+      }),
     )
     .min(2)
     .max(7),
@@ -162,7 +184,7 @@ export const diagramSceneSchema = z.object({
         label: z.string().max(20).optional(),
         /** đường nét đứt (quan hệ phụ/không bắt buộc) */
         dashed: z.boolean().default(false),
-      })
+      }),
     )
     .min(1)
     .max(10),
@@ -179,7 +201,7 @@ export const timelineSceneSchema = z.object({
         time: z.string().max(16).optional(),
         label: z.string().min(1).max(48),
         desc: z.string().max(80).optional(),
-      })
+      }),
     )
     .min(2)
     .max(5),
@@ -254,7 +276,7 @@ export const rankSceneSchema = z.object({
         /** hiển thị sau số, ví dụ "%", "đ" */
         unit: z.string().max(10).optional(),
         highlight: z.boolean().default(false),
-      })
+      }),
     )
     .min(2)
     .max(6),
@@ -285,7 +307,16 @@ export const chartSceneSchema = z.object({
   title: z.string().max(60).optional(),
   sub: subField,
   variant: z
-    .enum(["bar", "line", "donut", "gauge", "thermometer", "waffle", "spark", "duo"])
+    .enum([
+      "bar",
+      "line",
+      "donut",
+      "gauge",
+      "thermometer",
+      "waffle",
+      "spark",
+      "duo",
+    ])
     .default("bar"),
   /** hiển thị sau số, ví dụ "%", "tỷ" */
   unit: z.string().max(10).optional(),
@@ -301,7 +332,7 @@ export const chartSceneSchema = z.object({
         label: z.string().min(1).max(18),
         value: z.number(),
         highlight: z.boolean().default(false),
-      })
+      }),
     )
     .min(1)
     .max(12),
@@ -318,7 +349,7 @@ export const bigwordSceneSchema = z.object({
       z.object({
         text: z.string().min(1).max(40),
         accent: z.boolean().default(false),
-      })
+      }),
     )
     .min(2)
     .max(5),
@@ -361,7 +392,7 @@ export const terminalSceneSchema = z.object({
         kind: z.enum(["cmd", "out", "comment"]).default("out"),
         text: z.string().min(1).max(46),
         highlight: z.boolean().default(false),
-      })
+      }),
     )
     .min(2)
     .max(8),
@@ -388,6 +419,8 @@ export const screenshotSceneSchema = z.object({
    * không phải ảnh AI vẽ — Screenshot.tsx đổi sang khung thẻ trắng bo góc thay vì khung
    * điện thoại/trình duyệt giả (chrome giả chỉ hợp ảnh AI vẽ sẵn chrome). AI KHÔNG tự set. */
   real: z.boolean().default(false),
+  /** Actual source width/height, measured after crop/copy by the pipeline. */
+  imageAspectRatio: z.number().positive().finite().optional(),
   /** chấm chú thích đánh số 1..n chỉ vào chi tiết UI (toạ độ theo tỷ lệ ảnh) — CHỈ áp
    * dụng khi ảnh AI vẽ (real=false); ảnh thật render dạng thẻ sạch, không vẽ marker
    * (toạ độ fraction không khớp khi ảnh thật hiển thị object-fit:contain letterbox). */
@@ -397,7 +430,7 @@ export const screenshotSceneSchema = z.object({
         x: z.number().min(0).max(1),
         y: z.number().min(0).max(1),
         label: z.string().min(1).max(40),
-      })
+      }),
     )
     .max(4)
     .default([]),
@@ -411,7 +444,15 @@ export const outroSceneSchema = z.object({
   handle: z.string().max(40).optional(),
 });
 
+export const motionSceneSchema = z.object({
+  ...sceneBase,
+  type: z.literal("motion"),
+  title: z.string().max(120).default("Cảnh tái dựng"),
+  document: motionDocumentSchema,
+});
+
 export const sceneSchema = z.discriminatedUnion("type", [
+  motionSceneSchema,
   hookSceneSchema,
   pointsSceneSchema,
   flowSceneSchema,
@@ -499,6 +540,7 @@ export type VideoSpec = z.infer<typeof videoSpecSchema>;
 
 /** Thời lượng mặc định (giây) theo loại scene khi không có voiceover */
 export const DEFAULT_SCENE_SECONDS: Record<SceneType, number> = {
+  motion: 8,
   hook: 3.2,
   points: 6,
   flow: 8,
@@ -522,10 +564,17 @@ export const DEFAULT_SCENE_SECONDS: Record<SceneType, number> = {
 export const TRANSITION_FRAMES = 14;
 
 export const sceneDurationInFrames = (scene: Scene): number => {
-  if (scene.durationInFrames) return scene.durationInFrames;
+  if (scene.type === "motion" && !scene.voiceover)
+    return Math.round(scene.document.durationSec * FPS);
+  if (scene.durationInFrames && !scene.voiceover) return scene.durationInFrames;
   if (scene.voiceover) {
     // voiceover + 0.6s thở
-    return Math.round(((scene.voiceover.durationMs + 600) / 1000) * FPS);
+    return Math.max(
+      scene.type === "motion"
+        ? Math.round(scene.document.durationSec * FPS)
+        : (scene.durationInFrames ?? 0),
+      Math.round(((scene.voiceover.durationMs + 600) / 1000) * FPS),
+    );
   }
   return Math.round(DEFAULT_SCENE_SECONDS[scene.type] * FPS);
 };
@@ -533,7 +582,7 @@ export const sceneDurationInFrames = (scene: Scene): number => {
 export const totalDurationInFrames = (spec: VideoSpec): number => {
   const scenes = spec.scenes.reduce(
     (acc, s) => acc + sceneDurationInFrames(s),
-    0
+    0,
   );
   // TransitionSeries: mỗi transition ăn bớt TRANSITION_FRAMES
   return scenes - TRANSITION_FRAMES * (spec.scenes.length - 1);
