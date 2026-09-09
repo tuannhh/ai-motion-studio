@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto'
 
-// Nguồn quy ước: VOICE_OFF_TTS_RULES.md phiên bản 2026.09.04-r4 (mục 23.1 bổ
+// Nguồn quy ước: VOICE_OFF_TTS_RULES.md phiên bản 2026.09.09-r5 (mục 23.1 bổ
 // sung bộ approved pronunciation nội bộ, thêm TCT/QHĐT/ĐHCĐ + "TB" phân loại
 // theo ngữ cảnh; §9.2 bổ sung mẫu năm rút gọn; §11A bổ sung đọc số theo ngữ
-// cảnh: giờ, tỷ lệ/phân số, tiền tệ, số định danh, số thứ tự).
-export const TTS_NORMALIZER_VERSION = '1.4.1'
+// cảnh: giờ, tỷ lệ/phân số, tiền tệ, số định danh, số thứ tự; §23.2 (MỚI ở r5)
+// bổ sung Named-Entity Pronunciation Dictionary cho tên tổ chức/liên minh/hiệp
+// hội/ứng dụng viết tắt — mỗi entity có 1 cách đọc "primary" cố định, không
+// suy diễn tự động từ chính tả).
+export const TTS_NORMALIZER_VERSION = '1.5.0'
 
 export type TtsWarning = { code: string; message: string; start: number; end: number }
 export type TtsTrace = {
@@ -14,7 +17,7 @@ export type TtsTrace = {
   normalized: string
   category:
     | 'YEAR' | 'DATE' | 'DOCUMENT_ID' | 'NUMBER' | 'PERCENT' | 'RANGE' | 'LEGAL_ACRONYM' | 'DICTIONARY'
-    | 'TIME' | 'RATIO' | 'FRACTION' | 'CURRENCY' | 'IDENTIFIER' | 'ORDINAL' | 'APPROVED_PRONUNCIATION' | 'PROTECTED' | 'BULLET'
+    | 'TIME' | 'RATIO' | 'FRACTION' | 'CURRENCY' | 'IDENTIFIER' | 'ORDINAL' | 'APPROVED_PRONUNCIATION' | 'NAMED_ENTITY_PRONUNCIATION' | 'PROTECTED' | 'BULLET'
   ruleId: string
   confidence: number
 }
@@ -300,6 +303,50 @@ function addTbContextCandidates(source: string, add: (item: Candidate) => void):
   }
 }
 
+// Named-Entity Pronunciation Dictionary (VOICE_OFF_TTS_RULES §23.2.5) — tên
+// viết tắt của tổ chức/liên minh/hiệp hội/ứng dụng KHÔNG có quy tắc phát âm
+// chung (không phải cứ ALL CAPS là đọc từng chữ, không phải cứ có nguyên âm
+// là đọc thành từ). Mỗi entity dưới đây đã có cách đọc "primary" được duyệt
+// sẵn (bỏ qua các "alternative" trong tài liệu vì hệ thống không random giữa
+// 2 cách đọc hợp lệ — luôn dùng đúng 1 primary xác định). `VneID` là alias
+// case-khác của `VNeID`, cùng trỏ 1 cách đọc.
+const NAMED_ENTITY_PRONUNCIATIONS: Record<string, string> = {
+  CYSEEX: 'sai xích',
+  VINASA: 'vi na sa',
+  FIFA: 'phi pha',
+  VAA: 'vê a a',
+  VAPAC: 'va pắc',
+  VCCA: 'vi xi xi ây',
+  NDA: 'en đi ây',
+  VTCA: 'vi ti xi ây',
+  viNen: 'vi nen',
+  VNABC: 'vi en ây bi xi',
+  VinaSME: 'vi na ét em i',
+  NCA: 'en xi ây',
+  HanoiBA: 'Hà Nội bi ây',
+  VNeID: 'vi en i ai đi',
+  VneID: 'vi en i ai đi',
+}
+
+// Cùng cơ chế boundary-safe + case-sensitive như addApprovedPronunciationCandidates
+// (VOICE_OFF_TTS_RULES §23.1.1 mục 3) — không có key nào trong bảng trên là tiền
+// tố/hậu tố của key khác nên không cần longest-match-first riêng.
+function addNamedEntityPronunciationCandidates(source: string, add: (item: Candidate) => void): void {
+  for (const [key, spoken] of Object.entries(NAMED_ENTITY_PRONUNCIATIONS)) {
+    let cursor = 0
+    while (cursor <= source.length) {
+      const start = source.indexOf(key, cursor)
+      if (start < 0) break
+      const end = start + key.length
+      cursor = start + Math.max(1, key.length)
+      const startsInsideWord = isWordCharacter(key[0]) && isWordCharacter(source[start - 1])
+      const endsInsideWord = isWordCharacter(key.at(-1)) && isWordCharacter(source[end])
+      if (startsInsideWord || endsInsideWord) continue
+      add(candidate(start, source.slice(start, end), spoken, 'NAMED_ENTITY_PRONUNCIATION', `NAMED_ENTITY_PRONUNCIATION_${key}`))
+    }
+  }
+}
+
 // Bảo vệ URL/email khỏi mọi biến đổi phía dưới (số, "&", approved pronunciation…)
 // — VOICE_OFF_TTS_RULES §7. Chiếm trọn vùng, thắng mọi candidate lồng bên trong
 // nhờ có vị trí bắt đầu sớm hơn trong bước chọn ưu tiên theo `start` tăng dần.
@@ -320,6 +367,7 @@ export function normalizeVietnameseVoiceOver(sourceText: string, dictionaryRules
   addProtectedRegionCandidates(source, add)
   addDictionaryCandidates(source, dictionaryRules, add)
   addApprovedPronunciationCandidates(source, add)
+  addNamedEntityPronunciationCandidates(source, add)
   addTbContextCandidates(source, add)
 
   for (const match of source.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g)) {
