@@ -6,8 +6,14 @@ import { createHash } from 'node:crypto'
 // cảnh: giờ, tỷ lệ/phân số, tiền tệ, số định danh, số thứ tự; §23.2 (MỚI ở r5)
 // bổ sung Named-Entity Pronunciation Dictionary cho tên tổ chức/liên minh/hiệp
 // hội/ứng dụng viết tắt — mỗi entity có 1 cách đọc "primary" cố định, không
-// suy diễn tự động từ chính tả).
-export const TTS_NORMALIZER_VERSION = '1.5.0'
+// suy diễn tự động từ chính tả). Sửa thêm 3 lỗi có sẵn từ r4 lộ ra khi verify
+// đúng ví dụ trong §9.4/§10.3: (a) YEAR_CONTEXT_001 hard-code chữ thường "năm"
+// đè lên hoa/thường gốc; (b) số lượng 4 chữ số không có "năm" đứng trước (vd
+// "mục tiêu 2026 khách hàng") bị bỏ qua hoàn toàn thay vì đọc theo số đếm;
+// (c) readVietnameseInteger thiếu đệm "không trăm" khi nhóm 3-chữ-số <100 là
+// nhóm CUỐI cùng (vd "1.001"→sai "một nghìn một", đúng phải "một nghìn không
+// trăm linh một").
+export const TTS_NORMALIZER_VERSION = '1.5.1'
 
 export type TtsWarning = { code: string; message: string; start: number; end: number }
 export type TtsTrace = {
@@ -92,8 +98,13 @@ export function readVietnameseInteger(raw: string): string | null {
   const parts: string[] = []
   groups.forEach((group, index) => {
     if (group === 0) return
-    const laterGroupExists = groups.slice(index + 1).some(Boolean)
-    parts.push(readBelowThousand(group, index > 0 && group < 100 && laterGroupExists))
+    // Nhóm không phải nhóm đầu (index>0) luôn có ít nhất 1 nhóm bậc cao hơn 0
+    // đứng trước (group[0] luôn >0 với số nguyên hợp lệ không có 0 dẫn đầu) —
+    // nên PHẢI đệm "không trăm" khi nhóm này <100, kể cả khi đây là nhóm CUỐI
+    // cùng (VOICE_OFF_TTS_RULES §10.3: "1.001"→"một nghìn không trăm linh một",
+    // "1.000.005"→"một triệu không trăm linh năm" — trước đây chỉ đệm khi còn
+    // nhóm khác #0 phía SAU nên bỏ sót đúng 2 ví dụ này).
+    parts.push(readBelowThousand(group, index > 0 && group < 100))
     const scale = scaleWords[groups.length - index - 1]
     if (scale) parts.push(scale)
   })
@@ -140,6 +151,16 @@ function speakOrdinal(n: number): string {
   if (n === 4) return 'tư'
   return readVietnameseInteger(String(n)) ?? String(n)
 }
+
+// Đơn vị đếm dùng làm tín hiệu QUANTITY cho số 4 chữ số độc lập — xem chỗ dùng
+// ở QUANTITY_FOUR_DIGIT_001 bên dưới.
+const QUANTITY_UNIT_NOUNS = [
+  'khách hàng', 'người dùng', 'người', 'nhân viên', 'nhân sự', 'doanh nghiệp',
+  'công ty', 'sản phẩm', 'đơn hàng', 'hồ sơ', 'giao dịch', 'lượt', 'đồng',
+  'tỷ đồng', 'triệu đồng', 'nghìn đồng', 'vụ', 'cửa hàng', 'chi nhánh', 'phòng ban',
+  'dự án', 'sự kiện', 'video', 'lần', 'cuộc', 'hộ gia đình', 'học sinh', 'sinh viên',
+  'giáo viên', 'bệnh nhân', 'chuyến', 'đại lý', 'tổ chức', 'quốc gia', 'tỉnh thành',
+]
 
 function overlap(left: Candidate, right: Candidate): boolean { return left.start < right.end && right.start < left.end }
 
@@ -383,7 +404,12 @@ export function normalizeVietnameseVoiceOver(sourceText: string, dictionaryRules
     const spoken = readVietnameseInteger(match[1])
     if (spoken) add(candidate(match.index!, match[0], `${spoken} ${speakYear(match[2])} nờ đê xê pê`, 'DOCUMENT_ID', 'DOCUMENT_ID_VI_001'))
   }
-  for (const match of source.matchAll(/\bnăm\s+(\d{4})\b/gi)) add(candidate(match.index!, match[0], `năm ${speakYear(match[1])}`, 'YEAR', 'YEAR_CONTEXT_001'))
+  // Chỉ tạo candidate cho PHẦN CHỮ SỐ, không đụng vào từ "năm"/"Năm" gốc — giữ
+  // nguyên hoa/thường đầu câu (trước đây hard-code chữ thường "năm" nên "Năm
+  // 2026" đầu câu bị hạ xuống "năm hai không hai sáu", sai display/case).
+  for (const match of source.matchAll(/\bnăm\s+(\d{4})\b/gi)) {
+    add(candidate(match.index! + match[0].length - match[1].length, match[1], speakYear(match[1]), 'YEAR', 'YEAR_CONTEXT_001'))
+  }
   // Khoảng năm "2024-2026" / "giai đoạn 1994–2026": mỗi vế đọc theo quy tắc NĂM,
   // dấu gạch = "đến". Ưu tiên trước quy tắc khoảng số chung (để khỏi đọc thành số lượng).
   for (const match of source.matchAll(/\b(\d{4})\s*[-–—]\s*(\d{4})\b/g)) {
@@ -395,6 +421,24 @@ export function normalizeVietnameseVoiceOver(sourceText: string, dictionaryRules
   }
   for (const match of source.matchAll(/\b(\d{3,4})\/(\d{4})\b/g)) add(candidate(match.index!, match[0], `${spokenDigit(match[1])} ${speakYear(match[2])}`, 'DOCUMENT_ID', 'DOCUMENT_ID_SHORT_001'))
   for (const match of source.matchAll(/\bNĐ-CP\b/g)) add(candidate(match.index!, match[0], 'nờ đê xê pê', 'LEGAL_ACRONYM', 'LEGAL_ACRONYM_NDCP_001'))
+
+  // Số lượng 4 chữ số đứng độc lập nhưng có DANH TỪ ĐƠN VỊ ĐẾM theo ngay sau
+  // (vd "mục tiêu 2026 khách hàng") — tín hiệu QUANTITY mạnh dù không có từ
+  // khoá ngữ cảnh năm nào khác (VOICE_OFF_TTS_RULES §9.4 ví dụ 2). Danh sách
+  // CÓ CHỦ ĐÍCH bounded (không phải Vietnamese Word Dictionary đầy đủ) — chỉ
+  // phủ đơn vị đếm thường gặp trong kịch bản MISA, để tránh đọc nhầm một năm
+  // thật không có "năm" đứng trước (vd "Đến 2026 sẽ ra mắt") thành số lượng.
+  // Chỉ áp dụng khi span CHƯA được rule năm/ngày/số văn bản nào ở trên nhận
+  // diện (kiểm qua `candidates` đã có), để không đọc đè lên năm đúng ngữ cảnh.
+  for (const match of source.matchAll(/\b(\d{4})\s+/g)) {
+    const start = match.index!
+    const digitsEnd = start + match[1].length
+    if (candidates.some((existing) => existing.start <= start && digitsEnd <= existing.end)) continue
+    const rest = source.slice(start + match[0].length)
+    if (!QUANTITY_UNIT_NOUNS.some((noun) => rest.startsWith(noun))) continue
+    const spoken = readVietnameseInteger(match[1])
+    if (spoken) add(candidate(start, match[1], spoken, 'NUMBER', 'QUANTITY_FOUR_DIGIT_001'))
+  }
 
   // Giờ dạng "8h00", kể cả khoảng "8h00-12h00" (khớp trước để chiếm trọn vùng
   // nhờ span dài hơn — VOICE_OFF_TTS_RULES §11A.4).
