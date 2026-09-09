@@ -12,8 +12,12 @@ import { createHash } from 'node:crypto'
 // "mục tiêu 2026 khách hàng") bị bỏ qua hoàn toàn thay vì đọc theo số đếm;
 // (c) readVietnameseInteger thiếu đệm "không trăm" khi nhóm 3-chữ-số <100 là
 // nhóm CUỐI cùng (vd "1.001"→sai "một nghìn một", đúng phải "một nghìn không
-// trăm linh một").
-export const TTS_NORMALIZER_VERSION = '1.5.1'
+// trăm linh một"); (d) readBelowThousand dùng nhầm "lẻ" làm từ nối cho SỐ
+// LƯỢNG — §10.5 quy định "linh" mới là chuẩn cho số lượng, "lẻ" chỉ dành cho
+// mẫu năm rút gọn 2001-2009 (đã đúng riêng ở speakYear); (e) chữ số 4 sau
+// "linh" vẫn phải đọc "tư" (104 → "một trăm linh tư"), trước đây rơi vào
+// nhánh mặc định "bốn".
+export const TTS_NORMALIZER_VERSION = '1.5.2'
 
 export type TtsWarning = { code: string; message: string; start: number; end: number }
 export type TtsTrace = {
@@ -73,12 +77,20 @@ function readBelowThousand(value: number, forceHundreds = false): string {
   const ones = value % 10
   const parts: string[] = []
   if (hundreds || forceHundreds) parts.push(`${digitWords[hundreds]} trăm`)
-  if (tens === 0 && ones > 0 && (hundreds || forceHundreds)) parts.push('lẻ')
+  // "linh" là từ nối CHUẨN cho số lượng thường (VOICE_OFF_TTS_RULES §10.5:
+  // "trong số lượng thông thường, chuẩn từ nối mặc định là linh, không dùng
+  // lẫn lẻ"). "lẻ" chỉ dành riêng cho mẫu năm rút gọn 2001-2009 đã xử lý
+  // riêng ở speakYear (§9.2) — readBelowThousand chỉ phục vụ đọc SỐ LƯỢNG nên
+  // trước đây dùng "lẻ" ở đây là sai phạm vi.
+  if (tens === 0 && ones > 0 && (hundreds || forceHundreds)) parts.push('linh')
   if (tens === 1) parts.push('mười')
   else if (tens > 1) parts.push(`${digitWords[tens]} mươi`)
   if (ones > 0) {
     if (tens > 1 && ones === 1) parts.push('mốt')
     else if (tens > 1 && ones === 4) parts.push('tư')
+    // Sau "linh" (hàng chục=0, có hàng trăm), chữ số 4 CŨNG đọc "tư" — VOICE_OFF_
+    // TTS_RULES §10.5: "104 → một trăm linh tư" (đọc "linh bốn" là sai).
+    else if (tens === 0 && ones === 4 && (hundreds || forceHundreds)) parts.push('tư')
     else if (tens > 0 && ones === 5) parts.push('lăm')
     else parts.push(digitWords[ones])
   }
